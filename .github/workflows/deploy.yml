@@ -71,7 +71,8 @@ jobs:
             set -euxo pipefail
             K=/root/.ssh/home_deploy
             O="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=30"
-            scp -i "$K" $O -r /tmp/deep-messenger root@100.118.211.24:/opt/deep-messenger
+            ssh -i "$K" $O root@100.118.211.24 'rm -rf /opt/deep-messenger && mkdir -p /opt/deep-messenger'
+            rsync -a --delete -e "ssh -i $K $O" /tmp/deep-messenger/ root@100.118.211.24:/opt/deep-messenger/
             if [ -n "${FIREBASE_JSON:-}" ]; then
               printf '%s' "$FIREBASE_JSON" > /tmp/firebase-sa.json
               ssh -i "$K" $O root@100.118.211.24 'mkdir -p /opt/deep-messenger/secrets'

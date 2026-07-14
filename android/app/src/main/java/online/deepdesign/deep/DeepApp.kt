@@ -23,6 +23,7 @@ class DeepApp : Application() {
         instance = this
         sessionStore = SessionStore(this)
         api = ApiClient.create { cachedToken }
+        DeepAppToken.current = { cachedToken }
     }
 
     fun setAuthSession(token: String?, userId: String?) {

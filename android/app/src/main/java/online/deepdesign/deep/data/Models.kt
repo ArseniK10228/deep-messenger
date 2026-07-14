@@ -47,6 +47,9 @@ data class MessageDto(
     val kind: String,
     val body: String?,
     val mediaUrl: String?,
+    val mediaMime: String? = null,
+    val mediaSize: Long? = null,
+    val mediaDurationMs: Long? = null,
     val createdAt: String,
     val replyToId: String? = null
 )

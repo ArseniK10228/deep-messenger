@@ -1,5 +1,6 @@
 package online.deepdesign.deep.ui.chat
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -11,14 +12,20 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.data.ChatSocket
+import online.deepdesign.deep.data.MediaUploader
 import online.deepdesign.deep.data.MessageDto
+import online.deepdesign.deep.data.PickedFile
 import online.deepdesign.deep.data.SendMessageRequest
+import online.deepdesign.deep.data.VoiceRecorder
+import online.deepdesign.deep.data.readPickedFile
 
 data class ChatUiState(
     val loading: Boolean = true,
     val messages: List<MessageDto> = emptyList(),
     val input: String = "",
     val sending: Boolean = false,
+    val uploading: Boolean = false,
+    val recording: Boolean = false,
     val error: String? = null,
     val peerTyping: Boolean = false
 )
@@ -28,6 +35,7 @@ class ChatViewModel(
 ) : ViewModel() {
     private val api = DeepApp.instance.api
     private val socket = ChatSocket { DeepApp.instance.currentToken() }
+    private val voiceRecorder = VoiceRecorder(DeepApp.instance)
     private var wsJob: Job? = null
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -70,7 +78,7 @@ class ChatViewModel(
 
     fun send() {
         val text = _state.value.input.trim()
-        if (text.isEmpty() || _state.value.sending) return
+        if (text.isEmpty() || _state.value.sending || _state.value.uploading) return
         viewModelScope.launch {
             _state.update { it.copy(sending = true, input = "") }
             try {
@@ -85,6 +93,84 @@ class ChatViewModel(
                 _state.update { it.copy(sending = false) }
             }
         }
+    }
+
+    fun uploadUri(uri: Uri) {
+        if (_state.value.uploading || _state.value.sending) return
+        viewModelScope.launch {
+            _state.update { it.copy(uploading = true, error = null) }
+            try {
+                val picked = readPickedFile(DeepApp.instance, uri)
+                    ?: throw IllegalStateException("Не удалось прочитать файл")
+                uploadPicked(picked)
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message) }
+            } finally {
+                _state.update { it.copy(uploading = false) }
+            }
+        }
+    }
+
+    fun uploadPicked(picked: PickedFile) {
+        if (_state.value.uploading) return
+        viewModelScope.launch {
+            _state.update { it.copy(uploading = true, error = null) }
+            try {
+                val msg = MediaUploader.upload(
+                    conversationId = conversationId,
+                    fileName = picked.fileName,
+                    mimeType = picked.mimeType,
+                    bytes = picked.bytes
+                )
+                appendMessage(msg)
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message) }
+            } finally {
+                _state.update { it.copy(uploading = false) }
+            }
+        }
+    }
+
+    fun startRecording() {
+        if (_state.value.recording || _state.value.uploading) return
+        try {
+            voiceRecorder.start()
+            _state.update { it.copy(recording = true, error = null) }
+        } catch (e: Exception) {
+            _state.update { it.copy(error = e.message ?: "Нет доступа к микрофону") }
+        }
+    }
+
+    fun stopRecordingAndSend() {
+        if (!_state.value.recording) return
+        _state.update { it.copy(recording = false) }
+        val result = voiceRecorder.stop() ?: return
+        val (file, durationMs) = result
+        viewModelScope.launch {
+            _state.update { it.copy(uploading = true, error = null) }
+            try {
+                val bytes = file.readBytes()
+                file.delete()
+                val msg = MediaUploader.upload(
+                    conversationId = conversationId,
+                    fileName = "voice.m4a",
+                    mimeType = "audio/mp4",
+                    bytes = bytes,
+                    durationMs = durationMs
+                )
+                appendMessage(msg)
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message) }
+            } finally {
+                _state.update { it.copy(uploading = false) }
+            }
+        }
+    }
+
+    fun cancelRecording() {
+        if (!_state.value.recording) return
+        voiceRecorder.cancel()
+        _state.update { it.copy(recording = false) }
     }
 
     private fun appendMessage(msg: MessageDto) {
@@ -102,6 +188,7 @@ class ChatViewModel(
     fun isMine(msg: MessageDto): Boolean = msg.senderId == DeepApp.instance.currentUserId
 
     override fun onCleared() {
+        voiceRecorder.cancel()
         wsJob?.cancel()
         super.onCleared()
     }

@@ -1,60 +1,72 @@
 package online.deepdesign.deep.ui.chat
 
+import android.Manifest
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.ui.components.deepAppear
 import online.deepdesign.deep.ui.theme.DeepAccent
 import online.deepdesign.deep.ui.theme.DeepBg
-import online.deepdesign.deep.ui.theme.DeepBubbleIn
-import online.deepdesign.deep.ui.theme.DeepBubbleOut
 import online.deepdesign.deep.ui.theme.DeepError
 import online.deepdesign.deep.ui.theme.DeepMuted
+import online.deepdesign.deep.ui.theme.DeepSurface
 import online.deepdesign.deep.ui.theme.DeepSurfaceHigh
 import online.deepdesign.deep.ui.theme.DeepText
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,12 +74,33 @@ fun ChatScreen(
     conversationId: String,
     title: String,
     onBack: () -> Unit,
-    vm: ChatViewModel = viewModel(
-        factory = ChatViewModel.factory(conversationId)
-    )
+    vm: ChatViewModel = viewModel(factory = ChatViewModel.factory(conversationId))
 ) {
     val state by vm.state.collectAsState()
     val listState = rememberLazyListState()
+    val context = LocalContext.current
+    var showAttach by remember { mutableStateOf(false) }
+    val attachSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let(vm::uploadUri)
+        showAttach = false
+    }
+
+    val filePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let(vm::uploadUri)
+        showAttach = false
+    }
+
+    val micPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) vm.startRecording()
+    }
 
     LaunchedEffect(state.messages.size) {
         if (state.messages.isNotEmpty()) {
@@ -93,47 +126,79 @@ fun ChatScreen(
             )
         },
         bottomBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(DeepBg)
-                    .imePadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    modifier = Modifier.weight(1f),
-                    value = state.input,
-                    onValueChange = vm::onInputChange,
-                    placeholder = { Text("Сообщение", color = DeepMuted) },
-                    maxLines = 4,
-                    shape = RoundedCornerShape(20.dp),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { vm.send() }),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = DeepAccent,
-                        unfocusedBorderColor = DeepSurfaceHigh,
-                        focusedContainerColor = DeepSurfaceHigh,
-                        unfocusedContainerColor = DeepSurfaceHigh,
-                        cursorColor = DeepAccent
-                    )
-                )
-                IconButton(
-                    onClick = vm::send,
-                    enabled = state.input.isNotBlank() && !state.sending,
-                    modifier = Modifier.padding(start = 4.dp)
+            if (!state.recording) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(DeepBg)
+                        .imePadding()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (state.sending) {
+                    IconButton(
+                        onClick = { showAttach = true },
+                        enabled = !state.uploading
+                    ) {
+                        Icon(Icons.Default.AttachFile, contentDescription = "Вложение", tint = DeepMuted)
+                    }
+                    OutlinedTextField(
+                        modifier = Modifier.weight(1f),
+                        value = state.input,
+                        onValueChange = vm::onInputChange,
+                        placeholder = { Text("Сообщение", color = DeepMuted) },
+                        maxLines = 4,
+                        shape = RoundedCornerShape(20.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = { vm.send() }),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = DeepAccent,
+                            unfocusedBorderColor = DeepSurfaceHigh,
+                            focusedContainerColor = DeepSurfaceHigh,
+                            unfocusedContainerColor = DeepSurfaceHigh,
+                            cursorColor = DeepAccent
+                        )
+                    )
+                    if (state.input.isBlank()) {
+                        IconButton(
+                            onClick = {
+                                val granted = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.RECORD_AUDIO
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                if (granted) vm.startRecording()
+                                else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                            },
+                            enabled = !state.uploading && !state.sending
+                        ) {
+                            Icon(Icons.Default.Mic, contentDescription = "Голосовое", tint = DeepAccent)
+                        }
+                    } else {
+                        IconButton(
+                            onClick = vm::send,
+                            enabled = !state.sending && !state.uploading
+                        ) {
+                            if (state.sending) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp,
+                                    color = DeepAccent
+                                )
+                            } else {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = "Отправить",
+                                    tint = DeepAccent
+                                )
+                            }
+                        }
+                    }
+                    if (state.uploading) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .size(22.dp),
                             strokeWidth = 2.dp,
                             color = DeepAccent
-                        )
-                    } else {
-                        Icon(
-                            Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Отправить",
-                            tint = if (state.input.isNotBlank()) DeepAccent else DeepMuted
                         )
                     }
                 }
@@ -152,7 +217,7 @@ fun ChatScreen(
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
-                state.messages.isEmpty() -> {
+                state.messages.isEmpty() && !state.recording -> {
                     Text(
                         text = "Напиши первое сообщение",
                         color = DeepMuted,
@@ -178,6 +243,13 @@ fun ChatScreen(
                 }
             }
 
+            if (state.recording) {
+                RecordingOverlay(
+                    onCancel = vm::cancelRecording,
+                    onSend = vm::stopRecordingAndSend
+                )
+            }
+
             if (state.peerTyping) {
                 Text(
                     text = "печатает…",
@@ -200,53 +272,70 @@ fun ChatScreen(
             }
         }
     }
-}
 
-@Composable
-private fun MessageBubble(msg: MessageDto, mine: Boolean) {
-    val bg = if (mine) DeepBubbleOut else DeepBubbleIn
-    val align = if (mine) Alignment.CenterEnd else Alignment.CenterStart
-    val shape = RoundedCornerShape(
-        topStart = 18.dp,
-        topEnd = 18.dp,
-        bottomStart = if (mine) 18.dp else 4.dp,
-        bottomEnd = if (mine) 4.dp else 18.dp
-    )
-
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = align) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = 300.dp)
-                .clip(shape)
-                .background(bg)
-                .padding(horizontal = 14.dp, vertical = 10.dp)
-                .deepAppear(durationMillis = 260)
+    if (showAttach) {
+        ModalBottomSheet(
+            onDismissRequest = { showAttach = false },
+            sheetState = attachSheet,
+            containerColor = DeepSurface
         ) {
-            Text(
-                text = when (msg.kind) {
-                    "text" -> msg.body.orEmpty()
-                    "image" -> "📷 Фото"
-                    "voice" -> "🎤 Голосовое"
-                    else -> "📎 Файл"
-                },
-                color = DeepText,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Spacer(Modifier.size(4.dp))
-            Text(
-                text = formatMessageTime(msg.createdAt),
-                color = DeepMuted,
-                style = MaterialTheme.typography.labelSmall
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Text("Вложение", color = DeepText, style = MaterialTheme.typography.titleLarge)
+                TextButton(
+                    onClick = { imagePicker.launch("image/*") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = null, tint = DeepAccent)
+                    Text("  Фото", color = DeepText, modifier = Modifier.weight(1f))
+                }
+                TextButton(
+                    onClick = { filePicker.launch("*/*") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.AttachFile, contentDescription = null, tint = DeepAccent)
+                    Text("  Файл", color = DeepText, modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }
 
-private fun formatMessageTime(iso: String): String {
-    return try {
-        val dt = Instant.parse(iso).atZone(ZoneId.systemDefault())
-        DateTimeFormatter.ofPattern("HH:mm").format(dt)
-    } catch (_: Exception) {
-        ""
+@Composable
+private fun RecordingOverlay(onCancel: () -> Unit, onSend: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.55f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Запись…", color = DeepText, style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier.padding(top = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FloatingActionButton(
+                    onClick = onCancel,
+                    containerColor = DeepSurfaceHigh,
+                    contentColor = DeepText
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Отмена")
+                }
+                FloatingActionButton(
+                    onClick = onSend,
+                    containerColor = DeepAccent,
+                    contentColor = DeepText,
+                    shape = CircleShape
+                ) {
+                    Icon(Icons.Default.Stop, contentDescription = "Отправить")
+                }
+            }
+        }
     }
 }

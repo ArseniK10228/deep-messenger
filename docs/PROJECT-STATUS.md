@@ -8,7 +8,7 @@
 
 | Фича | Статус |
 |------|--------|
-| Текст, фото, файлы, голосовые | API готов, Android текст ✅ |
+| Текст, фото, файлы, голосовые | API + Android ✅ |
 | Регистрация по телефону (Firebase SMS) | Firebase + Android login ✅ |
 | Push (FCM) | Сервер готов |
 | Удаление как в ТГ | API готов |
@@ -153,19 +153,17 @@ sudo bash /opt/deep-messenger/scripts/infra/apply-home.sh
 - [x] Deploy workflow (файлы в репо)
 - [x] Первый деплой на дом `:3002` (native PostgreSQL :5432, commit caf5509)
 - [x] `https://api.deepdesignpc.online/health` → ok
-- [x] Android APK этапы 1–3: тема, SMS login, список чатов + переписка + WS
-- [ ] Android этап 4: медиа (фото, файлы, голосовые)
+- [x] Android APK этапы 1–4: тема, login, чат, медиа
+- [ ] Android этап 5: WebRTC звонки
 - [ ] Голосовые звонки
 
 ---
 
 ## Следующие шаги (порядок)
 
-1. Собрать APK (`android/` в Android Studio), SHA-1 в Firebase
-2. Тест: логин → найти контакт по номеру → переписка в realtime
-3. Android этап 4: медиа upload + Coil
-4. Залить APK на `deepdesignpc.online/deep.apk`
-5. Этап 5: WebRTC + coturn (UDP — обсудить)
+1. Собрать APK, тест медиа на двух устройствах
+2. Android этап 5: WebRTC + coturn (UDP — обсудить)
+3. Залить APK на `deepdesignpc.online/deep.apk`
 
 ---
 

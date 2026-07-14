@@ -18,9 +18,10 @@
 - Поиск контакта по номеру → direct chat
 - Пузыри входящих/исходящих
 
-## Этап 4 — Медиа
-- Фото, файлы, голосовые сообщения
-- Coil + upload API
+## Этап 4 ✅
+- Фото в чате (Coil + upload)
+- Файлы (picker → upload, открытие по тапу)
+- Голосовые (MediaRecorder → upload, inline-плеер)
 
 ## Этап 5 — Звонки
 - WebRTC audio only

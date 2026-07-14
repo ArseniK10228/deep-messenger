@@ -12,7 +12,7 @@
 | Регистрация по телефону (Firebase SMS) | Firebase + Android login ✅ |
 | Push (FCM) | Сервер готов |
 | Удаление как в ТГ | API готов |
-| Голосовые звонки | Этап 2 (WebRTC + TURN) |
+| Голосовые звонки | WebRTC + coturn на VPS ✅ |
 
 ---
 
@@ -153,17 +153,18 @@ sudo bash /opt/deep-messenger/scripts/infra/apply-home.sh
 - [x] Deploy workflow (файлы в репо)
 - [x] Первый деплой на дом `:3002` (native PostgreSQL :5432, commit caf5509)
 - [x] `https://api.deepdesignpc.online/health` → ok
-- [x] Android APK этапы 1–4: тема, login, чат, медиа
-- [ ] Android этап 5: WebRTC звонки
+- [x] Android APK этапы 1–5: чат, медиа, голосовые звонки WebRTC
+- [ ] DNS `turn.deepdesignpc.online` → VPS + `TURN_SECRET` в home `.env`
 - [ ] Голосовые звонки
 
 ---
 
 ## Следующие шаги (порядок)
 
-1. Собрать APK, тест медиа на двух устройствах
-2. Android этап 5: WebRTC + coturn (UDP — обсудить)
-3. Залить APK на `deepdesignpc.online/deep.apk`
+1. DNS: `turn.deepdesignpc.online` A → `138.124.102.53`
+2. Deploy → скопировать `TURN_SECRET` с VPS (`/etc/deep-messenger-turn-secret`) в home `.env`
+3. Собрать APK, тест звонка WiFi ↔ LTE
+4. Залить APK на `deepdesignpc.online/deep.apk`
 
 ---
 
@@ -175,7 +176,10 @@ sudo bash /opt/deep-messenger/scripts/infra/apply-home.sh
 - `POST /api/v1/conversations/direct` — `{ userId }`
 - `GET/POST /api/v1/conversations/:id/messages`
 - `POST /api/v1/conversations/:id/upload` — медиа
-- `WS /ws?token=JWT` — realtime
+- `GET /api/v1/calls/ice` — STUN/TURN credentials
+- `POST /api/v1/calls` — начать звонок
+- `POST /api/v1/calls/:id/accept|reject|end`
+- `WS` — `call_invite`, `call_sdp`, `call_ice`, `call_end`
 
 ---
 

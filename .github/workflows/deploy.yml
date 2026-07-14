@@ -92,6 +92,9 @@ jobs:
             set -euxo pipefail
             REPO=/tmp/deep-messenger
             bash "$REPO/scripts/infra/apply-vps.sh"
+            if [[ -f "$REPO/scripts/infra/apply-vps-turn.sh" ]]; then
+              bash "$REPO/scripts/infra/apply-vps-turn.sh" || echo "WARN: coturn apply failed (DNS/firewall?)"
+            fi
 
       - name: Smoke test
         run: |

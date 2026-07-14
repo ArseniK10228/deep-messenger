@@ -77,10 +77,48 @@ data class MeResponse(val user: UserDto)
 data class UsersSearchResponse(val users: List<UserDto>)
 
 @JsonClass(generateAdapter = true)
+data class IceServerDto(
+    val urls: List<String>,
+    val username: String? = null,
+    val credential: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class IceServersResponse(val iceServers: List<IceServerDto>)
+
+@JsonClass(generateAdapter = true)
+data class StartCallRequest(val conversationId: String)
+
+@JsonClass(generateAdapter = true)
+data class StartCallResponse(
+    val callId: String,
+    val iceServers: List<IceServerDto>
+)
+
+@JsonClass(generateAdapter = true)
+data class AcceptCallResponse(
+    val ok: Boolean,
+    val iceServers: List<IceServerDto>
+)
+
+@JsonClass(generateAdapter = true)
+data class FcmRegisterRequest(val token: String)
+
+@JsonClass(generateAdapter = true)
 data class WsEnvelope(
     val type: String,
     val message: MessageDto? = null,
     val messageId: String? = null,
     val conversationId: String? = null,
-    val userId: String? = null
+    val userId: String? = null,
+    val callId: String? = null,
+    val callerId: String? = null,
+    val callerName: String? = null,
+    val sdp: String? = null,
+    val sdpType: String? = null,
+    val candidate: String? = null,
+    val sdpMid: String? = null,
+    val sdpMLineIndex: Int? = null,
+    val fromUserId: String? = null,
+    val reason: String? = null
 )

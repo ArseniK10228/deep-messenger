@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
@@ -74,6 +75,7 @@ fun ChatScreen(
     conversationId: String,
     title: String,
     onBack: () -> Unit,
+    onStartCall: () -> Unit = {},
     vm: ChatViewModel = viewModel(factory = ChatViewModel.factory(conversationId))
 ) {
     val state by vm.state.collectAsState()
@@ -120,6 +122,11 @@ fun ChatScreen(
                             contentDescription = "Назад",
                             tint = DeepText
                         )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onStartCall) {
+                        Icon(Icons.Default.Call, contentDescription = "Звонок", tint = DeepAccent)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepBg)

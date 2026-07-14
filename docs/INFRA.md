@@ -22,11 +22,15 @@ APK → api.deepdesignpc.online:443 (VPS)
 |--------|---|
 | `@` | `138.124.102.53` |
 | `api` | `138.124.102.53` |
+| `turn` | `138.124.102.53` (coturn, UDP/TCP 3478 на VPS) |
+
+## WebRTC / TURN
+
+- **Signaling** — тот же `wss://api.deepdesignpc.online/ws`
+- **Media relay** — coturn на **VPS** (не на доме, без проброса UDP на роутер)
+- Deploy: `scripts/infra/apply-vps-turn.sh`
+- Секрет: `/etc/deep-messenger-turn-secret` на VPS → `TURN_SECRET` в home `.env`
 
 ## Деплой
 
 См. [GITHUB-DEPLOY.md](GITHUB-DEPLOY.md)
-
-## Этап 2 — звонки
-
-coturn + UDP на роутере — отдельное обсуждение.

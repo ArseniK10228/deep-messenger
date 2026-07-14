@@ -18,5 +18,14 @@ export const config = {
   firebaseServiceAccountPath: process.env.FIREBASE_SERVICE_ACCOUNT_PATH || '',
   uploadDir: process.env.UPLOAD_DIR || './data/uploads',
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB || 50),
-  deleteForEveryoneHours: 48
+  deleteForEveryoneHours: 48,
+  stunUrls: (process.env.STUN_URLS || 'stun:stun.l.google.com:19302')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+  turnUrls: (process.env.TURN_URLS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+  turnSecret: process.env.TURN_SECRET || ''
 };

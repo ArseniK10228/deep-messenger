@@ -2,6 +2,7 @@ import type { Server } from 'http';
 import { WebSocketServer } from 'ws';
 import type { FastifyInstance } from 'fastify';
 import { broadcastToConversation, registerClient, subscribeConversation, unregisterClient } from './hub.js';
+import { handleCallMessage, isCallMessage } from './callSignaling.js';
 
 export function attachWebSocket(server: Server, app: FastifyInstance): void {
   const wss = new WebSocketServer({ server, path: '/ws' });
@@ -20,6 +21,10 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
       ws.on('message', (raw) => {
         try {
           const msg = JSON.parse(String(raw)) as { type?: string; conversationId?: string };
+          if (isCallMessage(msg)) {
+            handleCallMessage(payload.id, msg);
+            return;
+          }
           if (msg.type === 'subscribe' && msg.conversationId) {
             subscribeConversation(client, msg.conversationId);
             ws.send(JSON.stringify({ type: 'subscribed', conversationId: msg.conversationId }));

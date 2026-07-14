@@ -78,7 +78,10 @@ fun DeepNavHost(modifier: Modifier = Modifier) {
             ChatScreen(
                 conversationId = conversationId,
                 title = title,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onStartCall = {
+                    DeepApp.instance.callManager.startOutgoing(conversationId, title)
+                }
             )
         }
     }

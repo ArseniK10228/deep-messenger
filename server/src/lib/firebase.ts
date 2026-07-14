@@ -37,3 +37,26 @@ export async function sendPush(fcmToken: string, title: string, body: string, da
     android: { priority: 'high' }
   });
 }
+
+export async function sendCallPush(
+  calleeUserId: string,
+  data: Record<string, string>
+): Promise<void> {
+  if (!admin.apps.length) return;
+  const { query } = await import('../db/client.js');
+  const r = await query<{ fcm_token: string | null }>(
+    'SELECT fcm_token FROM users WHERE id = $1',
+    [calleeUserId]
+  );
+  const token = r.rows[0]?.fcm_token;
+  if (!token) return;
+
+  await admin.messaging().send({
+    token,
+    data,
+    android: {
+      priority: 'high',
+      ttl: 30_000
+    }
+  });
+}

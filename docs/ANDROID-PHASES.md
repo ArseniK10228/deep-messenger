@@ -23,10 +23,12 @@
 - Файлы (picker → upload, открытие по тапу)
 - Голосовые (MediaRecorder → upload, inline-плеер)
 
-## Этап 5 — Звонки
-- WebRTC audio only
-- Foreground service, низкая задержка
-- TURN на сервере
+## Этап 5 ✅
+- WebRTC audio-only звонки
+- Signaling через WS + REST `/calls`
+- FCM wake для входящего звонка
+- Foreground service (микрофон)
+- coturn на VPS (`infra/coturn/`, `apply-vps-turn.sh`)
 
 ## Сборка
 

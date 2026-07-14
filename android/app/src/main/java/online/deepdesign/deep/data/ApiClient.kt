@@ -53,6 +53,24 @@ interface DeepApi {
 
     @GET("api/v1/users/search")
     suspend fun searchUsers(@Query("q") query: String): UsersSearchResponse
+
+    @GET("api/v1/calls/ice")
+    suspend fun callIce(): IceServersResponse
+
+    @POST("api/v1/calls")
+    suspend fun startCall(@Body body: StartCallRequest): StartCallResponse
+
+    @POST("api/v1/calls/{id}/accept")
+    suspend fun acceptCall(@Path("id") callId: String): AcceptCallResponse
+
+    @POST("api/v1/calls/{id}/reject")
+    suspend fun rejectCall(@Path("id") callId: String): Map<String, Boolean>
+
+    @POST("api/v1/calls/{id}/end")
+    suspend fun endCall(@Path("id") callId: String): Map<String, Boolean>
+
+    @POST("api/v1/auth/fcm")
+    suspend fun registerFcm(@Body body: FcmRegisterRequest): Map<String, Boolean>
 }
 
 class AuthInterceptor(private val tokenProvider: () -> String?) : Interceptor {

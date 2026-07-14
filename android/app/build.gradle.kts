@@ -80,6 +80,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.getstream:stream-webrtc-android:1.3.8")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

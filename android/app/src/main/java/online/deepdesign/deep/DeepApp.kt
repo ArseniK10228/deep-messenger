@@ -1,9 +1,17 @@
 package online.deepdesign.deep
 
 import android.app.Application
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import online.deepdesign.deep.call.CallManager
+import online.deepdesign.deep.call.SignalingHub
 import online.deepdesign.deep.data.ApiClient
 import online.deepdesign.deep.data.DeepApi
 import online.deepdesign.deep.data.SessionStore
+import online.deepdesign.deep.data.DeepAppToken
+import online.deepdesign.deep.push.FcmRegistrar
 
 class DeepApp : Application() {
     lateinit var sessionStore: SessionStore
@@ -11,6 +19,11 @@ class DeepApp : Application() {
 
     lateinit var api: DeepApi
         private set
+
+    lateinit var callManager: CallManager
+        private set
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     @Volatile
     private var cachedToken: String? = null
@@ -24,11 +37,21 @@ class DeepApp : Application() {
         sessionStore = SessionStore(this)
         api = ApiClient.create { cachedToken }
         DeepAppToken.current = { cachedToken }
+        val signaling = SignalingHub { cachedToken }
+        callManager = CallManager(this, signaling)
     }
 
     fun setAuthSession(token: String?, userId: String?) {
         cachedToken = token
         cachedUserId = userId
+        if (token.isNullOrBlank()) {
+            callManager.stop()
+        } else {
+            callManager.start()
+            appScope.launch {
+                runCatching { FcmRegistrar.register(api) }
+            }
+        }
     }
 
     val currentUserId: String?

@@ -11,6 +11,7 @@ import { initFirebase } from './lib/firebase.js';
 import { registerPublicAuthRoutes, registerProtectedAuthRoutes } from './routes/auth.js';
 import { chatRoutes } from './routes/chat.js';
 import { mediaRoutes } from './routes/media.js';
+import { callRoutes } from './routes/calls.js';
 import { attachWebSocket } from './ws/server.js';
 
 async function authenticate(req: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -47,6 +48,7 @@ async function main() {
     await registerProtectedAuthRoutes(api);
     await chatRoutes(api);
     await mediaRoutes(api);
+    await callRoutes(api);
   }, { prefix: '/api/v1' });
 
   await app.listen({ port: config.port, host: config.host });

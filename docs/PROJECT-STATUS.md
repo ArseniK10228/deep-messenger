@@ -151,7 +151,7 @@ sudo bash /opt/deep-messenger/scripts/infra/apply-home.sh
 - [x] SSL + nginx на VPS
 - [x] Firebase + конфиги локально
 - [x] Deploy workflow (файлы в репо)
-- [ ] Первый деплой на дом `:3002`
+- [ ] Первый деплой на дом `:3002` (fix: native postgres, redeploy)
 - [ ] Android APK (Compose UI)
 - [ ] Голосовые звонки
 

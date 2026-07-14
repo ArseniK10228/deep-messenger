@@ -19,7 +19,7 @@ if [[ ! -f .env ]]; then
   sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$JWT|" .env
   sed -i 's|^PUBLIC_URL=.*|PUBLIC_URL=https://api.deepdesignpc.online|' .env
   sed -i 's|^FIREBASE_SERVICE_ACCOUNT_PATH=.*|FIREBASE_SERVICE_ACCOUNT_PATH=./secrets/firebase-service-account.json|' .env
-  sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgres://deep:deep@127.0.0.1:5433/deep_messenger|' .env
+  sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgres://deep:deep@127.0.0.1:5432/deep_messenger|' .env
   echo "Created $REPO/.env"
 fi
 
@@ -33,12 +33,40 @@ if [[ ! -f "$REPO/secrets/firebase-service-account.json" ]]; then
   echo "WARN: secrets/firebase-service-account.json missing — auth will not work"
 fi
 
-echo "==> PostgreSQL (docker)"
-if ! command -v docker >/dev/null 2>&1; then
-  echo "ERROR: docker not installed on home server"
-  exit 1
-fi
-docker compose -f "$REPO/docker-compose.yml" up -d
+ensure_postgres() {
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    echo "==> PostgreSQL (docker)"
+    docker compose -f "$REPO/docker-compose.yml" up -d
+    sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgres://deep:deep@127.0.0.1:5433/deep_messenger|' "$REPO/.env"
+    return
+  fi
+
+  echo "==> PostgreSQL (native — docker нет на доме)"
+  if ! command -v psql >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq postgresql postgresql-contrib
+    systemctl enable --now postgresql
+  fi
+
+  sudo -u postgres psql -v ON_ERROR_STOP=0 -tc "SELECT 1 FROM pg_roles WHERE rolname='deep'" | grep -q 1 \
+    || sudo -u postgres psql -c "CREATE USER deep WITH PASSWORD 'deep';"
+  sudo -u postgres psql -v ON_ERROR_STOP=0 -tc "SELECT 1 FROM pg_database WHERE datname='deep_messenger'" | grep -q 1 \
+    || sudo -u postgres psql -c "CREATE DATABASE deep_messenger OWNER deep;"
+
+  PG_VER=$(ls /etc/postgresql 2>/dev/null | head -1 || true)
+  if [[ -n "$PG_VER" ]]; then
+    PG_HBA="/etc/postgresql/${PG_VER}/main/pg_hba.conf"
+    if [[ -f "$PG_HBA" ]] && ! grep -q 'deep_messenger.*deep.*127.0.0.1' "$PG_HBA"; then
+      echo 'host deep_messenger deep 127.0.0.1/32 scram-sha-256' >> "$PG_HBA"
+      systemctl reload postgresql
+    fi
+  fi
+
+  sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgres://deep:deep@127.0.0.1:5432/deep_messenger|' "$REPO/.env"
+}
+
+ensure_postgres
 
 echo "==> server build"
 cd "$REPO/server"

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+secrets/
+data/
+*.log
+.DS_Store
+android/.gradle/
+android/app/build/
+android/app/google-services.json
+android/local.properties
+android/.idea/
+*.apk
+*.jks

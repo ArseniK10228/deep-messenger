@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: deep
+      POSTGRES_PASSWORD: deep
+      POSTGRES_DB: deep_messenger
+    ports:
+      - "5433:5432"
+    volumes:
+      - deep_pg_data:/var/lib/postgresql/data
+
+  # Прод на доме: server запускается через systemd, не через compose.
+  # Compose — для локальной разработки.
+
+volumes:
+  deep_pg_data:

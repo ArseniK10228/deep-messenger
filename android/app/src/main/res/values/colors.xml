@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="deep_bg">#FF0D0D0F</color>
+    <color name="deep_surface">#FF1A1A1E</color>
+    <color name="deep_accent">#FF9D5CFF</color>
+    <color name="deep_text">#FFFFFFFF</color>
+    <color name="deep_muted">#FF8E8E93</color>
+    <color name="deep_error">#FFFF5E5E</color>
+</resources>

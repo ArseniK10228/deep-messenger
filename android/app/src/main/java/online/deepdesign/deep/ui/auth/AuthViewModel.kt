@@ -112,8 +112,8 @@ class AuthViewModel : ViewModel() {
                         val idToken = result.user?.getIdToken(true)?.await()?.token
                             ?: throw IllegalStateException("No Firebase token")
                         val response = api.authFirebase(FirebaseAuthRequest(idToken))
-                        sessionStore.saveToken(response.token)
-                        DeepApp.instance.setAuthToken(response.token)
+                        sessionStore.saveSession(response.token, response.user)
+                        DeepApp.instance.setAuthSession(response.token, response.user.id)
                         _state.update { it.copy(loading = false) }
                         _authSuccess.value = true
                     } catch (e: Exception) {

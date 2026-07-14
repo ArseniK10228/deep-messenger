@@ -1,8 +1,6 @@
 package online.deepdesign.deep.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
@@ -14,15 +12,16 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.ui.auth.LoginScreen
-import online.deepdesign.deep.ui.placeholder.PlaceholderScreen
+import online.deepdesign.deep.ui.chat.ChatScreen
+import online.deepdesign.deep.ui.chats.ChatsScreen
 import online.deepdesign.deep.ui.splash.SplashScreen
+import java.net.URLDecoder
 
 @Composable
 fun DeepNavHost(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
     val sessionStore = DeepApp.instance.sessionStore
-    val token by sessionStore.tokenFlow.collectAsState(initial = null)
 
     NavHost(
         navController = navController,
@@ -33,6 +32,8 @@ fun DeepNavHost(modifier: Modifier = Modifier) {
             SplashScreen {
                 scope.launch {
                     val jwt = sessionStore.tokenFlow.first()
+                    val userId = sessionStore.userIdFlow.first()
+                    DeepApp.instance.setAuthSession(jwt, userId)
                     val dest = if (jwt.isNullOrBlank()) DeepRoutes.Login else DeepRoutes.Chats
                     navController.navigate(dest) {
                         popUpTo(DeepRoutes.Splash) { inclusive = true }
@@ -52,19 +53,32 @@ fun DeepNavHost(modifier: Modifier = Modifier) {
         }
 
         composable(DeepRoutes.Chats) {
-            PlaceholderScreen(
-                title = "Чаты",
-                subtitle = "Этап 3 — список переписок"
+            ChatsScreen(
+                onOpenChat = { id, title ->
+                    navController.navigate(DeepRoutes.chat(id, title))
+                }
             )
         }
 
         composable(
             route = DeepRoutes.Chat,
-            arguments = listOf(navArgument("conversationId") { type = NavType.StringType })
-        ) {
-            PlaceholderScreen(
-                title = "Чат",
-                subtitle = "Этап 3 — переписка"
+            arguments = listOf(
+                navArgument("conversationId") { type = NavType.StringType },
+                navArgument("title") {
+                    type = NavType.StringType
+                    defaultValue = "Чат"
+                }
+            )
+        ) { entry ->
+            val conversationId = entry.arguments?.getString("conversationId").orEmpty()
+            val title = URLDecoder.decode(
+                entry.arguments?.getString("title") ?: "Чат",
+                Charsets.UTF_8.name()
+            )
+            ChatScreen(
+                conversationId = conversationId,
+                title = title,
+                onBack = { navController.popBackStack() }
             )
         }
     }

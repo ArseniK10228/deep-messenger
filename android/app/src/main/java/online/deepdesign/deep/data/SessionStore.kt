@@ -11,16 +11,21 @@ private val Context.sessionDataStore by preferencesDataStore("deep_session")
 
 class SessionStore(private val context: Context) {
     private val tokenKey = stringPreferencesKey("jwt")
+    private val userIdKey = stringPreferencesKey("user_id")
+    private val userNameKey = stringPreferencesKey("user_name")
 
-    val tokenFlow: Flow<String?> = context.sessionDataStore.data.map { prefs ->
-        prefs[tokenKey]
-    }
+    val tokenFlow: Flow<String?> = context.sessionDataStore.data.map { it[tokenKey] }
+    val userIdFlow: Flow<String?> = context.sessionDataStore.data.map { it[userIdKey] }
 
-    suspend fun saveToken(token: String) {
-        context.sessionDataStore.edit { it[tokenKey] = token }
+    suspend fun saveSession(token: String, user: UserDto) {
+        context.sessionDataStore.edit {
+            it[tokenKey] = token
+            it[userIdKey] = user.id
+            it[userNameKey] = user.displayName
+        }
     }
 
     suspend fun clear() {
-        context.sessionDataStore.edit { it.remove(tokenKey) }
+        context.sessionDataStore.edit { it.clear() }
     }
 }

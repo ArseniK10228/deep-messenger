@@ -15,6 +15,9 @@ class DeepApp : Application() {
     @Volatile
     private var cachedToken: String? = null
 
+    @Volatile
+    private var cachedUserId: String? = null
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -22,9 +25,15 @@ class DeepApp : Application() {
         api = ApiClient.create { cachedToken }
     }
 
-    fun setAuthToken(token: String?) {
+    fun setAuthSession(token: String?, userId: String?) {
         cachedToken = token
+        cachedUserId = userId
     }
+
+    val currentUserId: String?
+        get() = cachedUserId
+
+    fun currentToken(): String? = cachedToken
 
     companion object {
         lateinit var instance: DeepApp

@@ -4,7 +4,8 @@ object DeepRoutes {
     const val Splash = "splash"
     const val Login = "login"
     const val Chats = "chats"
-    const val Chat = "chat/{conversationId}"
+    const val Chat = "chat/{conversationId}?title={title}"
 
-    fun chat(conversationId: String) = "chat/$conversationId"
+    fun chat(conversationId: String, title: String) =
+        "chat/$conversationId?title=${java.net.URLEncoder.encode(title, "UTF-8")}"
 }

@@ -153,7 +153,7 @@ sudo bash /opt/deep-messenger/scripts/infra/apply-home.sh
 - [x] Deploy workflow (файлы в репо)
 - [x] Первый деплой на дом `:3002` (native PostgreSQL :5432, commit caf5509)
 - [x] `https://api.deepdesignpc.online/health` → ok
-- [ ] Android APK (Compose UI)
+- [ ] Android APK (Compose UI) — **этап 1 готов**, см. `docs/ANDROID-PHASES.md`
 - [ ] Голосовые звонки
 
 ---

@@ -24,7 +24,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -42,12 +41,7 @@ fun LoginScreen(
 ) {
     val state by vm.state.collectAsState()
     val success by vm.authSuccess.collectAsState()
-    val context = LocalContext.current
-    val activity = context as? android.app.Activity
 
-    LaunchedEffect(activity) {
-        activity?.let { vm.bindActivity(it) }
-    }
     LaunchedEffect(success) {
         if (success) onLoggedIn()
     }
@@ -70,10 +64,22 @@ fun LoginScreen(
         Spacer(Modifier.height(8.dp))
         Text(
             modifier = Modifier.deepAppear(delayMillis = 80),
-            text = if (state.step == AuthStep.Phone) "Войди по номеру телефона" else "Введи код из SMS",
+            text = if (state.step == AuthStep.Phone) {
+                "Войди по номеру — код придёт в Telegram"
+            } else {
+                "Введи код из Telegram"
+            },
             color = DeepMuted,
             style = androidx.compose.material3.MaterialTheme.typography.bodyLarge
         )
+        if (state.step == AuthStep.Phone) {
+            Text(
+                modifier = Modifier.padding(top = 8.dp),
+                text = "Номер должен быть привязан к Telegram",
+                color = DeepMuted,
+                style = androidx.compose.material3.MaterialTheme.typography.bodySmall
+            )
+        }
         Spacer(Modifier.height(32.dp))
 
         if (state.step == AuthStep.Phone) {
@@ -96,7 +102,7 @@ fun LoginScreen(
                     .deepAppear(),
                 value = state.code,
                 onValueChange = vm::onCodeChange,
-                label = { Text("Код из SMS") },
+                label = { Text("Код из Telegram") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
@@ -148,7 +154,7 @@ fun LoginScreen(
                         modifier = Modifier.height(22.dp)
                     )
                 } else {
-                    Text("Получить код")
+                    Text("Получить код в Telegram")
                 }
             }
         } else if (state.loading) {

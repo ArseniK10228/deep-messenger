@@ -4,6 +4,22 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
+data class TelegramSendRequest(val phone: String)
+
+@JsonClass(generateAdapter = true)
+data class TelegramSendResponse(
+    val requestId: String,
+    val phone: String,
+    val message: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class TelegramVerifyRequest(
+    val requestId: String,
+    val code: String
+)
+
+@JsonClass(generateAdapter = true)
 data class FirebaseAuthRequest(val idToken: String, val displayName: String? = null)
 
 @JsonClass(generateAdapter = true)

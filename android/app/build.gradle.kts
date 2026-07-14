@@ -66,7 +66,6 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
 
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
-    implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
 
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

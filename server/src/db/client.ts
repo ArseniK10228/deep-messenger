@@ -15,7 +15,10 @@ export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
 }
 
 export async function migrate(): Promise<void> {
-  const sqlPath = path.join(import.meta.dirname, '../../migrations/001_init.sql');
-  const sql = fs.readFileSync(sqlPath, 'utf8');
-  await pool.query(sql);
+  const dir = path.join(import.meta.dirname, '../../migrations');
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+  for (const file of files) {
+    const sql = fs.readFileSync(path.join(dir, file), 'utf8');
+    await pool.query(sql);
+  }
 }

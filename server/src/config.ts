@@ -27,5 +27,7 @@ export const config = {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
-  turnSecret: process.env.TURN_SECRET || ''
+  turnSecret: process.env.TURN_SECRET || '',
+  telegramGatewayToken: process.env.TELEGRAM_GATEWAY_TOKEN || '',
+  telegramGatewaySender: process.env.TELEGRAM_GATEWAY_SENDER || ''
 };

@@ -24,6 +24,12 @@ object ApiConfig {
 }
 
 interface DeepApi {
+    @POST("api/v1/auth/telegram/send")
+    suspend fun telegramSend(@Body body: TelegramSendRequest): TelegramSendResponse
+
+    @POST("api/v1/auth/telegram/verify")
+    suspend fun telegramVerify(@Body body: TelegramVerifyRequest): AuthResponse
+
     @POST("api/v1/auth/firebase")
     suspend fun authFirebase(@Body body: FirebaseAuthRequest): AuthResponse
 

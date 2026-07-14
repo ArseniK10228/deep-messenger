@@ -95,6 +95,9 @@ jobs:
             if [[ -f "$REPO/scripts/infra/apply-vps-turn.sh" ]]; then
               bash "$REPO/scripts/infra/apply-vps-turn.sh" || echo "WARN: coturn apply failed (DNS/firewall?)"
             fi
+            if [[ -f "$REPO/scripts/infra/sync-turn-secret.sh" ]]; then
+              bash "$REPO/scripts/infra/sync-turn-secret.sh" || echo "WARN: TURN secret sync failed"
+            fi
 
       - name: Smoke test
         run: |

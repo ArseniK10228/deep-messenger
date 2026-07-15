@@ -40,7 +40,7 @@ class WebRtcCallEngine(
         val rtcConfig = PeerConnection.RTCConfiguration(servers).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
             iceTransportsType = PeerConnection.IceTransportsType.ALL
-            continualGatheringOnIceRestart = true
+            continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
             iceCandidatePoolSize = 2
             bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE
             rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE

@@ -35,7 +35,7 @@ fun WebRtcVideoView(
                 holder.setFormat(PixelFormat.TRANSLUCENT)
                 isClickable = false
                 isFocusable = false
-                importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }
         },
         update = { renderer ->

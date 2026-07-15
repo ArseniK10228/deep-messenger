@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import online.deepdesign.deep.call.CallPermissions
 import online.deepdesign.deep.call.CallUiState
@@ -94,6 +95,11 @@ class MainActivity : ComponentActivity() {
                         DeepNavHost()
 
                         if (callState !is CallUiState.Idle) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .zIndex(1f)
+                            ) {
                             val showFullOverlay = callState is CallUiState.Incoming || overlayExpanded
                             if (showFullOverlay) {
                                 CallOverlay(
@@ -123,6 +129,7 @@ class MainActivity : ComponentActivity() {
                                     onHangup = { callManager.hangup() },
                                     modifier = Modifier.align(Alignment.BottomCenter)
                                 )
+                            }
                             }
                         }
                     }

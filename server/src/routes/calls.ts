@@ -33,6 +33,11 @@ async function getUserDisplayName(userId: string): Promise<string> {
   return row.display_name?.trim() || row.phone || 'Deep';
 }
 
+async function notifyCallEnded(peerId: string, callId: string, reason: string): Promise<void> {
+  sendToUser(peerId, { type: 'call_end', callId, reason });
+  await sendCallPush(peerId, { type: 'call_ended', callId, reason }).catch(() => {});
+}
+
 export async function callRoutes(app: FastifyInstance): Promise<void> {
   app.get('/calls/ice', async (req) => {
     const user = getAuthUser(req);
@@ -108,7 +113,7 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
     setCallState(id, 'ended');
     const peer = peerUserId(call, user.id);
     if (peer) {
-      sendToUser(peer, { type: 'call_end', callId: id, reason: 'reject' });
+      await notifyCallEnded(peer, id, 'reject');
     }
     return { ok: true };
   });
@@ -123,7 +128,7 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
     setCallState(id, 'ended');
     const peer = peerUserId(call, user.id);
     if (peer) {
-      sendToUser(peer, { type: 'call_end', callId: id, reason: 'hangup' });
+      await notifyCallEnded(peer, id, 'hangup');
     }
     return { ok: true };
   });

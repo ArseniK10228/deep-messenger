@@ -89,7 +89,9 @@ class SignalingHub(
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     try {
                         val env = adapter.fromJson(text) ?: return
-                        if (env.type in callTypes || env.type in chatTypes) {
+                        if (env.type in callTypes) {
+                            scope.launch { _events.emit(env) }
+                        } else if (env.type in chatTypes) {
                             _events.tryEmit(env)
                         }
                         if (env.type == "message") {

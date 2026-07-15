@@ -1,7 +1,7 @@
 {
-  "versionCode": 16,
-  "versionName": "0.3.13",
+  "versionCode": 17,
+  "versionName": "0.3.14",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Один экран звонка: без дубля IncomingCall + MainActivity.",
+  "changelog": "Один экран звонка (без CallHold поверх), надёжный сброс при hangup друга.",
   "forceUpdate": false
 }

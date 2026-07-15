@@ -163,7 +163,6 @@ class CallManager(
         activePeerName = peerName
         acquireWakeLock()
         startNetworkMonitor()
-        CallHoldActivity.start(context)
         CallForegroundService.start(
             context,
             peerName,
@@ -350,13 +349,24 @@ class CallManager(
         }
     }
 
+    fun handleRemoteCallEnd(callId: String?, reason: String = "end") {
+        if (!isInCall()) return
+        val current = resolveCallId() ?: return
+        if (callId != null && callId != current) return
+        endLocal(reason)
+    }
+
     fun handleIncomingPush(data: Map<String, String>) {
-        if (data["type"] != "incoming_call") return
-        val callId = data["callId"] ?: return
-        val conversationId = data["conversationId"] ?: return
-        val callerName = data["callerName"] ?: "Deep"
-        val video = data["video"] == "true"
-        prepareIncomingFromNotification(callId, conversationId, callerName, video)
+        when (data["type"]) {
+            "incoming_call" -> {
+                val callId = data["callId"] ?: return
+                val conversationId = data["conversationId"] ?: return
+                val callerName = data["callerName"] ?: "Deep"
+                val video = data["video"] == "true"
+                prepareIncomingFromNotification(callId, conversationId, callerName, video)
+            }
+            "call_ended" -> handleRemoteCallEnd(data["callId"], data["reason"] ?: "hangup")
+        }
     }
 
     fun prepareIncomingFromNotification(
@@ -423,7 +433,7 @@ class CallManager(
             }
             "call_sdp" -> handleRemoteSdp(env)
             "call_ice" -> handleRemoteIce(env)
-            "call_end" -> endLocal(env.reason ?: "end")
+            "call_end" -> handleRemoteCallEnd(env.callId, env.reason ?: "end")
         }
     }
 
@@ -512,6 +522,9 @@ class CallManager(
                         }
                         PeerConnection.PeerConnectionState.FAILED -> {
                             if (_state.value is CallUiState.Active) scheduleDisconnectHangup(graceMs = 25_000)
+                        }
+                        PeerConnection.PeerConnectionState.CLOSED -> {
+                            if (_state.value is CallUiState.Active) endLocal("remote_closed")
                         }
                         else -> Unit
                     }

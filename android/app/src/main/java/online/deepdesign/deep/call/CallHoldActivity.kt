@@ -3,6 +3,7 @@ package online.deepdesign.deep.call
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 
 /**
@@ -12,6 +13,11 @@ import androidx.activity.ComponentActivity
 class CallHoldActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Never steal touches/focus — this task only keeps the process alive in background.
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        )
         instance = this
         if (intent.getBooleanExtra(EXTRA_FINISH, false)) {
             finish()
@@ -40,6 +46,7 @@ class CallHoldActivity : ComponentActivity() {
 
         fun start(context: Context) {
             if (instance != null) return
+            if (CallAppState.isInForeground()) return
             val intent = Intent(context, CallHoldActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)

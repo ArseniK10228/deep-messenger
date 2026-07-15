@@ -37,6 +37,9 @@ class DeepMessagingService : FirebaseMessagingService() {
                     app.callManager.handleIncomingPush(data)
                     IncomingCallNotifier.show(this@DeepMessagingService, data)
                 }
+                "call_ended" -> {
+                    app.callManager.handleIncomingPush(data)
+                }
                 "message" -> {
                     val convId = data["conversationId"]
                     val sender = notifTitle ?: data["senderName"] ?: data["senderUsername"] ?: "Deep"

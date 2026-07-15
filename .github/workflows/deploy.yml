@@ -86,7 +86,7 @@ jobs:
               ssh -i "$K" $O root@100.118.211.24 "touch /opt/deep-messenger/.env; grep -q '^TELEGRAM_GATEWAY_TOKEN=' /opt/deep-messenger/.env && sed -i 's|^TELEGRAM_GATEWAY_TOKEN=.*|TELEGRAM_GATEWAY_TOKEN=${TELEGRAM_GATEWAY_TOKEN}|' /opt/deep-messenger/.env || echo TELEGRAM_GATEWAY_TOKEN=${TELEGRAM_GATEWAY_TOKEN} >> /opt/deep-messenger/.env; systemctl restart deep-messenger"
             fi
             if [ -n "${RESEND_API_KEY:-}" ]; then
-              ssh -i "$K" $O root@100.118.211.24 "touch /opt/deep-messenger/.env; grep -q '^RESEND_API_KEY=' /opt/deep-messenger/.env && sed -i 's|^RESEND_API_KEY=.*|RESEND_API_KEY=${RESEND_API_KEY}|' /opt/deep-messenger/.env || echo RESEND_API_KEY=${RESEND_API_KEY} >> /opt/deep-messenger/.env; grep -q '^RESEND_FROM=' /opt/deep-messenger/.env || echo 'RESEND_FROM=Deep Messenger <noreply@deepdesignpc.online>' >> /opt/deep-messenger/.env; systemctl restart deep-messenger"
+              ssh -i "$K" $O root@100.118.211.24 "touch /opt/deep-messenger/.env; grep -q '^RESEND_API_KEY=' /opt/deep-messenger/.env && sed -i 's|^RESEND_API_KEY=.*|RESEND_API_KEY=${RESEND_API_KEY}|' /opt/deep-messenger/.env || echo RESEND_API_KEY=${RESEND_API_KEY} >> /opt/deep-messenger/.env; grep -q '^RESEND_FROM=' /opt/deep-messenger/.env && sed -i 's|^RESEND_FROM=.*|RESEND_FROM=noreply@deepdesignpc.online|' /opt/deep-messenger/.env || echo RESEND_FROM=noreply@deepdesignpc.online >> /opt/deep-messenger/.env; systemctl restart deep-messenger"
             fi
 
       - name: Apply VPS nginx

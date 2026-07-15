@@ -31,6 +31,12 @@ export async function registerEmailAuthRoutes(app: FastifyInstance): Promise<voi
       if (msg === 'RATE_LIMIT') {
         return reply.code(429).send({ error: 'Подожди минуту перед повторной отправкой' });
       }
+      if (msg === 'RESEND_NOT_CONFIGURED') {
+        return reply.code(503).send({ error: 'Сервер не настроен для отправки писем' });
+      }
+      if (msg.startsWith('RESEND_ERROR:')) {
+        req.log.error({ resend: msg });
+      }
       return reply.code(502).send({ error: 'Не удалось отправить письмо' });
     }
   });

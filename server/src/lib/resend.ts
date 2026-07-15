@@ -4,13 +4,16 @@ import { buildOtpEmailHtml, buildOtpEmailText } from './emailTemplate.js';
 interface ResendResponse {
   id?: string;
   message?: string;
+  name?: string;
 }
 
 export async function sendOtpEmail(to: string, code: string): Promise<void> {
   const apiKey = config.resendApiKey;
   if (!apiKey) {
-    throw new Error('RESEND_API_KEY not configured');
+    throw new Error('RESEND_NOT_CONFIGURED');
   }
+
+  const from = `Deep Messenger <${config.resendFromEmail}>`;
 
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -19,7 +22,7 @@ export async function sendOtpEmail(to: string, code: string): Promise<void> {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      from: config.resendFrom,
+      from,
       to: [to],
       subject: `${code} — код для входа в Deep Messenger`,
       html: buildOtpEmailHtml(code),
@@ -29,6 +32,7 @@ export async function sendOtpEmail(to: string, code: string): Promise<void> {
 
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as ResendResponse;
-    throw new Error(body.message || `Resend API error ${res.status}`);
+    const detail = body.message || body.name || `HTTP ${res.status}`;
+    throw new Error(`RESEND_ERROR: ${detail}`);
   }
 }

@@ -47,6 +47,19 @@ android {
             )
         }
     }
+
+    applicationVariants.configureEach {
+        outputs.configureEach {
+            val buildLabel = buildType.name
+            val fileLabel = if (buildLabel == "release") {
+                "Deep Messenger-${versionName}-release.apk"
+            } else {
+                "Deep Messenger.apk"
+            }
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                fileLabel
+        }
+    }
 }
 
 dependencies {

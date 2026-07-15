@@ -31,6 +31,5 @@ export const config = {
   telegramGatewayToken: process.env.TELEGRAM_GATEWAY_TOKEN || '',
   telegramGatewaySender: process.env.TELEGRAM_GATEWAY_SENDER || '',
   resendApiKey: process.env.RESEND_API_KEY || '',
-  resendFrom:
-    process.env.RESEND_FROM || 'Deep Messenger <noreply@deepdesignpc.online>'
+  resendFromEmail: process.env.RESEND_FROM || 'noreply@deepdesignpc.online'
 };

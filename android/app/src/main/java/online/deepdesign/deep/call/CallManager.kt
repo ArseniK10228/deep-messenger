@@ -91,6 +91,7 @@ class CallManager(
     private val pendingIce = mutableListOf<IceCandidate>()
     private var disconnectJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private val ringtonePlayer = CallRingtonePlayer(context)
 
     init {
         DeepAppCallBridgeHolder.manager = this
@@ -192,7 +193,8 @@ class CallManager(
                 _overlayExpanded.value = true
                 _state.value = CallUiState.Outgoing(resp.callId, conversationId, peerName, video)
                 setCallSignalingPriority(true)
-                beginAudioSession()
+                acquireWakeLock()
+                ringtonePlayer.playOutgoingRingback()
                 CallForegroundService.start(context, peerName, outgoing = true, video = video)
                 if (video) initEngine()
             } catch (e: Exception) {
@@ -215,6 +217,7 @@ class CallManager(
         }
         scope.launch {
             try {
+                ringtonePlayer.stop()
                 val resp = api.acceptCall(incoming.callId)
                 iceServers = resp.iceServers
                 activeCallId = incoming.callId
@@ -227,6 +230,7 @@ class CallManager(
                     connected = false
                 )
                 setCallSignalingPriority(true)
+                beginAudioSession()
                 CallForegroundService.start(context, incoming.callerName, outgoing = false, video = incoming.video)
                 initEngine()
                 pendingOffer?.let {
@@ -288,6 +292,7 @@ class CallManager(
         _videoOn.value = video
         _state.value = CallUiState.Incoming(callId, conversationId, callerName, video)
         setCallSignalingPriority(true)
+        ringtonePlayer.playIncoming()
         signaling.connect()
     }
 
@@ -305,12 +310,14 @@ class CallManager(
                     video
                 )
                 setCallSignalingPriority(true)
+                ringtonePlayer.playIncoming()
             }
             "call_accept" -> {
                 val callId = env.callId ?: return
                 if (_state.value is CallUiState.Outgoing) {
                     val outgoing = _state.value as CallUiState.Outgoing
                     activeCallId = callId
+                    ringtonePlayer.stop()
                     _overlayExpanded.value = true
                     _state.value = CallUiState.Active(
                         callId,
@@ -319,6 +326,7 @@ class CallManager(
                         connected = false
                     )
                     setCallSignalingPriority(true)
+                    beginAudioSession()
                     initEngine()
                     engine?.createOffer { sdp ->
                         signaling.sendSdp(callId, sdp.description, sdp.type.canonicalForm())
@@ -406,6 +414,7 @@ class CallManager(
                     when (state) {
                         PeerConnection.PeerConnectionState.CONNECTED -> {
                             disconnectJob?.cancel()
+                            ringtonePlayer.stop()
                             _state.update { current ->
                                 if (current is CallUiState.Active) {
                                     current.copy(connected = true)
@@ -461,6 +470,10 @@ class CallManager(
         val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         am.mode = AudioManager.MODE_IN_COMMUNICATION
         am.isSpeakerphoneOn = _speakerOn.value
+        acquireWakeLock()
+    }
+
+    private fun acquireWakeLock() {
         runCatching {
             val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
             wakeLock?.release()
@@ -482,6 +495,7 @@ class CallManager(
     }
 
     private fun endLocal(@Suppress("UNUSED_PARAMETER") reason: String) {
+        ringtonePlayer.stop()
         endAudioSession()
         teardownRtc()
         activeCallId = null

@@ -1,7 +1,7 @@
 {
-  "versionCode": 9,
-  "versionName": "0.3.6",
+  "versionCode": 10,
+  "versionName": "0.3.7",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Фикс чата: клавиатура больше не уносит сообщения вверх.",
+  "changelog": "Гудки при звонке: рингтон входящий и гудки исходящего вызова.",
   "forceUpdate": false
 }

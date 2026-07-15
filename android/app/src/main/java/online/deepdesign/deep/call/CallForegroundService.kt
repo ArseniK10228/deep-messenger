@@ -10,7 +10,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
-import android.media.AudioManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -29,7 +28,6 @@ class CallForegroundService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 releaseWakeLock()
-                restoreAudioMode()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
@@ -49,7 +47,6 @@ class CallForegroundService : Service() {
                 lastPeer = peer
                 lastVideo = video
                 ensureChannel()
-                beginCallAudio()
                 acquireWakeLock()
                 val notification = buildNotification(peer)
                 try {
@@ -57,7 +54,6 @@ class CallForegroundService : Service() {
                 } catch (e: SecurityException) {
                     Log.e(TAG, "startForeground failed", e)
                     releaseWakeLock()
-                    restoreAudioMode()
                     stopSelf()
                     return START_NOT_STICKY
                 }
@@ -71,7 +67,6 @@ class CallForegroundService : Service() {
         if (DeepAppCallBridge.isInCall()) {
             val peer = lastPeer ?: "Deep"
             ensureChannel()
-            beginCallAudio()
             acquireWakeLock()
             try {
                 startCallForeground(buildNotification(peer), lastVideo)
@@ -83,7 +78,6 @@ class CallForegroundService : Service() {
 
     override fun onDestroy() {
         releaseWakeLock()
-        restoreAudioMode()
         super.onDestroy()
     }
 
@@ -97,18 +91,6 @@ class CallForegroundService : Service() {
         } else {
             @Suppress("DEPRECATION")
             startForeground(NOTIFICATION_ID, notification)
-        }
-    }
-
-    private fun beginCallAudio() {
-        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        am.mode = AudioManager.MODE_IN_COMMUNICATION
-    }
-
-    private fun restoreAudioMode() {
-        runCatching {
-            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            am.mode = AudioManager.MODE_NORMAL
         }
     }
 

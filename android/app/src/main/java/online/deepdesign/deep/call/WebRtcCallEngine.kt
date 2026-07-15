@@ -188,6 +188,10 @@ class WebRtcCallEngine(
         peerConnection?.addIceCandidate(candidate)
     }
 
+    fun restartIce() {
+        peerConnection?.restartIce()
+    }
+
     fun close() {
         runCatching { videoCapturer?.stopCapture() }
         runCatching { videoCapturer?.dispose() }

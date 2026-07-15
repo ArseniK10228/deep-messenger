@@ -1,7 +1,7 @@
 {
-  "versionCode": 10,
-  "versionName": "0.3.7",
+  "versionCode": 11,
+  "versionName": "0.3.8",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Гудки при звонке: рингтон входящий и гудки исходящего вызова.",
+  "changelog": "Звонки в фоне: FGS на входящем, reconnect WS, audio focus, restart ICE.",
   "forceUpdate": false
 }

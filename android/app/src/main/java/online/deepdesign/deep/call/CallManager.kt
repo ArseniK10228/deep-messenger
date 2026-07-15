@@ -3,7 +3,14 @@ package online.deepdesign.deep.call
 import android.content.Context
 import android.Manifest
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.os.Build
 import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
@@ -91,6 +98,8 @@ class CallManager(
     private val pendingIce = mutableListOf<IceCandidate>()
     private var disconnectJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val ringtonePlayer = CallRingtonePlayer(context)
 
     init {
@@ -102,16 +111,27 @@ class CallManager(
     fun onAppBackgrounded() {
         if (!isInCall()) return
         signaling.setUrgentReconnect(true)
-        signaling.connect()
-        beginAudioSession()
+        signaling.forceReconnect()
+        if (engine != null) {
+            beginAudioSession()
+            engine?.restartIce()
+        }
         refreshForegroundService()
     }
 
     fun onAppForegrounded() {
         signaling.setUrgentReconnect(isInCall())
         if (isInCall()) {
-            beginAudioSession()
+            if (engine != null) beginAudioSession()
             refreshForegroundService()
+        }
+    }
+
+    private fun isRingingPhase(): Boolean {
+        return when (val s = _state.value) {
+            is CallUiState.Incoming -> true
+            is CallUiState.Outgoing -> engine == null
+            else -> false
         }
     }
 
@@ -124,7 +144,20 @@ class CallManager(
             else -> false
         }
         val outgoing = _state.value is CallUiState.Outgoing
-        CallForegroundService.refresh(context, peer, outgoing, video)
+        CallForegroundService.refresh(context, peer, outgoing, video, isRingingPhase())
+    }
+
+    private fun startCallProtection(peerName: String, outgoing: Boolean, video: Boolean) {
+        activePeerName = peerName
+        acquireWakeLock()
+        startNetworkMonitor()
+        CallForegroundService.start(
+            context,
+            peerName,
+            outgoing = outgoing,
+            video = video,
+            ringingOnly = isRingingPhase()
+        )
     }
 
     private fun setCallSignalingPriority(active: Boolean) {
@@ -193,9 +226,8 @@ class CallManager(
                 _overlayExpanded.value = true
                 _state.value = CallUiState.Outgoing(resp.callId, conversationId, peerName, video)
                 setCallSignalingPriority(true)
-                acquireWakeLock()
                 ringtonePlayer.playOutgoingRingback()
-                CallForegroundService.start(context, peerName, outgoing = true, video = video)
+                startCallProtection(peerName, outgoing = true, video = video)
                 if (video) initEngine()
             } catch (e: Exception) {
                 _state.value = CallUiState.Idle
@@ -231,7 +263,7 @@ class CallManager(
                 )
                 setCallSignalingPriority(true)
                 beginAudioSession()
-                CallForegroundService.start(context, incoming.callerName, outgoing = false, video = incoming.video)
+                refreshForegroundService()
                 initEngine()
                 pendingOffer?.let {
                     pendingOffer = null
@@ -291,9 +323,12 @@ class CallManager(
         _overlayExpanded.value = true
         _videoOn.value = video
         _state.value = CallUiState.Incoming(callId, conversationId, callerName, video)
+        activeCallId = callId
+        activePeerName = callerName
         setCallSignalingPriority(true)
         ringtonePlayer.playIncoming()
         signaling.connect()
+        startCallProtection(callerName, outgoing = false, video = video)
     }
 
     private fun handleSignal(env: WsEnvelope) {
@@ -302,15 +337,19 @@ class CallManager(
                 val callId = env.callId ?: return
                 if (_state.value !is CallUiState.Idle) return
                 val video = env.video == "true"
+                val callerName = env.callerName ?: "Deep"
+                activeCallId = callId
+                activePeerName = callerName
                 _videoOn.value = video
                 _state.value = CallUiState.Incoming(
                     callId,
                     env.conversationId.orEmpty(),
-                    env.callerName ?: "Deep",
+                    callerName,
                     video
                 )
                 setCallSignalingPriority(true)
                 ringtonePlayer.playIncoming()
+                startCallProtection(callerName, outgoing = false, video = video)
             }
             "call_accept" -> {
                 val callId = env.callId ?: return
@@ -327,6 +366,7 @@ class CallManager(
                     )
                     setCallSignalingPriority(true)
                     beginAudioSession()
+                    refreshForegroundService()
                     initEngine()
                     engine?.createOffer { sdp ->
                         signaling.sendSdp(callId, sdp.description, sdp.type.canonicalForm())
@@ -443,7 +483,10 @@ class CallManager(
                             }
                             engine?.localVideoTrackFlow?.value?.let { _localVideoTrack.value = it }
                         }
-                        PeerConnection.IceConnectionState.DISCONNECTED -> scheduleDisconnectHangup(graceMs = 45_000)
+                        PeerConnection.IceConnectionState.DISCONNECTED -> {
+                            engine?.restartIce()
+                            scheduleDisconnectHangup(graceMs = 90_000)
+                        }
                         PeerConnection.IceConnectionState.FAILED -> scheduleDisconnectHangup(graceMs = 25_000)
                         else -> Unit
                     }
@@ -455,6 +498,7 @@ class CallManager(
         engine?.localVideoTrackFlow?.value?.let { _localVideoTrack.value = it }
         pendingIce.forEach { engine?.addIceCandidate(it) }
         pendingIce.clear()
+        refreshForegroundService()
     }
 
     private fun scheduleDisconnectHangup(graceMs: Long = 45_000) {
@@ -469,6 +513,33 @@ class CallManager(
     private fun beginAudioSession() {
         val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         am.mode = AudioManager.MODE_IN_COMMUNICATION
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(attrs)
+                .setOnAudioFocusChangeListener { focus ->
+                    if (focus == AudioManager.AUDIOFOCUS_GAIN) {
+                        am.mode = AudioManager.MODE_IN_COMMUNICATION
+                    }
+                }
+                .build()
+            audioFocusRequest = request
+            am.requestAudioFocus(request)
+        } else {
+            @Suppress("DEPRECATION")
+            am.requestAudioFocus(
+                { focus ->
+                    if (focus == AudioManager.AUDIOFOCUS_GAIN) {
+                        am.mode = AudioManager.MODE_IN_COMMUNICATION
+                    }
+                },
+                AudioManager.STREAM_VOICE_CALL,
+                AudioManager.AUDIOFOCUS_GAIN
+            )
+        }
         am.isSpeakerphoneOn = _speakerOn.value
         acquireWakeLock()
     }
@@ -489,13 +560,62 @@ class CallManager(
         wakeLock = null
         runCatching {
             val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { am.abandonAudioFocusRequest(it) }
+            } else {
+                @Suppress("DEPRECATION")
+                am.abandonAudioFocus(null)
+            }
+            audioFocusRequest = null
             am.isSpeakerphoneOn = false
             am.mode = AudioManager.MODE_NORMAL
         }
     }
 
+    private fun startNetworkMonitor() {
+        if (networkCallback != null) return
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                if (!isInCall()) return
+                scope.launch {
+                    signaling.forceReconnect()
+                    engine?.restartIce()
+                }
+            }
+
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                if (!isInCall()) return
+                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                    scope.launch {
+                        engine?.restartIce()
+                    }
+                }
+            }
+        }
+        networkCallback = callback
+        runCatching {
+            cm.registerNetworkCallback(
+                NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build(),
+                callback
+            )
+        }
+    }
+
+    private fun stopNetworkMonitor() {
+        val callback = networkCallback ?: return
+        runCatching {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            cm.unregisterNetworkCallback(callback)
+        }
+        networkCallback = null
+    }
+
     private fun endLocal(@Suppress("UNUSED_PARAMETER") reason: String) {
         ringtonePlayer.stop()
+        stopNetworkMonitor()
         endAudioSession()
         teardownRtc()
         activeCallId = null

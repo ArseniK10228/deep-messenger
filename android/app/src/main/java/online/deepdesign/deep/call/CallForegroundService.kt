@@ -39,18 +39,20 @@ class CallForegroundService : Service() {
             else -> {
                 val peer = intent?.getStringExtra(EXTRA_PEER) ?: "Deep"
                 val video = intent?.getBooleanExtra(EXTRA_VIDEO, false) == true
-                if (!hasMicPermission()) {
+                val ringingOnly = intent?.getBooleanExtra(EXTRA_RINGING_ONLY, false) == true
+                if (!ringingOnly && !hasMicPermission()) {
                     Log.w(TAG, "RECORD_AUDIO not granted — cannot start call FGS")
                     stopSelf()
                     return START_NOT_STICKY
                 }
                 lastPeer = peer
                 lastVideo = video
+                lastRingingOnly = ringingOnly
                 ensureChannel()
                 acquireWakeLock()
                 val notification = buildNotification(peer)
                 try {
-                    startCallForeground(notification, video)
+                    startCallForeground(notification, video, ringingOnly)
                 } catch (e: SecurityException) {
                     Log.e(TAG, "startForeground failed", e)
                     releaseWakeLock()
@@ -69,7 +71,7 @@ class CallForegroundService : Service() {
             ensureChannel()
             acquireWakeLock()
             try {
-                startCallForeground(buildNotification(peer), lastVideo)
+                startCallForeground(buildNotification(peer), lastVideo, lastRingingOnly)
             } catch (e: SecurityException) {
                 Log.e(TAG, "onTaskRemoved restart failed", e)
             }
@@ -81,17 +83,25 @@ class CallForegroundService : Service() {
         super.onDestroy()
     }
 
-    private fun startCallForeground(notification: Notification, video: Boolean) {
+    private fun startCallForeground(notification: Notification, video: Boolean, ringingOnly: Boolean) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            if (video) {
-                type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-            }
+            val type = resolveForegroundType(video, ringingOnly)
             startForeground(NOTIFICATION_ID, notification, type)
         } else {
             @Suppress("DEPRECATION")
             startForeground(NOTIFICATION_ID, notification)
         }
+    }
+
+    private fun resolveForegroundType(video: Boolean, ringingOnly: Boolean): Int {
+        if (ringingOnly && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE
+        }
+        var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+        if (video && !ringingOnly) {
+            type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+        }
+        return type
     }
 
     private fun acquireWakeLock() {
@@ -164,6 +174,7 @@ class CallForegroundService : Service() {
         private const val NOTIFICATION_ID = 42
         private const val EXTRA_PEER = "peer"
         private const val EXTRA_VIDEO = "video"
+        private const val EXTRA_RINGING_ONLY = "ringing_only"
         private const val ACTION_STOP = "stop"
         private const val ACTION_HANGUP = "hangup"
 
@@ -173,18 +184,35 @@ class CallForegroundService : Service() {
         @Volatile
         private var lastVideo: Boolean = false
 
-        fun start(context: Context, peerName: String, outgoing: Boolean, video: Boolean = false) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+        @Volatile
+        private var lastRingingOnly: Boolean = false
+
+        fun start(
+            context: Context,
+            peerName: String,
+            outgoing: Boolean,
+            video: Boolean = false,
+            ringingOnly: Boolean = false
+        ) {
+            if (!ringingOnly &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
                 != PackageManager.PERMISSION_GRANTED
             ) {
                 return
             }
-            val peer = if (outgoing) "Вызов: $peerName" else peerName
+            val peer = when {
+                outgoing && ringingOnly -> "Вызов: $peerName"
+                outgoing -> "Разговор: $peerName"
+                ringingOnly -> "Входящий: $peerName"
+                else -> peerName
+            }
             lastPeer = peer
             lastVideo = video
+            lastRingingOnly = ringingOnly
             val intent = Intent(context, CallForegroundService::class.java)
                 .putExtra(EXTRA_PEER, peer)
                 .putExtra(EXTRA_VIDEO, video)
+                .putExtra(EXTRA_RINGING_ONLY, ringingOnly)
             try {
                 context.startForegroundService(intent)
             } catch (e: Exception) {
@@ -192,13 +220,20 @@ class CallForegroundService : Service() {
             }
         }
 
-        fun refresh(context: Context, peerName: String, outgoing: Boolean, video: Boolean) {
-            start(context, peerName, outgoing, video)
+        fun refresh(
+            context: Context,
+            peerName: String,
+            outgoing: Boolean,
+            video: Boolean,
+            ringingOnly: Boolean = false
+        ) {
+            start(context, peerName, outgoing, video, ringingOnly)
         }
 
         fun stop(context: Context) {
             lastPeer = null
             lastVideo = false
+            lastRingingOnly = false
             val intent = Intent(context, CallForegroundService::class.java).setAction(ACTION_STOP)
             context.startService(intent)
         }

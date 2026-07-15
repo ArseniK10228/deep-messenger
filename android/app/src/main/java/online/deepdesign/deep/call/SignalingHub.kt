@@ -18,6 +18,8 @@ import online.deepdesign.deep.data.ApiConfig
 import online.deepdesign.deep.data.ChatEvent
 import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.WsEnvelope
+import java.util.ArrayDeque
+import java.util.concurrent.TimeUnit
 
 class SignalingHub(
     private val tokenProvider: () -> String?
@@ -39,6 +41,8 @@ class SignalingHub(
     @Volatile
     private var urgentReconnect = false
 
+    private val pendingSignals = ArrayDeque<String>(MAX_PENDING)
+
     private val callTypes = setOf(
         "call_invite", "call_accept", "call_end",
         "call_sdp", "call_ice"
@@ -53,10 +57,17 @@ class SignalingHub(
         openSocket()
     }
 
+    fun forceReconnect() {
+        reconnectJob?.cancel()
+        runCatching { ws?.cancel() }
+        ws = null
+        if (shouldStayConnected) openSocket()
+    }
+
     fun setUrgentReconnect(enabled: Boolean) {
         urgentReconnect = enabled
-        if (enabled && shouldStayConnected && ws == null) {
-            openSocket()
+        if (enabled && shouldStayConnected) {
+            if (ws == null) openSocket() else forceReconnect()
         }
     }
 
@@ -64,10 +75,17 @@ class SignalingHub(
         if (ws != null) return
         val token = tokenProvider() ?: return
         val url = "${ApiConfig.WS_URL}?token=${java.net.URLEncoder.encode(token, "UTF-8")}"
-        val client = ApiClient.okHttp(tokenProvider)
+        val pingSec = if (urgentReconnect) 15L else 30L
+        val client = ApiClient.okHttp(tokenProvider).newBuilder()
+            .pingInterval(pingSec, TimeUnit.SECONDS)
+            .build()
         ws = client.newWebSocket(
             Request.Builder().url(url).build(),
             object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    flushPending()
+                }
+
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     try {
                         val env = adapter.fromJson(text) ?: return
@@ -102,6 +120,7 @@ class SignalingHub(
         reconnectJob?.cancel()
         ws?.close(1000, "bye")
         ws = null
+        pendingSignals.clear()
     }
 
     private fun scheduleReconnect() {
@@ -113,12 +132,42 @@ class SignalingHub(
         }
     }
 
+    private fun flushPending() {
+        val socket = ws ?: return
+        while (pendingSignals.isNotEmpty()) {
+            val payload = pendingSignals.removeFirst()
+            if (!socket.send(payload)) {
+                pendingSignals.addFirst(payload)
+                scheduleReconnect()
+                return
+            }
+        }
+    }
+
+    private fun enqueueOrSend(payload: String) {
+        val socket = ws
+        if (socket == null) {
+            enqueue(payload)
+            if (shouldStayConnected) openSocket()
+            return
+        }
+        if (!socket.send(payload)) {
+            enqueue(payload)
+            scheduleReconnect()
+        }
+    }
+
+    private fun enqueue(payload: String) {
+        if (pendingSignals.size >= MAX_PENDING) pendingSignals.removeFirst()
+        pendingSignals.addLast(payload)
+    }
+
     fun sendDelivered(messageId: String) {
         sendSignal("""{"type":"delivered","messageId":"$messageId"}""")
     }
 
     fun sendSignal(payload: String) {
-        ws?.send(payload)
+        enqueueOrSend(payload)
     }
 
     fun sendSdp(callId: String, sdp: String, sdpType: String) {
@@ -135,5 +184,9 @@ class SignalingHub(
     private fun jsonString(value: String): String {
         return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"")
             .replace("\n", "\\n").replace("\r", "\\r") + "\""
+    }
+
+    companion object {
+        private const val MAX_PENDING = 32
     }
 }

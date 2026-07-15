@@ -35,7 +35,10 @@ class DeepMessagingService : FirebaseMessagingService() {
             when (data["type"]) {
                 "incoming_call" -> {
                     app.callManager.handleIncomingPush(data)
-                    IncomingCallNotifier.show(this@DeepMessagingService, data)
+                    val callId = data["callId"]
+                    if (callId != null && app.callManager.shouldPostIncomingNotification(callId)) {
+                        IncomingCallNotifier.show(this@DeepMessagingService, data)
+                    }
                 }
                 "call_ended" -> {
                     app.callManager.handleIncomingPush(data)

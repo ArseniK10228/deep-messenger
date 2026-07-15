@@ -11,7 +11,7 @@ import { buildIceServers } from '../lib/turn.js';
 import { userInConversation } from '../db/conversations.js';
 import { query } from '../db/client.js';
 import { sendCallPush } from '../lib/firebase.js';
-import { sendToUser } from '../ws/hub.js';
+import { isUserOnline, sendToUser } from '../ws/hub.js';
 
 async function getPeerUserId(conversationId: string, userId: string): Promise<string | null> {
   const r = await query<{ user_id: string }>(
@@ -73,14 +73,16 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
       video: isVideo ? 'true' : 'false'
     });
 
-    await sendCallPush(calleeId, {
-      type: 'incoming_call',
-      callId: call.id,
-      conversationId: call.conversationId,
-      callerId: user.id,
-      callerName,
-      video: isVideo ? 'true' : 'false'
-    });
+    if (!isUserOnline(calleeId)) {
+      await sendCallPush(calleeId, {
+        type: 'incoming_call',
+        callId: call.id,
+        conversationId: call.conversationId,
+        callerId: user.id,
+        callerName,
+        video: isVideo ? 'true' : 'false'
+      });
+    }
 
     return {
       callId: call.id,

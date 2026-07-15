@@ -6,8 +6,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import okhttp3.Request
 import okhttp3.Response
@@ -15,6 +18,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import online.deepdesign.deep.data.ApiClient
 import online.deepdesign.deep.data.ApiConfig
+import online.deepdesign.deep.data.AuthEvents
 import online.deepdesign.deep.data.ChatEvent
 import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.WsEnvelope
@@ -28,6 +32,12 @@ class SignalingHub(
     private val adapter = ApiClient.moshi.adapter(WsEnvelope::class.java)
     private val _events = MutableSharedFlow<WsEnvelope>(extraBufferCapacity = 64)
     val events: SharedFlow<WsEnvelope> = _events.asSharedFlow()
+
+    private val _wsConnected = MutableStateFlow(false)
+    val wsConnected: StateFlow<Boolean> = _wsConnected.asStateFlow()
+
+    private val _wsReconnecting = MutableStateFlow(false)
+    val wsReconnecting: StateFlow<Boolean> = _wsReconnecting.asStateFlow()
 
     @Volatile
     private var ws: WebSocket? = null
@@ -51,6 +61,8 @@ class SignalingHub(
     private val chatTypes = setOf(
         "message", "message_delivered", "message_read", "message_deleted"
     )
+
+    fun isConnected(): Boolean = ws != null && _wsConnected.value
 
     fun connect() {
         shouldStayConnected = true
@@ -83,6 +95,8 @@ class SignalingHub(
             Request.Builder().url(url).build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
+                    _wsConnected.value = true
+                    _wsReconnecting.value = false
                     flushPending()
                 }
 
@@ -106,11 +120,19 @@ class SignalingHub(
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     ws = null
+                    _wsConnected.value = false
                     scheduleReconnect()
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                     ws = null
+                    _wsConnected.value = false
+                    if (code == 4401) {
+                        shouldStayConnected = false
+                        _wsReconnecting.value = false
+                        AuthEvents.notifySessionExpired()
+                        return
+                    }
                     scheduleReconnect()
                 }
             }
@@ -120,6 +142,8 @@ class SignalingHub(
     fun disconnect() {
         shouldStayConnected = false
         reconnectJob?.cancel()
+        _wsReconnecting.value = false
+        _wsConnected.value = false
         ws?.close(1000, "bye")
         ws = null
         pendingSignals.clear()
@@ -127,6 +151,7 @@ class SignalingHub(
 
     private fun scheduleReconnect() {
         if (!shouldStayConnected) return
+        _wsReconnecting.value = true
         reconnectJob?.cancel()
         reconnectJob = scope.launch {
             delay(if (urgentReconnect) 500 else 2_000)

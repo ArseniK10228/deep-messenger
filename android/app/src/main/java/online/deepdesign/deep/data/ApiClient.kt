@@ -39,6 +39,9 @@ interface DeepApi {
     @POST("api/v1/auth/firebase")
     suspend fun authFirebase(@Body body: FirebaseAuthRequest): AuthResponse
 
+    @POST("api/v1/auth/refresh")
+    suspend fun refreshToken(): AuthResponse
+
     @GET("api/v1/me")
     suspend fun me(): MeResponse
 

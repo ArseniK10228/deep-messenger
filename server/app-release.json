@@ -1,7 +1,7 @@
 {
-  "versionCode": 19,
-  "versionName": "0.3.16",
+  "versionCode": 20,
+  "versionName": "0.3.17",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Bluetooth и выбор динамика/микрофона в звонке.",
+  "changelog": "Статус сети в звонке, индикатор микрофона, фикс двойного рингтона и сессии.",
   "forceUpdate": false
 }

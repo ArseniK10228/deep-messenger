@@ -33,6 +33,15 @@ export function broadcastToConversation(conversationId: string, payload: unknown
   }
 }
 
+export function isUserOnline(userId: string): boolean {
+  for (const c of clients) {
+    if (c.userId === userId && c.ws.readyState === c.ws.OPEN) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function sendToUser(userId: string, payload: unknown): void {
   const data = JSON.stringify(payload);
   for (const c of clients) {

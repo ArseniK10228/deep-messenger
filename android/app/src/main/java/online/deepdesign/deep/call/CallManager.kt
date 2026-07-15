@@ -17,7 +17,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.data.IceServerDto
@@ -70,6 +72,12 @@ class CallManager(
     private val audioRouter = CallAudioRouter(context)
     val callAudio: StateFlow<CallAudioUiState> = audioRouter.state
 
+    private val _callNetwork = MutableStateFlow(CallNetworkUiState())
+    val callNetwork: StateFlow<CallNetworkUiState> = _callNetwork.asStateFlow()
+
+    private val _micLevel = MutableStateFlow(0f)
+    val micLevel: StateFlow<Float> = _micLevel.asStateFlow()
+
     private val _overlayExpanded = MutableStateFlow(true)
     val overlayExpanded: StateFlow<Boolean> = _overlayExpanded.asStateFlow()
 
@@ -95,10 +103,22 @@ class CallManager(
     private var disconnectJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var statsJob: Job? = null
+    @Volatile
+    private var iceDegraded = false
+    @Volatile
+    private var lastRttMs: Int? = null
     private val ringtonePlayer = CallRingtonePlayer(context)
 
     init {
         DeepAppCallBridgeHolder.manager = this
+        scope.launch {
+            combine(signaling.wsConnected, signaling.wsReconnecting, _state) { ws, reconnecting, call ->
+                Triple(ws, reconnecting, call)
+            }.collect { (ws, reconnecting, call) ->
+                updateCallNetwork(ws, reconnecting, call)
+            }
+        }
     }
 
     fun isInCall(): Boolean = _state.value !is CallUiState.Idle
@@ -252,6 +272,7 @@ class CallManager(
                 setCallSignalingPriority(true)
                 ringtonePlayer.playOutgoingRingback()
                 startCallProtection(peerName, outgoing = true, video = video)
+                startStatsMonitor()
                 if (video) initEngine()
             } catch (e: Exception) {
                 _state.value = CallUiState.Idle
@@ -370,10 +391,19 @@ class CallManager(
                 val conversationId = data["conversationId"] ?: return
                 val callerName = data["callerName"] ?: "Deep"
                 val video = data["video"] == "true"
-                prepareIncomingFromNotification(callId, conversationId, callerName, video)
+                onIncomingCall(callId, conversationId, callerName, video)
             }
             "call_ended" -> handleRemoteCallEnd(data["callId"], data["reason"] ?: "hangup")
         }
+    }
+
+    fun isIncomingRinging(callId: String): Boolean =
+        _state.value is CallUiState.Incoming && activeCallId == callId
+
+    fun shouldPostIncomingNotification(callId: String): Boolean {
+        if (CallAppState.isInForeground()) return false
+        if (isIncomingRinging(callId)) return false
+        return true
     }
 
     fun prepareIncomingFromNotification(
@@ -382,7 +412,16 @@ class CallManager(
         callerName: String,
         video: Boolean = false
     ) {
-        if (_state.value is CallUiState.Incoming && activeCallId == callId) return
+        onIncomingCall(callId, conversationId, callerName, video)
+    }
+
+    private fun onIncomingCall(
+        callId: String,
+        conversationId: String,
+        callerName: String,
+        video: Boolean
+    ) {
+        if (isIncomingRinging(callId)) return
         if (_state.value is CallUiState.Outgoing || _state.value is CallUiState.Active) return
         _overlayExpanded.value = true
         _videoOn.value = video
@@ -393,28 +432,25 @@ class CallManager(
         ringtonePlayer.playIncoming()
         signaling.connect()
         startCallProtection(callerName, outgoing = false, video = video)
+        if (!CallAppState.isInForeground()) {
+            context.startActivity(
+                IncomingCallActivity.intent(context, callId, conversationId, callerName, video)
+            )
+        }
     }
 
     private fun handleSignal(env: WsEnvelope) {
         when (env.type) {
             "call_invite" -> {
                 val callId = env.callId ?: return
-                if (_state.value is CallUiState.Incoming && activeCallId == callId) return
-                if (_state.value !is CallUiState.Idle) return
                 val video = env.video == "true"
                 val callerName = env.callerName ?: "Deep"
-                activeCallId = callId
-                activePeerName = callerName
-                _videoOn.value = video
-                _state.value = CallUiState.Incoming(
+                onIncomingCall(
                     callId,
                     env.conversationId.orEmpty(),
                     callerName,
                     video
                 )
-                setCallSignalingPriority(true)
-                ringtonePlayer.playIncoming()
-                startCallProtection(callerName, outgoing = false, video = video)
             }
             "call_accept" -> {
                 val callId = env.callId ?: return
@@ -543,6 +579,7 @@ class CallManager(
                     when (state) {
                         PeerConnection.IceConnectionState.CONNECTED,
                         PeerConnection.IceConnectionState.COMPLETED -> {
+                            iceDegraded = false
                             disconnectJob?.cancel()
                             _state.update { current ->
                                 if (current is CallUiState.Active) {
@@ -552,10 +589,14 @@ class CallManager(
                             engine?.localVideoTrackFlow?.value?.let { _localVideoTrack.value = it }
                         }
                         PeerConnection.IceConnectionState.DISCONNECTED -> {
+                            iceDegraded = true
                             engine?.restartIce()
                             scheduleDisconnectHangup(graceMs = 90_000)
                         }
-                        PeerConnection.IceConnectionState.FAILED -> scheduleDisconnectHangup(graceMs = 25_000)
+                        PeerConnection.IceConnectionState.FAILED -> {
+                            iceDegraded = true
+                            scheduleDisconnectHangup(graceMs = 25_000)
+                        }
                         else -> Unit
                     }
                 }
@@ -567,6 +608,78 @@ class CallManager(
         pendingIce.forEach { engine?.addIceCandidate(it) }
         pendingIce.clear()
         refreshForegroundService()
+        startStatsMonitor()
+    }
+
+    private fun startStatsMonitor() {
+        statsJob?.cancel()
+        statsJob = scope.launch {
+            while (isActive) {
+                val eng = engine
+                if (eng != null && !_muted.value) {
+                    eng.readCallStats { mic, rtt ->
+                        scope.launch {
+                            _micLevel.value = mic
+                            lastRttMs = rtt
+                            updateCallNetwork(
+                                signaling.wsConnected.value,
+                                signaling.wsReconnecting.value,
+                                _state.value
+                            )
+                        }
+                    }
+                } else {
+                    _micLevel.value = 0f
+                }
+                delay(120)
+            }
+        }
+    }
+
+    private fun stopStatsMonitor() {
+        statsJob?.cancel()
+        statsJob = null
+        _micLevel.value = 0f
+        lastRttMs = null
+        iceDegraded = false
+        _callNetwork.value = CallNetworkUiState()
+    }
+
+    private fun updateCallNetwork(
+        wsConnected: Boolean,
+        wsReconnecting: Boolean,
+        call: CallUiState
+    ) {
+        when (call) {
+            is CallUiState.Outgoing -> {
+                val reconnecting = wsReconnecting || !wsConnected
+                _callNetwork.value = CallNetworkUiState(
+                    bars = if (wsConnected) 3 else 1,
+                    pingMs = lastRttMs,
+                    statusText = if (reconnecting) "Восстанавливаем соединение…" else null,
+                    reconnecting = reconnecting
+                )
+            }
+            is CallUiState.Active -> {
+                val reconnecting = wsReconnecting || iceDegraded || !call.connected
+                val ping = lastRttMs
+                val bars = when {
+                    reconnecting -> 1
+                    ping == null -> if (call.connected) 3 else 2
+                    ping < 120 -> 4
+                    ping < 250 -> 3
+                    ping < 500 -> 2
+                    else -> 1
+                }
+                _callNetwork.value = CallNetworkUiState(
+                    bars = bars,
+                    pingMs = ping,
+                    statusText = if (reconnecting) "Восстанавливаем соединение…" else null,
+                    reconnecting = reconnecting
+                )
+            }
+            else -> _callNetwork.value = CallNetworkUiState()
+        }
     }
 
     private fun scheduleDisconnectHangup(graceMs: Long = 45_000) {
@@ -642,7 +755,9 @@ class CallManager(
     }
 
     private fun endLocal(@Suppress("UNUSED_PARAMETER") reason: String) {
+        val endedCallId = activeCallId
         ringtonePlayer.stop()
+        stopStatsMonitor()
         stopNetworkMonitor()
         CallHoldActivity.stop(context)
         endAudioSession()
@@ -658,11 +773,12 @@ class CallManager(
         _overlayExpanded.value = true
         setCallSignalingPriority(false)
         _state.value = CallUiState.Idle
-        IncomingCallNotifier.dismiss(context, activeCallId)
+        IncomingCallNotifier.dismiss(context, endedCallId)
         CallForegroundService.stop(context)
     }
 
     private fun teardownRtc() {
+        stopStatsMonitor()
         engine?.close()
         engine = null
     }

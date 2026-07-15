@@ -47,6 +47,8 @@ class MainActivity : ComponentActivity() {
                 val callError by callManager.error.collectAsState()
                 val muted by callManager.muted.collectAsState()
                 val callAudio by callManager.callAudio.collectAsState()
+                val callNetwork by callManager.callNetwork.collectAsState()
+                val micLevel by callManager.micLevel.collectAsState()
                 val overlayExpanded by callManager.overlayExpanded.collectAsState()
                 val videoOn by callManager.videoOn.collectAsState()
                 val localVideo by callManager.localVideoTrack.collectAsState()
@@ -145,6 +147,8 @@ class MainActivity : ComponentActivity() {
                                     state = callState,
                                     muted = muted,
                                     callAudio = callAudio,
+                                    callNetwork = callNetwork,
+                                    micLevel = micLevel,
                                     videoOn = videoOn,
                                     localVideo = localVideo,
                                     localVideoMirror = localVideoMirror,

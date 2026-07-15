@@ -9,6 +9,8 @@ import org.webrtc.EglBase
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
 import org.webrtc.PeerConnection
+import org.webrtc.RTCStatsCollectorCallback
+import org.webrtc.RTCStatsReport
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceTextureHelper
 import org.webrtc.VideoCapturer
@@ -190,6 +192,34 @@ class WebRtcCallEngine(
 
     fun restartIce() {
         peerConnection?.restartIce()
+    }
+
+    fun readCallStats(onResult: (micLevel: Float, rttMs: Int?) -> Unit) {
+        val pc = peerConnection ?: return
+        pc.getStats(object : RTCStatsCollectorCallback {
+            override fun onStatsDelivered(report: RTCStatsReport?) {
+                if (report == null) return
+                var mic = 0f
+                var rttMs: Int? = null
+                for (stats in report.statsMap.values) {
+                    when (stats.type) {
+                        "media-source" -> {
+                            if (stats.members["kind"] == "audio") {
+                                (stats.members["audioLevel"] as? Number)?.toFloat()?.let { mic = it }
+                            }
+                        }
+                        "candidate-pair" -> {
+                            if (stats.members["state"] == "succeeded") {
+                                (stats.members["currentRoundTripTime"] as? Number)?.toDouble()?.let {
+                                    rttMs = (it * 1000).toInt().coerceAtLeast(1)
+                                }
+                            }
+                        }
+                    }
+                }
+                onResult(mic, rttMs)
+            }
+        })
     }
 
     fun close() {

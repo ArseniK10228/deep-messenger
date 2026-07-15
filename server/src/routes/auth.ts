@@ -37,6 +37,18 @@ export async function registerPublicAuthRoutes(app: FastifyInstance): Promise<vo
 }
 
 export async function registerProtectedAuthRoutes(app: FastifyInstance): Promise<void> {
+  app.post('/auth/refresh', async (req, reply) => {
+    const auth = getAuthUser(req);
+    const row = await getUserById(auth.id);
+    if (!row) return reply.code(404).send({ error: 'user not found' });
+    const token = await reply.jwtSign({
+      id: auth.id,
+      phone: auth.phone || '',
+      displayName: auth.displayName
+    });
+    return { token, user: mapUserDto(row) };
+  });
+
   app.post('/auth/fcm', async (req, reply) => {
     const user = getAuthUser(req);
     const body = req.body as { token?: string };

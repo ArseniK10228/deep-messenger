@@ -21,11 +21,9 @@ if [[ ! -f .env ]]; then
   sed -i 's|^FIREBASE_SERVICE_ACCOUNT_PATH=.*|FIREBASE_SERVICE_ACCOUNT_PATH=../secrets/firebase-service-account.json|' .env
   sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgres://deep:deep@127.0.0.1:5432/deep_messenger|' .env
   echo "Created $REPO/.env"
-elif [[ -n "${JWT_SECRET:-}" ]]; then
-  grep -q '^JWT_SECRET=' .env \
-    && sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" .env \
-    || echo "JWT_SECRET=${JWT_SECRET}" >> .env
 fi
+
+# Never rotate JWT_SECRET on deploy — would log out all users.
 
 if [[ -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]]; then
   mkdir -p "$REPO/secrets"

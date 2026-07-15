@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import online.deepdesign.deep.call.CallAudioUiState
 import online.deepdesign.deep.call.CallInputRoute
+import online.deepdesign.deep.call.CallNetworkUiState
 import online.deepdesign.deep.call.CallOutputRoute
 import online.deepdesign.deep.call.CallUiState
 import online.deepdesign.deep.ui.components.ChatAvatar
@@ -74,6 +75,8 @@ fun CallOverlay(
     state: CallUiState,
     muted: Boolean,
     callAudio: CallAudioUiState,
+    callNetwork: CallNetworkUiState,
+    micLevel: Float,
     videoOn: Boolean,
     localVideo: VideoTrack?,
     localVideoMirror: Boolean,
@@ -98,6 +101,8 @@ fun CallOverlay(
                 connected = false,
                 muted = muted,
                 callAudio = callAudio,
+                callNetwork = callNetwork,
+                micLevel = micLevel,
                 videoOn = videoOn,
                 localVideo = localVideo,
                 localVideoMirror = localVideoMirror,
@@ -116,6 +121,8 @@ fun CallOverlay(
                 connected = false,
                 muted = muted,
                 callAudio = callAudio,
+                callNetwork = callNetwork,
+                micLevel = micLevel,
                 onToggleMute = onToggleMute,
                 onOpenAudioSettings = onOpenAudioSettings,
                 onHangup = onHangup,
@@ -129,6 +136,8 @@ fun CallOverlay(
                 connected = state.connected,
                 muted = muted,
                 callAudio = callAudio,
+                callNetwork = callNetwork,
+                micLevel = micLevel,
                 videoOn = videoOn,
                 localVideo = localVideo,
                 localVideoMirror = localVideoMirror,
@@ -147,6 +156,8 @@ fun CallOverlay(
                 connected = state.connected,
                 muted = muted,
                 callAudio = callAudio,
+                callNetwork = callNetwork,
+                micLevel = micLevel,
                 onToggleMute = onToggleMute,
                 onOpenAudioSettings = onOpenAudioSettings,
                 onHangup = onHangup,
@@ -260,6 +271,8 @@ private fun OngoingCallUi(
     connected: Boolean,
     muted: Boolean,
     callAudio: CallAudioUiState,
+    callNetwork: CallNetworkUiState,
+    micLevel: Float,
     onToggleMute: () -> Unit,
     onOpenAudioSettings: () -> Unit,
     onHangup: () -> Unit,
@@ -284,7 +297,9 @@ private fun OngoingCallUi(
             ) {
                 Spacer(Modifier.weight(0.22f))
                 CallStatusChip(text = status, accent = connected)
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(10.dp))
+                CallNetworkStatus(state = callNetwork)
+                Spacer(Modifier.height(18.dp))
                 Box(Modifier.scale(pulse)) {
                     ChatAvatar(name = peerName, size = 132.dp, online = connected)
                 }
@@ -310,6 +325,7 @@ private fun OngoingCallUi(
                             "Мик"
                         },
                         active = muted,
+                        micLevel = if (muted) null else micLevel,
                         onClick = onToggleMute
                     )
                     CallControlChip(
@@ -340,6 +356,8 @@ private fun VideoCallUi(
     connected: Boolean,
     muted: Boolean,
     callAudio: CallAudioUiState,
+    callNetwork: CallNetworkUiState,
+    micLevel: Float,
     videoOn: Boolean,
     localVideo: VideoTrack?,
     localVideoMirror: Boolean,
@@ -435,6 +453,8 @@ private fun VideoCallUi(
                 fontWeight = FontWeight.Bold
             )
             CallStatusChip(text = status, accent = connected, light = true)
+            Spacer(Modifier.height(8.dp))
+            CallNetworkStatus(state = callNetwork, light = true)
         }
 
         CallControlsDock(
@@ -449,6 +469,7 @@ private fun VideoCallUi(
                 icon = if (muted) Icons.Default.MicOff else Icons.Default.Mic,
                 label = if (muted) "Вкл." else "Мик",
                 active = muted,
+                micLevel = if (muted) null else micLevel,
                 onClick = onToggleMute,
                 light = true
             )
@@ -615,10 +636,13 @@ private fun CallControlChip(
     label: String,
     active: Boolean,
     onClick: () -> Unit,
-    light: Boolean = false
+    light: Boolean = false,
+    micLevel: Float? = null
 ) {
+    val speaking = micLevel != null && micLevel > 0.02f
     val activeBg = if (light) Color.White.copy(alpha = 0.22f) else DeepAccent.copy(alpha = 0.35f)
     val iconTint = when {
+        speaking -> Color(0xFF5CE696)
         active -> DeepAccent
         light -> Color.White
         else -> DeepText
@@ -629,11 +653,24 @@ private fun CallControlChip(
         Surface(
             onClick = onClick,
             modifier = Modifier.size(56.dp),
-            color = if (active) activeBg else Color.Transparent,
+            color = when {
+                speaking -> Color(0xFF5CE696).copy(alpha = if (light) 0.28f else 0.18f)
+                active -> activeBg
+                else -> Color.Transparent
+            },
             shape = CircleShape
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 Icon(icon, contentDescription = label, tint = iconTint, modifier = Modifier.size(24.dp))
+                if (speaking) {
+                    MicLevelBars(
+                        level = micLevel,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 8.dp),
+                        light = light
+                    )
+                }
             }
         }
         Text(label, color = labelColor, style = MaterialTheme.typography.labelSmall)

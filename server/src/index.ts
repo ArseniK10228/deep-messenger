@@ -32,7 +32,10 @@ async function main() {
   const app = Fastify({ logger: true });
 
   await app.register(cors, { origin: true });
-  await app.register(jwt, { secret: config.jwtSecret });
+  await app.register(jwt, {
+    secret: config.jwtSecret,
+    sign: { expiresIn: '365d' }
+  });
   await app.register(multipart, { limits: { fileSize: config.maxUploadMb * 1024 * 1024 } });
   await app.register(fastifyStatic, {
     root: path.resolve(config.uploadDir),

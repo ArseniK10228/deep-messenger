@@ -15,7 +15,7 @@ export async function registerPublicAuthRoutes(app: FastifyInstance): Promise<vo
       const user = await upsertUserByPhone(normalized, body.displayName?.trim());
       const token = await reply.jwtSign({
         id: user.id,
-        phone: user.phone,
+          phone: user.phone || '',
         displayName: user.display_name
       });
       return {

@@ -47,34 +47,39 @@ export async function registerEmailAuthRoutes(app: FastifyInstance): Promise<voi
       return reply.code(400).send({ error: 'requestId and code required' });
     }
 
-    const result = await verifyEmailOtp(body.requestId, body.code.trim());
-    if (!result.ok) {
-      if (result.reason === 'expired') {
-        return reply.code(410).send({ error: 'Код истёк, запроси новый' });
+    try {
+      const result = await verifyEmailOtp(body.requestId, body.code.trim());
+      if (!result.ok) {
+        if (result.reason === 'expired') {
+          return reply.code(410).send({ error: 'Код истёк, запроси новый' });
+        }
+        if (result.reason === 'max_attempts') {
+          return reply.code(429).send({ error: 'Слишком много попыток' });
+        }
+        return reply.code(401).send({ error: 'Неверный код' });
       }
-      if (result.reason === 'max_attempts') {
-        return reply.code(429).send({ error: 'Слишком много попыток' });
-      }
-      return reply.code(401).send({ error: 'Неверный код' });
-    }
 
-    const user = await upsertUserByEmail(result.email);
-    const token = await reply.jwtSign({
-      id: user.id,
-      email: user.email,
-      phone: user.phone || '',
-      displayName: user.display_name
-    });
-
-    return {
-      token,
-      user: {
+      const user = await upsertUserByEmail(result.email);
+      const token = await reply.jwtSign({
         id: user.id,
         email: user.email,
         phone: user.phone || '',
-        displayName: user.display_name,
-        avatarUrl: user.avatar_path ? `/media/${user.avatar_path}` : null
-      }
-    };
+        displayName: user.display_name
+      });
+
+      return {
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          phone: user.phone || '',
+          displayName: user.display_name,
+          avatarUrl: user.avatar_path ? `/media/${user.avatar_path}` : null
+        }
+      };
+    } catch (err) {
+      req.log.error(err);
+      return reply.code(500).send({ error: 'Ошибка входа, попробуй ещё раз' });
+    }
   });
 }

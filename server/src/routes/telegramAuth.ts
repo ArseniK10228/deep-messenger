@@ -71,14 +71,14 @@ export async function registerTelegramAuthRoutes(app: FastifyInstance): Promise<
       const user = await upsertUserByPhone(phone);
       const token = await reply.jwtSign({
         id: user.id,
-        phone: user.phone,
+        phone: user.phone || '',
         displayName: user.display_name
       });
       return {
         token,
         user: {
           id: user.id,
-          phone: user.phone,
+          phone: user.phone || '',
           displayName: user.display_name,
           avatarUrl: user.avatar_path ? `/media/${user.avatar_path}` : null
         }

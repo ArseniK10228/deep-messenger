@@ -62,7 +62,8 @@ export async function listConversationsForUser(userId: string) {
             (
               SELECT json_agg(json_build_object(
                 'id', u.id,
-                'phone', u.phone,
+                'email', u.email,
+                'phone', COALESCE(u.phone, ''),
                 'displayName', u.display_name,
                 'avatarUrl', CASE WHEN u.avatar_path IS NOT NULL THEN '/media/' || u.avatar_path END
               ))

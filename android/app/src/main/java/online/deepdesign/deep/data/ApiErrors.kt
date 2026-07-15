@@ -5,14 +5,24 @@ import com.squareup.moshi.JsonClass
 import retrofit2.HttpException
 
 @JsonClass(generateAdapter = true)
-data class ApiErrorResponse(@Json(name = "error") val error: String?)
+data class ApiErrorResponse(
+    @Json(name = "error") val error: String?,
+    @Json(name = "message") val message: String?
+)
 
 fun HttpException.readApiError(moshi: com.squareup.moshi.Moshi = ApiClient.moshi): String {
     val raw = response()?.errorBody()?.string().orEmpty()
     if (raw.isNotBlank()) {
         runCatching {
-            moshi.adapter(ApiErrorResponse::class.java).fromJson(raw)?.error
+            val parsed = moshi.adapter(ApiErrorResponse::class.java).fromJson(raw)
+            parsed?.error?.takeIf { it.isNotBlank() && it != "Internal Server Error" }
+                ?: parsed?.message
         }.getOrNull()?.let { return it }
     }
-    return message()
+    return when (code()) {
+        500 -> "Ошибка сервера"
+        502 -> "Сервер временно недоступен"
+        503 -> "Сервис не настроен"
+        else -> message()
+    }
 }

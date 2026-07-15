@@ -2,7 +2,7 @@ import { query } from '../db/client.js';
 
 export interface UserRow {
   id: string;
-  phone: string;
+  phone: string | null;
   email: string | null;
   display_name: string;
   avatar_path: string | null;
@@ -28,7 +28,7 @@ export async function upsertUserByEmail(email: string, displayName?: string): Pr
   }
   const local = email.split('@')[0] || email;
   const r = await query<UserRow>(
-    `INSERT INTO users (email, phone, display_name) VALUES ($1, '', $2) RETURNING *`,
+    `INSERT INTO users (email, display_name) VALUES ($1, $2) RETURNING *`,
     [email, displayName || local]
   );
   return r.rows[0];

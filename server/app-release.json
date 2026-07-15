@@ -1,7 +1,7 @@
 {
-  "versionCode": 14,
-  "versionName": "0.3.11",
+  "versionCode": 15,
+  "versionName": "0.3.12",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Фикс кнопок звонка: SurfaceView не перехватывает тачи, hangup надёжнее.",
+  "changelog": "Уведомления: CallStyle, кнопки через Activity, пуши сообщений.",
   "forceUpdate": false
 }

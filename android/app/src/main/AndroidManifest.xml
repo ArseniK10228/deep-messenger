@@ -57,6 +57,14 @@
             android:showWhenLocked="true"
             android:theme="@style/Theme.Deep.Transparent" />
 
+        <activity
+            android:name=".call.CallNotificationActionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="online.deepdesign.deep.notif"
+            android:theme="@style/Theme.Deep.Transparent" />
+
         <service
             android:name=".call.CallForegroundService"
             android:exported="false"
@@ -70,10 +78,6 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
-
-        <receiver
-            android:name=".call.CallActionReceiver"
-            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

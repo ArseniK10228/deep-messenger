@@ -27,6 +27,7 @@ import online.deepdesign.deep.ui.theme.DeepTheme
 class IncomingCallActivity : ComponentActivity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var isVideoCall = false
+    private var callId: String = ""
 
     private val micPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -56,6 +57,7 @@ class IncomingCallActivity : ComponentActivity() {
         )
 
         val callId = intent.getStringExtra(EXTRA_CALL_ID) ?: run { finish(); return }
+        this.callId = callId
         val conversationId = intent.getStringExtra(EXTRA_CONVERSATION_ID).orEmpty()
         val callerName = intent.getStringExtra(EXTRA_CALLER_NAME) ?: "Deep"
         isVideoCall = intent.getBooleanExtra(EXTRA_VIDEO, false)
@@ -88,12 +90,12 @@ class IncomingCallActivity : ComponentActivity() {
                     onAccept = { requestAccept() },
                     onReject = {
                         callManager.rejectIncoming()
-                        IncomingCallNotifier.dismiss(this)
+                        IncomingCallNotifier.dismiss(this, callId)
                         finish()
                     },
                     onHangup = {
                         callManager.hangup()
-                        IncomingCallNotifier.dismiss(this)
+                        IncomingCallNotifier.dismiss(this, callId)
                         finish()
                     },
                     onToggleMute = { callManager.toggleMute() },
@@ -123,7 +125,7 @@ class IncomingCallActivity : ComponentActivity() {
 
     private fun acceptCall() {
         DeepApp.instance.callManager.acceptIncoming()
-        IncomingCallNotifier.dismiss(this)
+        IncomingCallNotifier.dismiss(this, callId)
         startActivity(MainActivity.callIntent(this))
         finish()
     }

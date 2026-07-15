@@ -296,9 +296,27 @@ class CallManager(
 
     fun rejectIncoming() {
         val incoming = _state.value as? CallUiState.Incoming ?: return
+        rejectFromNotification(incoming.callId)
+    }
+
+    fun rejectFromNotification(callId: String) {
+        val incoming = _state.value as? CallUiState.Incoming
+        if (incoming != null && incoming.callId == callId) {
+            scope.launch {
+                ringtonePlayer.stop()
+                runCatching { api.rejectCall(callId) }
+                endLocal("reject")
+            }
+            return
+        }
         scope.launch {
-            runCatching { api.rejectCall(incoming.callId) }
-            endLocal("reject")
+            ringtonePlayer.stop()
+            runCatching { api.rejectCall(callId) }
+            if (isInCall()) {
+                endLocal("reject")
+            } else {
+                IncomingCallNotifier.dismiss(context, callId)
+            }
         }
     }
 
@@ -659,7 +677,7 @@ class CallManager(
         _overlayExpanded.value = true
         setCallSignalingPriority(false)
         _state.value = CallUiState.Idle
-        IncomingCallNotifier.dismiss(context)
+        IncomingCallNotifier.dismiss(context, activeCallId)
         CallForegroundService.stop(context)
     }
 

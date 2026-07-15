@@ -28,6 +28,8 @@ class DeepMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
+        val notifTitle = message.notification?.title
+        val notifBody = message.notification?.body
         scope.launch {
             val app = DeepApp.instance
             SessionBootstrap.restore(app.sessionStore, app)
@@ -55,7 +57,15 @@ class DeepMessagingService : FirebaseMessagingService() {
                 }
                 "message" -> {
                     val convId = data["conversationId"]
+                    val sender = notifTitle ?: data["senderName"] ?: data["senderUsername"] ?: "Deep"
+                    val preview = notifBody ?: data["preview"] ?: data["body"] ?: "Новое сообщение"
                     if (convId != null) {
+                        MessageNotifier.show(
+                            this@DeepMessagingService,
+                            convId,
+                            sender,
+                            preview
+                        )
                         ChatNotifier.emit(ChatEvent.NewMessage(convId))
                     } else {
                         ChatNotifier.emit(ChatEvent.RefreshChats)

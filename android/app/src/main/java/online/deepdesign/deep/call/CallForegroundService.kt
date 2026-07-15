@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.Person
 import androidx.core.content.ContextCompat
 import online.deepdesign.deep.MainActivity
 import online.deepdesign.deep.R
@@ -143,23 +144,29 @@ class CallForegroundService : Service() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val hangup = PendingIntent.getService(
+        val hangup = PendingIntent.getActivity(
             this,
             1,
-            Intent(this, CallForegroundService::class.java).setAction(ACTION_HANGUP),
+            CallNotificationActionActivity.hangupIntent(this),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_call)
             .setContentTitle("Deep — звонок")
             .setContentText(peer)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(open)
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .addAction(0, "Завершить", hangup)
-            .build()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val person = Person.Builder().setName(peer).setImportant(true).build()
+            builder.setStyle(NotificationCompat.CallStyle.forOngoingCall(person, hangup))
+        } else {
+            builder.addAction(0, "Завершить", hangup)
+        }
+        return builder.build()
     }
 
     private fun ensureChannel() {

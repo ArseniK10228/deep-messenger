@@ -116,31 +116,40 @@ fun ChatScreen(
         showAttach = false
     }
 
-    val micPermission = rememberLauncherForActivityResult(
+    var pendingCallAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val voiceMicPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) vm.startRecording()
     }
 
-    val callPermission = rememberLauncherForActivityResult(
+    val callMicPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) onStartCall()
+        if (granted) pendingCallAction?.invoke()
+        else vm.showError("Нужен доступ к микрофону для звонка")
+        pendingCallAction = null
     }
 
     fun requestCall() {
         val granted = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.RECORD_AUDIO
-        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) == PackageManager.PERMISSION_GRANTED
         if (granted) onStartCall()
-        else callPermission.launch(Manifest.permission.RECORD_AUDIO)
+        else {
+            pendingCallAction = onStartCall
+            callMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
     val videoPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) onStartVideoCall()
+        if (granted) pendingCallAction?.invoke()
+        else vm.showError("Нужен доступ к камере для видеозвонка")
+        pendingCallAction = null
     }
 
     fun requestVideoCall() {
@@ -149,8 +158,14 @@ fun ChatScreen(
         val cam = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
         when {
-            !mic -> callPermission.launch(Manifest.permission.RECORD_AUDIO)
-            !cam -> videoPermission.launch(Manifest.permission.CAMERA)
+            !mic -> {
+                pendingCallAction = { requestVideoCall() }
+                callMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+            }
+            !cam -> {
+                pendingCallAction = onStartVideoCall
+                videoPermission.launch(Manifest.permission.CAMERA)
+            }
             else -> onStartVideoCall()
         }
     }
@@ -259,7 +274,7 @@ fun ChatScreen(
                                     Manifest.permission.RECORD_AUDIO
                                 ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                                 if (granted) vm.startRecording()
-                                else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                                else voiceMicPermission.launch(Manifest.permission.RECORD_AUDIO)
                             },
                             enabled = !state.uploading && !state.sending
                         ) {

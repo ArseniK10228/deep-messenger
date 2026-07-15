@@ -1,7 +1,7 @@
 {
-  "versionCode": 4,
-  "versionName": "0.3.1",
+  "versionCode": 5,
+  "versionName": "0.3.2",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Фикс 401 после деплоя: сохранение JWT, авто-выход при истёкшей сессии.",
+  "changelog": "Фикс звонков: RECORD_AUDIO в манифесте, запрос разрешений, видеозвонок.",
   "forceUpdate": false
 }

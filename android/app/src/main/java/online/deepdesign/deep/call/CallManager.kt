@@ -153,7 +153,7 @@ class CallManager(
                 CallForegroundService.start(context, peerName, outgoing = true)
             } catch (e: Exception) {
                 _state.value = CallUiState.Idle
-                _error.value = "Не удалось начать звонок"
+                _error.value = e.message?.takeIf { it.isNotBlank() } ?: "Не удалось начать звонок"
                 CallForegroundService.stop(context)
             }
         }

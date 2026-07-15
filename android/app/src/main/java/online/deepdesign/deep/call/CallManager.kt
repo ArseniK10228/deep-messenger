@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.data.IceServerDto
-import online.deepdesign.deep.data.StartCallRequest
+import online.deepdesign.deep.push.IncomingCallNotifier
 import online.deepdesign.deep.data.WsEnvelope
 import org.webrtc.IceCandidate
 import org.webrtc.PeerConnection
@@ -188,7 +188,11 @@ class CallManager(
         val callId = data["callId"] ?: return
         val conversationId = data["conversationId"] ?: return
         val callerName = data["callerName"] ?: "Deep"
-        if (_state.value !is CallUiState.Idle) return
+        prepareIncomingFromNotification(callId, conversationId, callerName)
+    }
+
+    fun prepareIncomingFromNotification(callId: String, conversationId: String, callerName: String) {
+        if (_state.value is CallUiState.Outgoing || _state.value is CallUiState.Active) return
         _overlayExpanded.value = true
         _state.value = CallUiState.Incoming(callId, conversationId, callerName)
         signaling.connect()
@@ -365,6 +369,7 @@ class CallManager(
         _speakerOn.value = false
         _overlayExpanded.value = true
         _state.value = CallUiState.Idle
+        IncomingCallNotifier.dismiss(context)
         CallForegroundService.stop(context)
     }
 

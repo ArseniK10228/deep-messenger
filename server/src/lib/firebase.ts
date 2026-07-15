@@ -56,7 +56,8 @@ export async function sendCallPush(
     data,
     android: {
       priority: 'high',
-      ttl: 30_000
+      ttl: 45_000,
+      directBootOk: true
     }
   });
 }

@@ -92,6 +92,9 @@ interface DeepApi {
 
     @POST("api/v1/auth/fcm")
     suspend fun registerFcm(@Body body: FcmRegisterRequest): Map<String, Boolean>
+
+    @GET("api/v1/app/release")
+    suspend fun appRelease(): AppReleaseDto
 }
 
 class AuthInterceptor(private val tokenProvider: () -> String?) : Interceptor {

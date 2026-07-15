@@ -149,6 +149,14 @@ data class AcceptCallResponse(
 @JsonClass(generateAdapter = true)
 data class FcmRegisterRequest(val token: String)
 
+data class AppReleaseDto(
+    val versionCode: Int,
+    val versionName: String,
+    val apkUrl: String,
+    val changelog: String? = null,
+    val forceUpdate: Boolean? = null
+)
+
 @JsonClass(generateAdapter = true)
 data class WsEnvelope(
     val type: String,

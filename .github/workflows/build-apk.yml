@@ -1,0 +1,65 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "server/app-release.json"
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES" ]; then
+            echo "ANDROID_GOOGLE_SERVICES_JSON not set — skipping APK build"
+            exit 0
+          fi
+          printf '%s' "$GOOGLE_SERVICES" > android/app/google-services.json
+
+      - name: Assemble debug APK
+        env:
+          GOOGLE_SERVICES: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES" ]; then exit 0; fi
+          cd android
+          chmod +x gradlew 2>/dev/null || true
+          if [ ! -f gradlew ]; then
+            gradle wrapper --gradle-version 8.11.1
+          fi
+          ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deep-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+        continue-on-error: true
+
+      - name: Publish APK to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ ! -f android/app/google-services.json ]; then exit 0; fi
+          APK=$(ls android/app/build/outputs/apk/debug/*.apk 2>/dev/null | head -1)
+          if [ -z "$APK" ]; then exit 0; fi
+          install -m 700 -d ~/.ssh
+          printf '%s' "$VPS_SSH_KEY" > ~/.ssh/key
+          chmod 600 ~/.ssh/key
+          scp -i ~/.ssh/key -o StrictHostKeyChecking=accept-new "$APK" "${VPS_USER}@${VPS_HOST}:/var/www/deep-messenger/deep.apk"
+        continue-on-error: true

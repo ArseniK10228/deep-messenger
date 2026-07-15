@@ -41,22 +41,36 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import android.Manifest
+import android.os.Build
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+import online.deepdesign.deep.data.AppReleaseDto
 import online.deepdesign.deep.data.ConversationDto
 import online.deepdesign.deep.data.UserDto
+import online.deepdesign.deep.update.ApkInstaller
+import online.deepdesign.deep.update.AppUpdateDialog
+import online.deepdesign.deep.update.UpdateChecker
 import online.deepdesign.deep.ui.components.ChatAvatar
 import online.deepdesign.deep.ui.components.deepAppear
 import online.deepdesign.deep.ui.theme.DeepAccent
@@ -77,9 +91,62 @@ fun ChatsScreen(
     vm: ChatsViewModel = viewModel()
 ) {
     val state by vm.state.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var listFilter by remember { mutableStateOf("") }
+    var updateRelease by remember { mutableStateOf<AppReleaseDto?>(null) }
+    var showUpdate by remember { mutableStateOf(false) }
+    var downloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableFloatStateOf(0f) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val notifPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        val release = UpdateChecker.fetchRelease()
+        if (release != null && UpdateChecker.needsUpdate(release)) {
+            updateRelease = release
+            showUpdate = true
+        }
+    }
+
+    if (showUpdate && updateRelease != null) {
+        val release = updateRelease!!
+        AppUpdateDialog(
+            release = release,
+            downloading = downloading,
+            progress = downloadProgress,
+            onDismiss = { if (release.forceUpdate != true) showUpdate = false },
+            onUpdate = {
+                scope.launch {
+                    if (!ApkInstaller.canInstallPackages(context)) {
+                        ApkInstaller.openInstallPermissionSettings(context)
+                        return@launch
+                    }
+                    downloading = true
+                    downloadProgress = 0f
+                    try {
+                        val apk = UpdateChecker.downloadApk(context, release.apkUrl) {
+                            downloadProgress = it
+                        }
+                        ApkInstaller.install(context, apk)
+                    } catch (_: Exception) {
+                        downloading = false
+                    }
+                }
+            }
+        )
+    }
 
     Scaffold(
         containerColor = DeepBg,

@@ -14,6 +14,7 @@ import { registerEmailAuthRoutes } from './routes/emailAuth.js';
 import { chatRoutes } from './routes/chat.js';
 import { mediaRoutes } from './routes/media.js';
 import { callRoutes } from './routes/calls.js';
+import { registerAppRoutes } from './routes/app.js';
 import { attachWebSocket } from './ws/server.js';
 
 async function authenticate(req: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -45,6 +46,7 @@ async function main() {
     await registerPublicAuthRoutes(api);
     await registerTelegramAuthRoutes(api);
     await registerEmailAuthRoutes(api);
+    await registerAppRoutes(api);
   }, { prefix: '/api/v1' });
 
   await app.register(async (api) => {

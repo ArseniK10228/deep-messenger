@@ -222,6 +222,10 @@ class IncomingCallActivity : ComponentActivity() {
 
                     callAudio = callAudio,
 
+                    callNetwork = callNetwork,
+
+                    micLevel = micLevel,
+
                     videoOn = videoOn,
 
                     localVideo = localVideo,
@@ -312,7 +316,9 @@ class IncomingCallActivity : ComponentActivity() {
 
         SessionBootstrap.restore(app.sessionStore, app)
 
-        app.callManager.prepareIncomingFromNotification(callId, conversationId, callerName, video)
+        if (!app.callManager.isIncomingRinging(callId)) {
+            app.callManager.prepareIncomingFromNotification(callId, conversationId, callerName, video)
+        }
 
     }
 

@@ -2,16 +2,23 @@ package online.deepdesign.deep.call
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.Ringtone
 import android.media.RingtoneManager
+import android.media.ToneGenerator
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 
 class CallRingtonePlayer(context: Context) {
     private val appContext = context.applicationContext
     private var ringtone: Ringtone? = null
     private var mediaPlayer: MediaPlayer? = null
+    private var toneGenerator: ToneGenerator? = null
+    private var ringbackHandler: Handler? = null
+    private var ringbackActive = false
 
     fun playIncoming() {
         stop()
@@ -36,13 +43,22 @@ class CallRingtonePlayer(context: Context) {
 
     fun playOutgoingRingback() {
         stop()
-        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            ?: return
+        ringbackActive = true
         try {
-            playLooped(uri, AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING)
+            toneGenerator = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 85)
+            ringbackHandler = Handler(Looper.getMainLooper())
+            ringbackHandler?.post(ringbackRunnable)
         } catch (e: Exception) {
             Log.w(TAG, "playOutgoingRingback failed", e)
+        }
+    }
+
+    private val ringbackRunnable = object : Runnable {
+        override fun run() {
+            if (!ringbackActive) return
+            val tg = toneGenerator ?: return
+            tg.startTone(ToneGenerator.TONE_SUP_RINGTONE, 1200)
+            ringbackHandler?.postDelayed(this, 4000)
         }
     }
 
@@ -62,6 +78,11 @@ class CallRingtonePlayer(context: Context) {
     }
 
     fun stop() {
+        ringbackActive = false
+        ringbackHandler?.removeCallbacksAndMessages(null)
+        ringbackHandler = null
+        runCatching { toneGenerator?.release() }
+        toneGenerator = null
         runCatching { ringtone?.stop() }
         ringtone = null
         runCatching {

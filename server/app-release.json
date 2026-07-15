@@ -1,7 +1,7 @@
 {
-  "versionCode": 12,
-  "versionName": "0.3.9",
+  "versionCode": 13,
+  "versionName": "0.3.10",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Звонок живёт при свайпе из recents: отдельный call-task + recovery.",
+  "changelog": "Гудки исходящего (не рингтон) + убран лишний отступ сверху в UI.",
   "forceUpdate": false
 }

@@ -12,8 +12,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -87,13 +87,10 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Scaffold(
-                    snackbarHost = { SnackbarHost(snackbar) }
-                ) { padding ->
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .padding(padding)
-                    ) {
+                    snackbarHost = { SnackbarHost(snackbar) },
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                ) { _ ->
+                    Box(Modifier.fillMaxSize()) {
                         DeepNavHost()
 
                         if (callState !is CallUiState.Idle) {

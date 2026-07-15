@@ -97,6 +97,7 @@ class MainActivity : ComponentActivity() {
                             val showFullOverlay = callState is CallUiState.Incoming || overlayExpanded
                             if (showFullOverlay) {
                                 CallOverlay(
+                                    modifier = Modifier.fillMaxSize(),
                                     state = callState,
                                     muted = muted,
                                     speakerOn = speakerOn,

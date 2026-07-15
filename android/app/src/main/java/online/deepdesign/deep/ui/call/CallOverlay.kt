@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import online.deepdesign.deep.call.CallUiState
 import online.deepdesign.deep.ui.components.ChatAvatar
 import online.deepdesign.deep.ui.components.deepAppear
@@ -79,8 +80,10 @@ fun CallOverlay(
     onToggleSpeaker: () -> Unit,
     onToggleVideo: () -> Unit,
     onSwitchCamera: () -> Unit,
-    onMinimize: () -> Unit
+    onMinimize: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    Box(modifier.fillMaxSize()) {
     when (state) {
         is CallUiState.Incoming -> IncomingCallUi(state.callerName, state.video, onAccept, onReject)
         is CallUiState.Outgoing -> if (state.video) {
@@ -142,6 +145,7 @@ fun CallOverlay(
             )
         }
         CallUiState.Idle -> Unit
+    }
     }
 }
 
@@ -261,8 +265,6 @@ private fun OngoingCallUi(
 
     CallBackground {
         Box(Modifier.fillMaxSize()) {
-            CallMinimizeButton(onClick = onMinimize, modifier = Modifier.align(Alignment.TopStart))
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -304,6 +306,13 @@ private fun OngoingCallUi(
                     HangupChip(onClick = onHangup)
                 }
             }
+
+            CallMinimizeButton(
+                onClick = onMinimize,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .zIndex(2f)
+            )
         }
     }
 }
@@ -325,17 +334,19 @@ private fun VideoCallUi(
     onMinimize: () -> Unit
 ) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        when {
-            remoteVideo != null && connected -> {
-                WebRtcVideoView(track = remoteVideo, mirror = false, modifier = Modifier.fillMaxSize())
-            }
-            videoOn && localVideo != null -> {
-                WebRtcVideoView(track = localVideo, mirror = localVideoMirror, modifier = Modifier.fillMaxSize())
-            }
-            else -> {
-                CallBackground {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        ChatAvatar(name = peerName, size = 120.dp, online = connected)
+        Box(Modifier.fillMaxSize().zIndex(0f)) {
+            when {
+                remoteVideo != null && connected -> {
+                    WebRtcVideoView(track = remoteVideo, mirror = false, modifier = Modifier.fillMaxSize())
+                }
+                videoOn && localVideo != null -> {
+                    WebRtcVideoView(track = localVideo, mirror = localVideoMirror, modifier = Modifier.fillMaxSize())
+                }
+                else -> {
+                    CallBackground {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            ChatAvatar(name = peerName, size = 120.dp, online = connected)
+                        }
                     }
                 }
             }
@@ -343,31 +354,31 @@ private fun VideoCallUi(
 
         Box(
             Modifier
-                .fillMaxWidth()
-                .height(160.dp)
-                .align(Alignment.TopCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Black.copy(alpha = 0.72f), Color.Transparent)
+                .fillMaxSize()
+                .zIndex(1f)
+                .drawBehind {
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color.Black.copy(alpha = 0.72f), Color.Transparent),
+                            startY = 0f,
+                            endY = size.height * 0.22f
+                        )
                     )
-                )
-        )
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.82f))
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.82f)),
+                            startY = size.height * 0.72f,
+                            endY = size.height
+                        )
                     )
-                )
+                }
         )
 
         if (videoOn && localVideo != null && remoteVideo != null && connected) {
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .zIndex(2f)
                     .statusBarsPadding()
                     .padding(top = 56.dp, end = 16.dp)
                     .size(112.dp, 158.dp)
@@ -386,12 +397,15 @@ private fun VideoCallUi(
         CallMinimizeButton(
             onClick = onMinimize,
             lightOnDark = true,
-            modifier = Modifier.align(Alignment.TopStart)
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .zIndex(3f)
         )
 
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
+                .zIndex(3f)
                 .statusBarsPadding()
                 .padding(top = 56.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -408,6 +422,7 @@ private fun VideoCallUi(
         CallControlsDock(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .zIndex(3f)
                 .navigationBarsPadding()
                 .padding(bottom = 20.dp),
             dark = true
@@ -579,13 +594,15 @@ private fun CallControlChip(
     val labelColor = if (light) Color.White.copy(alpha = 0.8f) else DeepMuted
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        IconButton(
+        Surface(
             onClick = onClick,
-            modifier = Modifier
-                .size(52.dp)
-                .background(if (active) activeBg else Color.Transparent, CircleShape)
+            modifier = Modifier.size(56.dp),
+            color = if (active) activeBg else Color.Transparent,
+            shape = CircleShape
         ) {
-            Icon(icon, contentDescription = label, tint = iconTint, modifier = Modifier.size(24.dp))
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Icon(icon, contentDescription = label, tint = iconTint, modifier = Modifier.size(24.dp))
+            }
         }
         Text(label, color = labelColor, style = MaterialTheme.typography.labelSmall)
     }

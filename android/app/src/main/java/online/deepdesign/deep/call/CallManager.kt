@@ -198,13 +198,18 @@ class CallManager(
     }
 
     fun toggleMute() {
+        if (!isInCall()) return
         val next = !_muted.value
         _muted.value = next
         engine?.setMicrophoneMuted(next)
     }
 
     fun toggleSpeaker() {
+        if (!isInCall()) return
         val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        if (engine != null) {
+            am.mode = AudioManager.MODE_IN_COMMUNICATION
+        }
         val next = !_speakerOn.value
         _speakerOn.value = next
         am.isSpeakerphoneOn = next
@@ -298,11 +303,21 @@ class CallManager(
     }
 
     fun hangup() {
-        val callId = activeCallId ?: return
+        val callId = resolveCallId() ?: return
         scope.launch {
             runCatching { api.endCall(callId) }
             endLocal("hangup")
         }
+    }
+
+    private fun resolveCallId(): String? {
+        activeCallId?.let { return it }
+        return when (val s = _state.value) {
+            is CallUiState.Outgoing -> s.callId
+            is CallUiState.Incoming -> s.callId
+            is CallUiState.Active -> s.callId
+            else -> null
+        }?.also { activeCallId = it }
     }
 
     fun toggleVideo() {

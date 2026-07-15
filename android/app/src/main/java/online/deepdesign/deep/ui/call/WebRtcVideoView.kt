@@ -1,5 +1,7 @@
 package online.deepdesign.deep.ui.call
 
+import android.graphics.PixelFormat
+import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -27,10 +29,21 @@ fun WebRtcVideoView(
                 setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
                 setEnableHardwareScaler(true)
                 setMirror(mirror)
+                // Keep video behind Compose controls — SurfaceView otherwise steals touches.
+                setZOrderMediaOverlay(true)
+                setZOrderOnTop(false)
+                holder.setFormat(PixelFormat.TRANSLUCENT)
+                isClickable = false
+                isFocusable = false
+                importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
             }
         },
         update = { renderer ->
             renderer.setMirror(mirror)
+            renderer.setZOrderMediaOverlay(true)
+            renderer.setZOrderOnTop(false)
+            renderer.isClickable = false
+            renderer.isFocusable = false
             @Suppress("UNCHECKED_CAST")
             val previous = renderer.getTag(TRACK_TAG_KEY) as? VideoTrack
             if (previous !== track) {

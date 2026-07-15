@@ -2,6 +2,7 @@ package online.deepdesign.deep.ui.call
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -61,36 +63,46 @@ fun CallMinimizedBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onExpand)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            ChatAvatar(name = peerName, size = 40.dp, online = online)
             Row(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onExpand
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    Icons.Default.Call,
-                    contentDescription = null,
-                    tint = DeepAccent,
-                    modifier = Modifier.size(18.dp)
-                )
-                Column {
-                    Text(
-                        peerName,
-                        color = DeepText,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                ChatAvatar(name = peerName, size = 40.dp, online = online)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Call,
+                        contentDescription = null,
+                        tint = DeepAccent,
+                        modifier = Modifier.size(18.dp)
                     )
-                    Text(status, color = DeepMuted, style = MaterialTheme.typography.labelSmall)
+                    Column {
+                        Text(
+                            peerName,
+                            color = DeepText,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(status, color = DeepMuted, style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
-            IconButton(onClick = onToggleMute, modifier = Modifier.size(40.dp)) {
+            IconButton(onClick = onToggleMute, modifier = Modifier.size(48.dp)) {
                 Icon(
                     if (muted) Icons.Default.MicOff else Icons.Default.Mic,
                     contentDescription = if (muted) "Включить микрофон" else "Выключить микрофон",
@@ -100,7 +112,7 @@ fun CallMinimizedBar(
             IconButton(
                 onClick = onHangup,
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(48.dp)
                     .background(DeepError.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
             ) {
                 Icon(Icons.Default.CallEnd, contentDescription = "Завершить", tint = DeepError)

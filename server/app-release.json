@@ -1,7 +1,7 @@
 {
-  "versionCode": 13,
-  "versionName": "0.3.10",
+  "versionCode": 14,
+  "versionName": "0.3.11",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Гудки исходящего (монотонные, не рингтон) + фикс отступа сверху.",
+  "changelog": "Фикс кнопок звонка: SurfaceView не перехватывает тачи, hangup надёжнее.",
   "forceUpdate": false
 }

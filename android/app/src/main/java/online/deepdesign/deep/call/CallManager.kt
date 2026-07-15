@@ -24,22 +24,26 @@ import online.deepdesign.deep.data.WsEnvelope
 import org.webrtc.IceCandidate
 import org.webrtc.PeerConnection
 import org.webrtc.SessionDescription
+import org.webrtc.VideoTrack
 
 sealed class CallUiState {
     data object Idle : CallUiState()
     data class Outgoing(
         val callId: String,
         val conversationId: String,
-        val peerName: String
+        val peerName: String,
+        val video: Boolean = false
     ) : CallUiState()
     data class Incoming(
         val callId: String,
         val conversationId: String,
-        val callerName: String
+        val callerName: String,
+        val video: Boolean = false
     ) : CallUiState()
     data class Active(
         val callId: String,
         val peerName: String,
+        val video: Boolean = false,
         val connected: Boolean = false
     ) : CallUiState()
 }
@@ -65,6 +69,15 @@ class CallManager(
 
     private val _overlayExpanded = MutableStateFlow(true)
     val overlayExpanded: StateFlow<Boolean> = _overlayExpanded.asStateFlow()
+
+    private val _videoOn = MutableStateFlow(true)
+    val videoOn: StateFlow<Boolean> = _videoOn.asStateFlow()
+
+    private val _localVideoTrack = MutableStateFlow<VideoTrack?>(null)
+    val localVideoTrack: StateFlow<VideoTrack?> = _localVideoTrack.asStateFlow()
+
+    private val _remoteVideoTrack = MutableStateFlow<VideoTrack?>(null)
+    val remoteVideoTrack: StateFlow<VideoTrack?> = _remoteVideoTrack.asStateFlow()
 
     private var engine: WebRtcCallEngine? = null
     private var iceServers: List<IceServerDto> = emptyList()
@@ -118,19 +131,24 @@ class CallManager(
         _overlayExpanded.value = true
     }
 
-    fun startOutgoing(conversationId: String, peerName: String) {
+    fun startOutgoing(conversationId: String, peerName: String, video: Boolean = false) {
         if (!hasMicPermission()) {
             _error.value = "Разреши доступ к микрофону для звонка"
             return
         }
+        if (video && !hasCameraPermission()) {
+            _error.value = "Разреши доступ к камере для видеозвонка"
+            return
+        }
         scope.launch {
             try {
-                val resp = api.startCall(StartCallRequest(conversationId))
+                val resp = api.startCall(StartCallRequest(conversationId, video))
                 activeCallId = resp.callId
                 activePeerName = peerName
                 iceServers = resp.iceServers
+                _videoOn.value = video
                 _overlayExpanded.value = true
-                _state.value = CallUiState.Outgoing(resp.callId, conversationId, peerName)
+                _state.value = CallUiState.Outgoing(resp.callId, conversationId, peerName, video)
                 beginAudioSession()
                 CallForegroundService.start(context, peerName, outgoing = true)
             } catch (e: Exception) {
@@ -154,7 +172,12 @@ class CallManager(
                 activeCallId = incoming.callId
                 activePeerName = incoming.callerName
                 _overlayExpanded.value = true
-                _state.value = CallUiState.Active(incoming.callId, incoming.callerName, connected = false)
+                _state.value = CallUiState.Active(
+                    incoming.callId,
+                    incoming.callerName,
+                    incoming.video,
+                    connected = false
+                )
                 CallForegroundService.start(context, incoming.callerName, outgoing = false)
                 initEngine()
                 pendingOffer?.let {
@@ -184,18 +207,35 @@ class CallManager(
         }
     }
 
+    fun toggleVideo() {
+        val next = !_videoOn.value
+        _videoOn.value = next
+        engine?.setVideoEnabled(next)
+    }
+
+    fun switchCamera() {
+        engine?.switchCamera()
+    }
+
     fun handleIncomingPush(data: Map<String, String>) {
         if (data["type"] != "incoming_call") return
         val callId = data["callId"] ?: return
         val conversationId = data["conversationId"] ?: return
         val callerName = data["callerName"] ?: "Deep"
-        prepareIncomingFromNotification(callId, conversationId, callerName)
+        val video = data["video"] == "true"
+        prepareIncomingFromNotification(callId, conversationId, callerName, video)
     }
 
-    fun prepareIncomingFromNotification(callId: String, conversationId: String, callerName: String) {
+    fun prepareIncomingFromNotification(
+        callId: String,
+        conversationId: String,
+        callerName: String,
+        video: Boolean = false
+    ) {
         if (_state.value is CallUiState.Outgoing || _state.value is CallUiState.Active) return
         _overlayExpanded.value = true
-        _state.value = CallUiState.Incoming(callId, conversationId, callerName)
+        _videoOn.value = video
+        _state.value = CallUiState.Incoming(callId, conversationId, callerName, video)
         signaling.connect()
     }
 
@@ -204,18 +244,27 @@ class CallManager(
             "call_invite" -> {
                 val callId = env.callId ?: return
                 if (_state.value !is CallUiState.Idle) return
+                val video = env.video == "true"
+                _videoOn.value = video
                 _state.value = CallUiState.Incoming(
                     callId,
                     env.conversationId.orEmpty(),
-                    env.callerName ?: "Deep"
+                    env.callerName ?: "Deep",
+                    video
                 )
             }
             "call_accept" -> {
                 val callId = env.callId ?: return
                 if (_state.value is CallUiState.Outgoing) {
+                    val outgoing = _state.value as CallUiState.Outgoing
                     activeCallId = callId
                     _overlayExpanded.value = true
-                    _state.value = CallUiState.Active(callId, activePeerName, connected = false)
+                    _state.value = CallUiState.Active(
+                        callId,
+                        activePeerName,
+                        outgoing.video,
+                        connected = false
+                    )
                     initEngine()
                     engine?.createOffer { sdp ->
                         signaling.sendSdp(callId, sdp.description, sdp.type.canonicalForm())
@@ -280,12 +329,22 @@ class CallManager(
     }
 
     private fun initEngine() {
+        val video = when (val s = _state.value) {
+            is CallUiState.Outgoing -> s.video
+            is CallUiState.Incoming -> s.video
+            is CallUiState.Active -> s.video
+            else -> false
+        }
         teardownRtc()
         beginAudioSession()
-        engine = WebRtcCallEngine(context, iceServers, object : WebRtcCallEngine.Listener {
+        engine = WebRtcCallEngine(context, iceServers, video, object : WebRtcCallEngine.Listener {
             override fun onIceCandidate(candidate: IceCandidate) {
                 val callId = activeCallId ?: return
                 signaling.sendIce(callId, candidate.sdp, candidate.sdpMid, candidate.sdpMLineIndex)
+            }
+
+            override fun onRemoteVideoTrack(track: VideoTrack) {
+                _remoteVideoTrack.value = track
             }
 
             override fun onConnectionChange(state: PeerConnection.PeerConnectionState) {
@@ -294,8 +353,11 @@ class CallManager(
                         PeerConnection.PeerConnectionState.CONNECTED -> {
                             disconnectJob?.cancel()
                             _state.update { current ->
-                                if (current is CallUiState.Active) current.copy(connected = true) else current
+                                if (current is CallUiState.Active) {
+                                    current.copy(connected = true)
+                                } else current
                             }
+                            engine?.localVideoTrackFlow?.value?.let { _localVideoTrack.value = it }
                         }
                         PeerConnection.PeerConnectionState.DISCONNECTED -> scheduleDisconnectHangup()
                         PeerConnection.PeerConnectionState.FAILED -> {
@@ -313,8 +375,11 @@ class CallManager(
                         PeerConnection.IceConnectionState.COMPLETED -> {
                             disconnectJob?.cancel()
                             _state.update { current ->
-                                if (current is CallUiState.Active) current.copy(connected = true) else current
+                                if (current is CallUiState.Active) {
+                                    current.copy(connected = true)
+                                } else current
                             }
+                            engine?.localVideoTrackFlow?.value?.let { _localVideoTrack.value = it }
                         }
                         PeerConnection.IceConnectionState.DISCONNECTED -> scheduleDisconnectHangup()
                         PeerConnection.IceConnectionState.FAILED -> scheduleDisconnectHangup(graceMs = 20_000)
@@ -323,6 +388,7 @@ class CallManager(
                 }
             }
         })
+        engine?.localVideoTrackFlow?.value?.let { _localVideoTrack.value = it }
         pendingIce.forEach { engine?.addIceCandidate(it) }
         pendingIce.clear()
     }
@@ -368,6 +434,9 @@ class CallManager(
         pendingIce.clear()
         _muted.value = false
         _speakerOn.value = false
+        _videoOn.value = true
+        _localVideoTrack.value = null
+        _remoteVideoTrack.value = null
         _overlayExpanded.value = true
         _state.value = CallUiState.Idle
         IncomingCallNotifier.dismiss(context)
@@ -381,6 +450,11 @@ class CallManager(
 
     private fun hasMicPermission(): Boolean {
         return ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun hasCameraPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
     }
 }

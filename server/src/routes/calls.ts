@@ -41,10 +41,11 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/calls', async (req, reply) => {
     const user = getAuthUser(req);
-    const body = req.body as { conversationId?: string };
+    const val body = req.body as { conversationId?: string; video?: boolean };
     if (!body.conversationId) {
       return reply.code(400).send({ error: 'conversationId required' });
     }
+    const isVideo = body.video === true;
     if (!(await userInConversation(user.id, body.conversationId))) {
       return reply.code(403).send({ error: 'forbidden' });
     }
@@ -63,7 +64,8 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
       callId: call.id,
       conversationId: call.conversationId,
       callerId: user.id,
-      callerName
+      callerName,
+      video: isVideo ? 'true' : 'false'
     });
 
     await sendCallPush(calleeId, {
@@ -71,7 +73,8 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
       callId: call.id,
       conversationId: call.conversationId,
       callerId: user.id,
-      callerName
+      callerName,
+      video: isVideo ? 'true' : 'false'
     });
 
     return {

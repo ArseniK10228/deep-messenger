@@ -1,6 +1,9 @@
 package online.deepdesign.deep.call
 
 import android.content.Context
+import org.webrtc.DefaultVideoDecoderFactory
+import org.webrtc.DefaultVideoEncoderFactory
+import org.webrtc.EglBase
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.audio.JavaAudioDeviceModule
 
@@ -10,6 +13,8 @@ object WebRtcFactoryHolder {
     private var initialized = false
 
     private var factory: PeerConnectionFactory? = null
+
+    val eglBase: EglBase = EglBase.create()
 
     fun getOrCreate(context: Context): PeerConnectionFactory {
         val appContext = context.applicationContext
@@ -23,8 +28,12 @@ object WebRtcFactoryHolder {
             }
             factory?.let { return it }
             val audioModule = JavaAudioDeviceModule.builder(appContext).createAudioDeviceModule()
+            val encoderFactory = DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true)
+            val decoderFactory = DefaultVideoDecoderFactory(eglBase.eglBaseContext)
             factory = PeerConnectionFactory.builder()
                 .setAudioDeviceModule(audioModule)
+                .setVideoEncoderFactory(encoderFactory)
+                .setVideoDecoderFactory(decoderFactory)
                 .createPeerConnectionFactory()
             return factory!!
         }

@@ -80,7 +80,10 @@ fun DeepNavHost(modifier: Modifier = Modifier) {
                 title = title,
                 onBack = { navController.popBackStack() },
                 onStartCall = {
-                    DeepApp.instance.callManager.startOutgoing(conversationId, title)
+                    DeepApp.instance.callManager.startOutgoing(conversationId, title, video = false)
+                },
+                onStartVideoCall = {
+                    DeepApp.instance.callManager.startOutgoing(conversationId, title, video = true)
                 }
             )
         }

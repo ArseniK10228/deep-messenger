@@ -17,14 +17,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -36,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -43,7 +47,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CircleShape
 import online.deepdesign.deep.call.CallUiState
+import org.webrtc.VideoTrack
 import online.deepdesign.deep.ui.components.ChatAvatar
 import online.deepdesign.deep.ui.components.deepAppear
 import online.deepdesign.deep.ui.theme.DeepAccent
@@ -58,37 +64,76 @@ fun CallOverlay(
     state: CallUiState,
     muted: Boolean,
     speakerOn: Boolean,
+    videoOn: Boolean,
+    localVideo: VideoTrack?,
+    remoteVideo: VideoTrack?,
     onAccept: () -> Unit,
     onReject: () -> Unit,
     onHangup: () -> Unit,
     onToggleMute: () -> Unit,
     onToggleSpeaker: () -> Unit,
+    onToggleVideo: () -> Unit,
+    onSwitchCamera: () -> Unit,
     onMinimize: () -> Unit
 ) {
     when (state) {
-        is CallUiState.Incoming -> IncomingCallUi(state.callerName, onAccept, onReject)
-        is CallUiState.Outgoing -> OngoingCallUi(
-            peerName = state.peerName,
-            status = "Вызов…",
-            connected = false,
-            muted = muted,
-            speakerOn = speakerOn,
-            onToggleMute = onToggleMute,
-            onToggleSpeaker = onToggleSpeaker,
-            onHangup = onHangup,
-            onMinimize = onMinimize
-        )
-        is CallUiState.Active -> OngoingCallUi(
-            peerName = state.peerName,
-            status = if (state.connected) "На линии" else "Соединяем…",
-            connected = state.connected,
-            muted = muted,
-            speakerOn = speakerOn,
-            onToggleMute = onToggleMute,
-            onToggleSpeaker = onToggleSpeaker,
-            onHangup = onHangup,
-            onMinimize = onMinimize
-        )
+        is CallUiState.Incoming -> IncomingCallUi(state.callerName, state.video, onAccept, onReject)
+        is CallUiState.Outgoing -> if (state.video) {
+            VideoCallUi(
+                peerName = state.peerName,
+                status = "Вызов…",
+                connected = false,
+                muted = muted,
+                videoOn = videoOn,
+                localVideo = localVideo,
+                remoteVideo = remoteVideo,
+                onToggleMute = onToggleMute,
+                onToggleVideo = onToggleVideo,
+                onSwitchCamera = onSwitchCamera,
+                onHangup = onHangup,
+                onMinimize = onMinimize
+            )
+        } else {
+            OngoingCallUi(
+                peerName = state.peerName,
+                status = "Вызов…",
+                connected = false,
+                muted = muted,
+                speakerOn = speakerOn,
+                onToggleMute = onToggleMute,
+                onToggleSpeaker = onToggleSpeaker,
+                onHangup = onHangup,
+                onMinimize = onMinimize
+            )
+        }
+        is CallUiState.Active -> if (state.video) {
+            VideoCallUi(
+                peerName = state.peerName,
+                status = if (state.connected) "На линии" else "Соединяем…",
+                connected = state.connected,
+                muted = muted,
+                videoOn = videoOn,
+                localVideo = localVideo,
+                remoteVideo = remoteVideo,
+                onToggleMute = onToggleMute,
+                onToggleVideo = onToggleVideo,
+                onSwitchCamera = onSwitchCamera,
+                onHangup = onHangup,
+                onMinimize = onMinimize
+            )
+        } else {
+            OngoingCallUi(
+                peerName = state.peerName,
+                status = if (state.connected) "На линии" else "Соединяем…",
+                connected = state.connected,
+                muted = muted,
+                speakerOn = speakerOn,
+                onToggleMute = onToggleMute,
+                onToggleSpeaker = onToggleSpeaker,
+                onHangup = onHangup,
+                onMinimize = onMinimize
+            )
+        }
         CallUiState.Idle -> Unit
     }
 }
@@ -113,7 +158,12 @@ private fun CallBackground(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun IncomingCallUi(callerName: String, onAccept: () -> Unit, onReject: () -> Unit) {
+private fun IncomingCallUi(
+    callerName: String,
+    video: Boolean,
+    onAccept: () -> Unit,
+    onReject: () -> Unit
+) {
     val pulse by rememberInfiniteTransition(label = "ring").animateFloat(
         initialValue = 1f,
         targetValue = 1.08f,
@@ -130,7 +180,11 @@ private fun IncomingCallUi(callerName: String, onAccept: () -> Unit, onReject: (
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.weight(0.35f))
-            Text("Входящий звонок", color = DeepMuted, style = MaterialTheme.typography.titleMedium)
+            Text(
+                if (video) "Входящий видеозвонок" else "Входящий звонок",
+                color = DeepMuted,
+                style = MaterialTheme.typography.titleMedium
+            )
             Spacer(Modifier.height(28.dp))
             Box(Modifier.scale(pulse)) {
                 ChatAvatar(name = callerName, size = 120.dp)
@@ -258,6 +312,105 @@ private fun OngoingCallUi(
             }
             Spacer(Modifier.height(16.dp))
             Text("Завершить", color = DeepMuted, style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoCallUi(
+    peerName: String,
+    status: String,
+    connected: Boolean,
+    muted: Boolean,
+    videoOn: Boolean,
+    localVideo: VideoTrack?,
+    remoteVideo: VideoTrack?,
+    onToggleMute: () -> Unit,
+    onToggleVideo: () -> Unit,
+    onSwitchCamera: () -> Unit,
+    onHangup: () -> Unit,
+    onMinimize: () -> Unit
+) {
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        if (remoteVideo != null && connected) {
+            WebRtcVideoView(track = remoteVideo, mirror = false, modifier = Modifier.fillMaxSize())
+        } else {
+            CallBackground {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    ChatAvatar(name = peerName, size = 120.dp, online = connected)
+                }
+            }
+        }
+
+        if (videoOn && localVideo != null) {
+            WebRtcVideoView(
+                track = localVideo,
+                mirror = true,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 56.dp, end = 16.dp)
+                    .size(110.dp, 156.dp)
+                    .clip(RoundedCornerShape(16.dp))
+            )
+        }
+
+        IconButton(
+            onClick = onMinimize,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(12.dp)
+        ) {
+            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "В чат", tint = DeepText)
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(peerName, color = DeepText, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(status, color = if (connected) DeepAccent else DeepMuted)
+        }
+
+        Surface(
+            color = Color.Black.copy(alpha = 0.55f),
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 32.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CallControlChip(
+                    icon = if (muted) Icons.Default.MicOff else Icons.Default.Mic,
+                    label = "Микрофон",
+                    active = muted,
+                    onClick = onToggleMute
+                )
+                CallControlChip(
+                    icon = if (videoOn) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                    label = "Камера",
+                    active = !videoOn,
+                    onClick = onToggleVideo
+                )
+                CallControlChip(
+                    icon = Icons.Default.Cameraswitch,
+                    label = "Сменить",
+                    active = false,
+                    onClick = onSwitchCamera
+                )
+                FloatingActionButton(
+                    onClick = onHangup,
+                    containerColor = DeepError,
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Icon(Icons.Default.CallEnd, contentDescription = "Завершить")
+                }
             }
         }
     }

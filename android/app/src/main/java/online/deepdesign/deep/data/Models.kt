@@ -132,7 +132,10 @@ data class IceServerDto(
 data class IceServersResponse(val iceServers: List<IceServerDto>)
 
 @JsonClass(generateAdapter = true)
-data class StartCallRequest(val conversationId: String)
+data class StartCallRequest(
+    val conversationId: String,
+    val video: Boolean = false
+)
 
 @JsonClass(generateAdapter = true)
 data class StartCallResponse(
@@ -173,5 +176,6 @@ data class WsEnvelope(
     val sdpMid: String? = null,
     val sdpMLineIndex: Int? = null,
     val fromUserId: String? = null,
-    val reason: String? = null
+    val reason: String? = null,
+    val video: String? = null
 )

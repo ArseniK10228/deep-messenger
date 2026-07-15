@@ -1,6 +1,7 @@
 package online.deepdesign.deep.ui.chat
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,6 +16,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -86,11 +90,13 @@ fun ChatScreen(
     title: String,
     onBack: () -> Unit,
     onStartCall: () -> Unit = {},
+    onStartVideoCall: () -> Unit = {},
     vm: ChatViewModel = viewModel(factory = ChatViewModel.factory(conversationId))
 ) {
     val state by vm.state.collectAsState()
     val listState = rememberLazyListState()
     val context = LocalContext.current
+    val reversedMessages = remember(state.messages) { state.messages.asReversed() }
     var showAttach by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<MessageDto?>(null) }
     val attachSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -131,12 +137,36 @@ fun ChatScreen(
         else callPermission.launch(Manifest.permission.RECORD_AUDIO)
     }
 
-    LaunchedEffect(state.messages.lastOrNull()?.id) {
-        val last = state.messages.lastIndex
-        if (last < 0) return@LaunchedEffect
-        val visible = listState.layoutInfo.visibleItemsInfo
-        val atBottom = visible.isEmpty() || visible.lastOrNull()?.index?.let { it >= last - 1 } == true
-        if (atBottom) listState.animateScrollToItem(last)
+    val videoPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) onStartVideoCall()
+    }
+
+    fun requestVideoCall() {
+        val mic = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        val cam = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        when {
+            !mic -> callPermission.launch(Manifest.permission.RECORD_AUDIO)
+            !cam -> videoPermission.launch(Manifest.permission.CAMERA)
+            else -> onStartVideoCall()
+        }
+    }
+
+    LaunchedEffect(state.loading, reversedMessages.size) {
+        if (!state.loading && reversedMessages.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
+
+    LaunchedEffect(reversedMessages.firstOrNull()?.id, state.highlightMessageId) {
+        if (reversedMessages.isEmpty()) return@LaunchedEffect
+        val nearBottom = listState.firstVisibleItemIndex <= 2
+        if (nearBottom || state.highlightMessageId != null) {
+            listState.animateScrollToItem(0)
+        }
     }
 
     Scaffold(
@@ -172,11 +202,16 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { requestVideoCall() }) {
+                        Icon(Icons.Default.Videocam, contentDescription = "Видеозвонок", tint = DeepAccent)
+                    }
                     IconButton(onClick = { requestCall() }) {
                         Icon(Icons.Default.Call, contentDescription = "Звонок", tint = DeepAccent)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepBg)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = DeepBg.copy(alpha = 0.92f)
+                )
             )
         },
         bottomBar = {
@@ -268,6 +303,15 @@ fun ChatScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF12101A),
+                            DeepBg,
+                            Color(0xFF0A0810)
+                        )
+                    )
+                )
         ) {
             when {
                 state.loading -> {
@@ -288,7 +332,11 @@ fun ChatScreen(
                 else -> {
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .imePadding()
+                            .navigationBarsPadding(),
+                        reverseLayout = true,
                         contentPadding = PaddingValues(
                             start = 12.dp,
                             top = 8.dp,
@@ -297,10 +345,11 @@ fun ChatScreen(
                         ),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(state.messages, key = { it.id }) { msg ->
+                        items(reversedMessages, key = { it.id }) { msg ->
                             MessageBubble(
                                 msg = msg,
                                 mine = vm.isMine(msg),
+                                highlight = state.highlightMessageId == msg.id,
                                 onLongClick = { deleteTarget = msg }
                             )
                         }

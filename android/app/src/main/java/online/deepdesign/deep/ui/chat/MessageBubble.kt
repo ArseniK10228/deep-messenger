@@ -30,12 +30,15 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -57,7 +60,12 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MessageBubble(msg: MessageDto, mine: Boolean, onLongClick: (() -> Unit)? = null) {
+fun MessageBubble(
+    msg: MessageDto,
+    mine: Boolean,
+    highlight: Boolean = false,
+    onLongClick: (() -> Unit)? = null
+) {
     val bg = if (mine) DeepBubbleOut else DeepBubbleIn
     val align = if (mine) Alignment.CenterEnd else Alignment.CenterStart
     val shape = RoundedCornerShape(
@@ -67,11 +75,21 @@ fun MessageBubble(msg: MessageDto, mine: Boolean, onLongClick: (() -> Unit)? = n
         bottomEnd = if (mine) 4.dp else 18.dp
     )
 
+    val highlightScale by animateFloatAsState(
+        targetValue = if (highlight) 1.03f else 1f,
+        animationSpec = tween(220),
+        label = "sendPulse"
+    )
+
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = align) {
         val isVoice = msg.kind == "voice"
         Column(
             modifier = Modifier
                 .widthIn(min = if (isVoice) 240.dp else 0.dp, max = if (isVoice) 300.dp else 300.dp)
+                .graphicsLayer {
+                    scaleX = highlightScale
+                    scaleY = highlightScale
+                }
                 .clip(shape)
                 .background(bg)
                 .then(

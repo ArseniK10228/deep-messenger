@@ -33,6 +33,7 @@ class DeepMessagingService : FirebaseMessagingService() {
             SessionBootstrap.restore(app.sessionStore, app)
             when (data["type"]) {
                 "incoming_call" -> {
+                    val video = data["video"] == "true"
                     app.callManager.handleIncomingPush(data)
                     IncomingCallNotifier.show(this@DeepMessagingService, data)
                     val callId = data["callId"] ?: return@launch
@@ -44,7 +45,8 @@ class DeepMessagingService : FirebaseMessagingService() {
                                 this@DeepMessagingService,
                                 callId,
                                 conversationId,
-                                callerName
+                                callerName,
+                                video
                             )
                         )
                     } catch (_: Exception) {

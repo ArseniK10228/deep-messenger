@@ -49,11 +49,12 @@ class IncomingCallActivity : ComponentActivity() {
         val callId = intent.getStringExtra(EXTRA_CALL_ID) ?: run { finish(); return }
         val conversationId = intent.getStringExtra(EXTRA_CONVERSATION_ID).orEmpty()
         val callerName = intent.getStringExtra(EXTRA_CALLER_NAME) ?: "Deep"
+        val video = intent.getBooleanExtra(EXTRA_VIDEO, false)
 
         scope.launch {
             val app = DeepApp.instance
             SessionBootstrap.restore(app.sessionStore, app)
-            app.callManager.prepareIncomingFromNotification(callId, conversationId, callerName)
+            app.callManager.prepareIncomingFromNotification(callId, conversationId, callerName, video)
         }
 
         setContent {
@@ -62,11 +63,17 @@ class IncomingCallActivity : ComponentActivity() {
                 val callState by callManager.state.collectAsState()
                 val muted by callManager.muted.collectAsState()
                 val speakerOn by callManager.speakerOn.collectAsState()
+                val videoOn by callManager.videoOn.collectAsState()
+                val localVideo by callManager.localVideoTrack.collectAsState()
+                val remoteVideo by callManager.remoteVideoTrack.collectAsState()
 
                 CallOverlay(
                     state = callState,
                     muted = muted,
                     speakerOn = speakerOn,
+                    videoOn = videoOn,
+                    localVideo = localVideo,
+                    remoteVideo = remoteVideo,
                     onAccept = { requestAccept() },
                     onReject = {
                         callManager.rejectIncoming()
@@ -80,6 +87,8 @@ class IncomingCallActivity : ComponentActivity() {
                     },
                     onToggleMute = { callManager.toggleMute() },
                     onToggleSpeaker = { callManager.toggleSpeaker() },
+                    onToggleVideo = { callManager.toggleVideo() },
+                    onSwitchCamera = { callManager.switchCamera() },
                     onMinimize = {
                         startActivity(MainActivity.callIntent(this))
                         finish()
@@ -106,16 +115,19 @@ class IncomingCallActivity : ComponentActivity() {
         private const val EXTRA_CALL_ID = "callId"
         private const val EXTRA_CONVERSATION_ID = "conversationId"
         private const val EXTRA_CALLER_NAME = "callerName"
+        private const val EXTRA_VIDEO = "video"
 
         fun intent(
             context: Context,
             callId: String,
             conversationId: String,
-            callerName: String
+            callerName: String,
+            video: Boolean = false
         ): Intent = Intent(context, IncomingCallActivity::class.java).apply {
             putExtra(EXTRA_CALL_ID, callId)
             putExtra(EXTRA_CONVERSATION_ID, conversationId)
             putExtra(EXTRA_CALLER_NAME, callerName)
+            putExtra(EXTRA_VIDEO, video)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
     }

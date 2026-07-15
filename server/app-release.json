@@ -1,7 +1,7 @@
 {
-  "versionCode": 2,
-  "versionName": "0.2.0",
+  "versionCode": 3,
+  "versionName": "0.3.0",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Автообновление, входящие звонки при закрытом приложении, стабильность чатов и звонков.",
+  "changelog": "Видеозвонки 720p, фикс скролла чата с клавиатурой, анимации отправки, улучшенный UI.",
   "forceUpdate": false
 }

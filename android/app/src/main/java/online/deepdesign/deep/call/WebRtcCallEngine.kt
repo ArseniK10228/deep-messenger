@@ -1,34 +1,54 @@
 package online.deepdesign.deep.call
 
 import android.content.Context
-import online.deepdesign.deep.data.IceServerDto
-import org.webrtc.AudioSource
-import org.webrtc.AudioTrack
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import org.webrtc.Camera2Enumerator
+import org.webrtc.EglBase
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
 import org.webrtc.PeerConnection
 import org.webrtc.SessionDescription
+import org.webrtc.SurfaceTextureHelper
+import org.webrtc.VideoCapturer
+import org.webrtc.VideoSource
+import org.webrtc.VideoTrack
+import online.deepdesign.deep.data.IceServerDto
 
 class WebRtcCallEngine(
     context: Context,
     iceServers: List<IceServerDto>,
+    private val videoEnabled: Boolean,
     private val listener: Listener
 ) {
     interface Listener {
         fun onIceCandidate(candidate: IceCandidate)
         fun onConnectionChange(state: PeerConnection.PeerConnectionState)
         fun onIceConnectionChange(state: PeerConnection.IceConnectionState)
+        fun onRemoteVideoTrack(track: VideoTrack)
     }
 
-    private val factory = WebRtcFactoryHolder.getOrCreate(context)
-    private val audioSource: AudioSource
-    private val localAudioTrack: AudioTrack
+    private val appContext = context.applicationContext
+    private val factory = WebRtcFactoryHolder.getOrCreate(appContext)
+    private val eglBase = WebRtcFactoryHolder.eglBase
+    private val audioSource = factory.createAudioSource(MediaConstraints())
+    private val localAudioTrack = factory.createAudioTrack("deep_audio", audioSource)
+
     private var peerConnection: PeerConnection? = null
+    private var videoCapturer: VideoCapturer? = null
+    private var surfaceTextureHelper: SurfaceTextureHelper? = null
+    private var videoSource: VideoSource? = null
+    private var localVideoTrack: VideoTrack? = null
+    private var usingFrontCamera = true
+
+    private val _localVideoTrack = MutableStateFlow<VideoTrack?>(null)
+    val localVideoTrackFlow: StateFlow<VideoTrack?> = _localVideoTrack.asStateFlow()
+
+    private val _remoteVideoTrack = MutableStateFlow<VideoTrack?>(null)
+    val remoteVideoTrackFlow: StateFlow<VideoTrack?> = _remoteVideoTrack.asStateFlow()
 
     init {
-        audioSource = factory.createAudioSource(MediaConstraints())
-        localAudioTrack = factory.createAudioTrack("deep_audio", audioSource)
-
         val servers = iceServers.flatMap { dto ->
             dto.urls.map { url ->
                 val builder = PeerConnection.IceServer.builder(url)
@@ -65,9 +85,72 @@ class WebRtcCallEngine(
             override fun onRemoveStream(stream: org.webrtc.MediaStream?) {}
             override fun onDataChannel(channel: org.webrtc.DataChannel?) {}
             override fun onRenegotiationNeeded() {}
-            override fun onAddTrack(receiver: org.webrtc.RtpReceiver?, streams: Array<out org.webrtc.MediaStream>?) {}
+            override fun onAddTrack(
+                receiver: org.webrtc.RtpReceiver?,
+                streams: Array<out org.webrtc.MediaStream>?
+            ) {
+                val track = receiver?.track()
+                if (track is VideoTrack) {
+                    _remoteVideoTrack.value = track
+                    listener.onRemoteVideoTrack(track)
+                }
+            }
         })
+
         peerConnection?.addTrack(localAudioTrack, listOf("deep_stream"))
+        if (videoEnabled) {
+            startLocalVideo()
+        }
+    }
+
+    private fun startLocalVideo() {
+        val enumerator = Camera2Enumerator(appContext)
+        val device = enumerator.deviceNames.firstOrNull { enumerator.isFrontFacing(it) }
+            ?: enumerator.deviceNames.firstOrNull()
+            ?: return
+        usingFrontCamera = enumerator.isFrontFacing(device)
+
+        val capturer = enumerator.createCapturer(device, null)
+        videoCapturer = capturer
+        surfaceTextureHelper = SurfaceTextureHelper.create("DeepCapture", eglBase.eglBaseContext)
+        videoSource = factory.createVideoSource(capturer.isScreencast)
+        capturer.initialize(surfaceTextureHelper, appContext, videoSource!!.capturerObserver)
+        capturer.startCapture(1280, 720, 30)
+
+        localVideoTrack = factory.createVideoTrack("deep_video", videoSource!!)
+        localVideoTrack?.setEnabled(true)
+        _localVideoTrack.value = localVideoTrack
+        peerConnection?.addTrack(localVideoTrack, listOf("deep_stream"))
+    }
+
+    fun switchCamera() {
+        val capturer = videoCapturer as? org.webrtc.CameraVideoCapturer ?: return
+        capturer.switchCamera(object : org.webrtc.CameraVideoCapturer.CameraSwitchHandler {
+            override fun onCameraSwitchDone(isFront: Boolean) {
+                usingFrontCamera = isFront
+            }
+            override fun onCameraSwitchError(error: String?) {}
+        })
+    }
+
+    fun isFrontCamera(): Boolean = usingFrontCamera
+
+    fun setVideoEnabled(enabled: Boolean) {
+        localVideoTrack?.setEnabled(enabled)
+    }
+
+    fun setMicrophoneMuted(muted: Boolean) {
+        localAudioTrack.setEnabled(!muted)
+    }
+
+    private fun mediaConstraints(): MediaConstraints = MediaConstraints().apply {
+        mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+        mandatory.add(
+            MediaConstraints.KeyValuePair(
+                "OfferToReceiveVideo",
+                if (videoEnabled) "true" else "false"
+            )
+        )
     }
 
     fun createOffer(onReady: (SessionDescription) -> Unit) {
@@ -78,7 +161,7 @@ class WebRtcCallEngine(
                 pc.setLocalDescription(SimpleSdpObserver(), sdp)
                 onReady(sdp)
             }
-        }, MediaConstraints())
+        }, mediaConstraints())
     }
 
     fun createAnswer(onReady: (SessionDescription) -> Unit) {
@@ -89,7 +172,7 @@ class WebRtcCallEngine(
                 pc.setLocalDescription(SimpleSdpObserver(), sdp)
                 onReady(sdp)
             }
-        }, MediaConstraints())
+        }, mediaConstraints())
     }
 
     fun setRemoteDescription(sdp: SessionDescription, onReady: () -> Unit) {
@@ -104,17 +187,24 @@ class WebRtcCallEngine(
         peerConnection?.addIceCandidate(candidate)
     }
 
-    fun setMicrophoneMuted(muted: Boolean) {
-        localAudioTrack.setEnabled(!muted)
-    }
-
     fun close() {
-        try {
-            localAudioTrack.dispose()
-            audioSource.dispose()
+        runCatching { videoCapturer?.stopCapture() }
+        runCatching { videoCapturer?.dispose() }
+        runCatching { surfaceTextureHelper?.dispose() }
+        runCatching { localVideoTrack?.dispose() }
+        runCatching { videoSource?.dispose() }
+        runCatching { localAudioTrack.dispose() }
+        runCatching { audioSource.dispose() }
+        runCatching {
             peerConnection?.close()
             peerConnection?.dispose()
-        } catch (_: Exception) { }
+        }
+        videoCapturer = null
+        surfaceTextureHelper = null
+        localVideoTrack = null
+        videoSource = null
         peerConnection = null
+        _localVideoTrack.value = null
+        _remoteVideoTrack.value = null
     }
 }

@@ -33,7 +33,8 @@ data class ChatUiState(
     val uploading: Boolean = false,
     val recording: Boolean = false,
     val error: String? = null,
-    val peerTyping: Boolean = false
+    val peerTyping: Boolean = false,
+    val highlightMessageId: String? = null
 )
 
 class ChatViewModel(
@@ -120,6 +121,9 @@ class ChatViewModel(
                     SendMessageRequest(kind = "text", body = text)
                 ).message
                 appendMessage(msg)
+                _state.update { it.copy(highlightMessageId = msg.id) }
+                delay(700)
+                _state.update { it.copy(highlightMessageId = null) }
             } catch (e: Exception) {
                 _state.update { it.copy(sending = false, input = text, error = e.message) }
             } finally {

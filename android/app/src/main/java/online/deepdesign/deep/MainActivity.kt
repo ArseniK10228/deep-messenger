@@ -43,6 +43,9 @@ class MainActivity : ComponentActivity() {
                 val muted by callManager.muted.collectAsState()
                 val speakerOn by callManager.speakerOn.collectAsState()
                 val overlayExpanded by callManager.overlayExpanded.collectAsState()
+                val videoOn by callManager.videoOn.collectAsState()
+                val localVideo by callManager.localVideoTrack.collectAsState()
+                val remoteVideo by callManager.remoteVideoTrack.collectAsState()
                 val snackbar = remember { SnackbarHostState() }
 
                 val micPermission = rememberLauncherForActivityResult(
@@ -84,11 +87,16 @@ class MainActivity : ComponentActivity() {
                                     state = callState,
                                     muted = muted,
                                     speakerOn = speakerOn,
+                                    videoOn = videoOn,
+                                    localVideo = localVideo,
+                                    remoteVideo = remoteVideo,
                                     onAccept = { acceptCall() },
                                     onReject = { callManager.rejectIncoming() },
                                     onHangup = { callManager.hangup() },
                                     onToggleMute = { callManager.toggleMute() },
                                     onToggleSpeaker = { callManager.toggleSpeaker() },
+                                    onToggleVideo = { callManager.toggleVideo() },
+                                    onSwitchCamera = { callManager.switchCamera() },
                                     onMinimize = { callManager.minimizeOverlay() }
                                 )
                             } else {

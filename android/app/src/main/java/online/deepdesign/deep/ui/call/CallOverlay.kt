@@ -23,6 +23,8 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -243,17 +245,10 @@ private fun OngoingCallUi(
 
     CallBackground {
         Box(Modifier.fillMaxSize()) {
-            IconButton(
+            CallMinimizeButton(
                 onClick = onMinimize,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 8.dp, end = 4.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "В чат", tint = DeepText)
-                    Text("В чат", color = DeepMuted, style = MaterialTheme.typography.labelSmall)
-                }
-            }
+                modifier = Modifier.align(Alignment.TopStart)
+            )
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -349,25 +344,23 @@ private fun VideoCallUi(
                 mirror = true,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 56.dp, end = 16.dp)
+                    .padding(top = 64.dp, end = 16.dp)
                     .size(110.dp, 156.dp)
                     .clip(RoundedCornerShape(16.dp))
             )
         }
 
-        IconButton(
+        CallMinimizeButton(
             onClick = onMinimize,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(12.dp)
-        ) {
-            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "В чат", tint = DeepText)
-        }
+            lightOnDark = true,
+            modifier = Modifier.align(Alignment.TopStart)
+        )
 
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 48.dp),
+                .statusBarsPadding()
+                .padding(top = 56.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(peerName, color = DeepText, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -411,6 +404,55 @@ private fun VideoCallUi(
                 ) {
                     Icon(Icons.Default.CallEnd, contentDescription = "Завершить")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CallMinimizeButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    lightOnDark: Boolean = false
+) {
+    val bg = if (lightOnDark) Color.White.copy(alpha = 0.14f) else DeepSurfaceHigh.copy(alpha = 0.72f)
+    val borderColor = if (lightOnDark) Color.White.copy(alpha = 0.22f) else DeepAccent.copy(alpha = 0.25f)
+    val contentColor = if (lightOnDark) Color.White else DeepText
+    val subColor = if (lightOnDark) Color.White.copy(alpha = 0.72f) else DeepMuted
+
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .statusBarsPadding()
+            .padding(start = 16.dp, top = 12.dp)
+            .border(1.dp, borderColor, RoundedCornerShape(20.dp)),
+        color = bg,
+        shape = RoundedCornerShape(20.dp),
+        shadowElevation = if (lightOnDark) 0.dp else 6.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(22.dp)
+            )
+            Column {
+                Text(
+                    "В чат",
+                    color = contentColor,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "свернуть",
+                    color = subColor,
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
         }
     }

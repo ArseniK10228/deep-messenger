@@ -1,7 +1,7 @@
 {
-  "versionCode": 6,
-  "versionName": "0.3.3",
+  "versionCode": 7,
+  "versionName": "0.3.4",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Звонок в фоне: FGS с микрофоном/камерой, wake lock, удержание WS, мягкий ICE.",
+  "changelog": "Кнопка «В чат» сверху слева, фоновые звонки стабильнее.",
   "forceUpdate": false
 }

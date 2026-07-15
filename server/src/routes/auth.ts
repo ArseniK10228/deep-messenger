@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { getAuthUser, normalizePhone } from '../lib/auth.js';
 import { verifyFirebaseIdToken } from '../lib/firebase.js';
-import { upsertUserByPhone, setFcmToken, searchUsersByPhonePrefix } from '../db/users.js';
+import { upsertUserByPhone, setFcmToken, searchUsersByQuery } from '../db/users.js';
 
 export async function registerPublicAuthRoutes(app: FastifyInstance): Promise<void> {
   app.post('/auth/firebase', async (req, reply) => {
@@ -22,7 +22,8 @@ export async function registerPublicAuthRoutes(app: FastifyInstance): Promise<vo
         token,
         user: {
           id: user.id,
-          phone: user.phone,
+          email: user.email,
+          phone: user.phone || '',
           displayName: user.display_name,
           avatarUrl: user.avatar_path ? `/media/${user.avatar_path}` : null
         }
@@ -54,19 +55,15 @@ export async function registerProtectedAuthRoutes(app: FastifyInstance): Promise
     if (q.length < 3) {
       return reply.code(400).send({ error: 'query too short' });
     }
-    try {
-      const prefix = normalizePhone(q.startsWith('+') ? q : `+${q.replace(/\D/g, '')}`);
-      const rows = await searchUsersByPhonePrefix(prefix, user.id);
-      return {
+    const rows = await searchUsersByQuery(q, user.id);
+    return {
         users: rows.map((r) => ({
           id: r.id,
-          phone: r.phone,
+          email: r.email,
+          phone: r.phone || '',
           displayName: r.display_name,
           avatarUrl: r.avatar_path ? `/media/${r.avatar_path}` : null
         }))
       };
-    } catch {
-      return reply.code(400).send({ error: 'invalid phone query' });
-    }
   });
 }

@@ -8,21 +8,21 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
-import online.deepdesign.deep.data.TelegramSendRequest
-import online.deepdesign.deep.data.TelegramVerifyRequest
+import online.deepdesign.deep.data.EmailSendRequest
+import online.deepdesign.deep.data.EmailVerifyRequest
 import online.deepdesign.deep.data.readApiError
 import retrofit2.HttpException
 
 data class AuthUiState(
-    val phone: String = "+7",
+    val email: String = "",
     val code: String = "",
-    val step: AuthStep = AuthStep.Phone,
+    val step: AuthStep = AuthStep.Email,
     val loading: Boolean = false,
     val error: String? = null,
     val countdown: Int = 0
 )
 
-enum class AuthStep { Phone, Code }
+enum class AuthStep { Email, Code }
 
 class AuthViewModel : ViewModel() {
     private val api = DeepApp.instance.api
@@ -33,8 +33,8 @@ class AuthViewModel : ViewModel() {
 
     private var requestId: String? = null
 
-    fun onPhoneChange(value: String) {
-        _state.update { it.copy(phone = value, error = null) }
+    fun onEmailChange(value: String) {
+        _state.update { it.copy(email = value, error = null) }
     }
 
     fun onCodeChange(value: String) {
@@ -44,15 +44,15 @@ class AuthViewModel : ViewModel() {
     }
 
     fun sendCode() {
-        val phone = normalizePhone(_state.value.phone)
-        if (phone.length < 11) {
-            _state.update { it.copy(error = "Введите номер телефона") }
+        val email = normalizeEmail(_state.value.email)
+        if (email.isBlank() || !email.contains('@')) {
+            _state.update { it.copy(error = "Введите email") }
             return
         }
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             try {
-                val resp = api.telegramSend(TelegramSendRequest(phone))
+                val resp = api.emailSend(EmailSendRequest(email))
                 requestId = resp.requestId
                 _state.update {
                     it.copy(loading = false, step = AuthStep.Code, countdown = 60)
@@ -75,7 +75,7 @@ class AuthViewModel : ViewModel() {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             try {
-                val response = api.telegramVerify(TelegramVerifyRequest(id, code))
+                val response = api.emailVerify(EmailVerifyRequest(id, code))
                 sessionStore.saveSession(response.token, response.user)
                 DeepApp.instance.setAuthSession(response.token, response.user.id)
                 _state.update { it.copy(loading = false) }
@@ -107,18 +107,10 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun backToPhone() {
+    fun backToEmail() {
         requestId = null
-        _state.update { it.copy(step = AuthStep.Phone, code = "", error = null) }
+        _state.update { it.copy(step = AuthStep.Email, code = "", error = null) }
     }
 
-    private fun normalizePhone(raw: String): String {
-        val digits = raw.filter { it.isDigit() }
-        return when {
-            raw.startsWith("+") -> "+" + digits
-            digits.startsWith("8") && digits.length == 11 -> "+7" + digits.drop(1)
-            digits.startsWith("7") -> "+$digits"
-            else -> "+7$digits"
-        }
-    }
+    private fun normalizeEmail(raw: String): String = raw.trim().lowercase()
 }

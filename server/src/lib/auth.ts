@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 export interface AuthUser {
   id: string;
   phone: string;
+  email?: string;
   displayName: string;
 }
 

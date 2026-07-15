@@ -253,10 +253,10 @@ private fun NewChatSheet(
                 .padding(vertical = 12.dp),
             value = query,
             onValueChange = onQueryChange,
-            label = { Text("Номер телефона") },
-            placeholder = { Text("+7...") },
+            label = { Text("Email или имя") },
+            placeholder = { Text("user@mail.ru") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = DeepAccent,
@@ -273,7 +273,7 @@ private fun NewChatSheet(
                     .align(Alignment.CenterHorizontally)
                     .padding(16.dp)
             )
-        } else if (query.filter { it.isDigit() }.length >= 3 && results.isEmpty()) {
+        } else if (query.trim().length >= 3 && results.isEmpty()) {
             Text("Никого не нашли", color = DeepMuted, modifier = Modifier.padding(8.dp))
         }
         results.forEach { user ->
@@ -286,12 +286,18 @@ private fun NewChatSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = user.displayName.ifBlank { user.phone },
+                    text = user.displayName.ifBlank {
+                        user.email.orEmpty().ifBlank { user.phone }
+                    },
                     color = DeepText,
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f)
                 )
-                Text(text = user.phone, color = DeepMuted, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = user.email.orEmpty().ifBlank { user.phone },
+                    color = DeepMuted,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
     }

@@ -64,33 +64,33 @@ fun LoginScreen(
         Spacer(Modifier.height(8.dp))
         Text(
             modifier = Modifier.deepAppear(delayMillis = 80),
-            text = if (state.step == AuthStep.Phone) {
-                "Войди по номеру — код придёт в Telegram"
+            text = if (state.step == AuthStep.Email) {
+                "Войди по email — пришлём код"
             } else {
-                "Введи код из Telegram"
+                "Введи код из письма"
             },
             color = DeepMuted,
             style = androidx.compose.material3.MaterialTheme.typography.bodyLarge
         )
-        if (state.step == AuthStep.Phone) {
+        if (state.step == AuthStep.Email) {
             Text(
                 modifier = Modifier.padding(top = 8.dp),
-                text = "Номер должен быть привязан к Telegram",
+                text = "Проверь папку «Спам», если письма нет",
                 color = DeepMuted,
                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall
             )
         }
         Spacer(Modifier.height(32.dp))
 
-        if (state.step == AuthStep.Phone) {
+        if (state.step == AuthStep.Email) {
             OutlinedTextField(
                 modifier = Modifier
                     .fillMaxWidth()
                     .deepAppear(delayMillis = 120),
-                value = state.phone,
-                onValueChange = vm::onPhoneChange,
-                label = { Text("Телефон") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                value = state.email,
+                onValueChange = vm::onEmailChange,
+                label = { Text("Email") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 colors = fieldColors()
@@ -102,7 +102,7 @@ fun LoginScreen(
                     .deepAppear(),
                 value = state.code,
                 onValueChange = vm::onCodeChange,
-                label = { Text("Код из Telegram") },
+                label = { Text("Код из письма") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
@@ -120,8 +120,8 @@ fun LoginScreen(
                     Text("Отправить снова", color = DeepAccent)
                 }
             }
-            TextButton(onClick = vm::backToPhone) {
-                Text("Изменить номер", color = DeepMuted)
+            TextButton(onClick = vm::backToEmail) {
+                Text("Изменить email", color = DeepMuted)
             }
         }
 
@@ -136,7 +136,7 @@ fun LoginScreen(
 
         Spacer(Modifier.height(24.dp))
 
-        if (state.step == AuthStep.Phone) {
+        if (state.step == AuthStep.Email) {
             Button(
                 onClick = vm::sendCode,
                 enabled = !state.loading,
@@ -154,7 +154,7 @@ fun LoginScreen(
                         modifier = Modifier.height(22.dp)
                     )
                 } else {
-                    Text("Получить код в Telegram")
+                    Text("Получить код")
                 }
             }
         } else if (state.loading) {

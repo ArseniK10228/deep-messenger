@@ -50,8 +50,8 @@ class ChatsViewModel : ViewModel() {
 
     fun onSearchQueryChange(q: String) {
         _state.update { it.copy(searchQuery = q) }
-        if (q.filter { it.isDigit() }.length >= 3) {
-            searchUsers(q)
+        if (q.trim().length >= 3) {
+            searchUsers(q.trim())
         } else {
             _state.update { it.copy(searchResults = emptyList()) }
         }
@@ -73,7 +73,7 @@ class ChatsViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val resp = api.createDirect(DirectChatRequest(user.id))
-                val title = user.displayName.ifBlank { user.phone }
+                val title = user.displayName.ifBlank { user.email.orEmpty().ifBlank { user.phone } }
                 toggleNewChat(false)
                 refresh()
                 onReady(resp.conversationId, title)
@@ -85,7 +85,7 @@ class ChatsViewModel : ViewModel() {
 
     fun peerTitle(conv: ConversationDto): String {
         val peer = conv.peers?.firstOrNull() ?: return "Чат"
-        return peer.displayName.ifBlank { peer.phone }
+        return peer.displayName.ifBlank { peer.email.orEmpty().ifBlank { peer.phone } }
     }
 
     fun previewText(conv: ConversationDto): String {

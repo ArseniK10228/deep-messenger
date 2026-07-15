@@ -24,6 +24,12 @@ object ApiConfig {
 }
 
 interface DeepApi {
+    @POST("api/v1/auth/email/send")
+    suspend fun emailSend(@Body body: EmailSendRequest): EmailSendResponse
+
+    @POST("api/v1/auth/email/verify")
+    suspend fun emailVerify(@Body body: EmailVerifyRequest): AuthResponse
+
     @POST("api/v1/auth/telegram/send")
     suspend fun telegramSend(@Body body: TelegramSendRequest): TelegramSendResponse
 

@@ -4,6 +4,22 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
+data class EmailSendRequest(val email: String)
+
+@JsonClass(generateAdapter = true)
+data class EmailSendResponse(
+    val requestId: String,
+    val email: String,
+    val message: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class EmailVerifyRequest(
+    val requestId: String,
+    val code: String
+)
+
+@JsonClass(generateAdapter = true)
 data class TelegramSendRequest(val phone: String)
 
 @JsonClass(generateAdapter = true)
@@ -28,6 +44,7 @@ data class AuthResponse(val token: String, val user: UserDto)
 @JsonClass(generateAdapter = true)
 data class UserDto(
     val id: String,
+    val email: String? = null,
     val phone: String,
     val displayName: String,
     val avatarUrl: String?

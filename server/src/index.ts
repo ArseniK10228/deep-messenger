@@ -10,6 +10,7 @@ import { config } from './config.js';
 import { initFirebase } from './lib/firebase.js';
 import { registerPublicAuthRoutes, registerProtectedAuthRoutes } from './routes/auth.js';
 import { registerTelegramAuthRoutes } from './routes/telegramAuth.js';
+import { registerEmailAuthRoutes } from './routes/emailAuth.js';
 import { chatRoutes } from './routes/chat.js';
 import { mediaRoutes } from './routes/media.js';
 import { callRoutes } from './routes/calls.js';
@@ -43,6 +44,7 @@ async function main() {
   await app.register(async (api) => {
     await registerPublicAuthRoutes(api);
     await registerTelegramAuthRoutes(api);
+    await registerEmailAuthRoutes(api);
   }, { prefix: '/api/v1' });
 
   await app.register(async (api) => {

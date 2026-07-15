@@ -37,9 +37,14 @@ class CallForegroundService : Service() {
                 return START_STICKY
             }
             else -> {
-                val peer = intent?.getStringExtra(EXTRA_PEER) ?: "Deep"
-                val video = intent?.getBooleanExtra(EXTRA_VIDEO, false) == true
-                val ringingOnly = intent?.getBooleanExtra(EXTRA_RINGING_ONLY, false) == true
+                if (!DeepAppCallBridge.isInCall() && intent == null) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                val peer = intent?.getStringExtra(EXTRA_PEER) ?: lastPeer ?: "Deep"
+                val video = intent?.getBooleanExtra(EXTRA_VIDEO, lastVideo) ?: lastVideo
+                val ringingOnly = intent?.getBooleanExtra(EXTRA_RINGING_ONLY, lastRingingOnly)
+                    ?: DeepAppCallBridge.isRingingPhase()
                 if (!ringingOnly && !hasMicPermission()) {
                     Log.w(TAG, "RECORD_AUDIO not granted — cannot start call FGS")
                     stopSelf()
@@ -65,17 +70,20 @@ class CallForegroundService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        super.onTaskRemoved(rootIntent)
         if (DeepAppCallBridge.isInCall()) {
+            DeepAppCallBridge.onTaskRemoved()
             val peer = lastPeer ?: "Deep"
+            val ringingOnly = DeepAppCallBridge.isRingingPhase()
+            lastRingingOnly = ringingOnly
             ensureChannel()
             acquireWakeLock()
             try {
-                startCallForeground(buildNotification(peer), lastVideo, lastRingingOnly)
+                startCallForeground(buildNotification(peer), lastVideo, ringingOnly)
             } catch (e: SecurityException) {
                 Log.e(TAG, "onTaskRemoved restart failed", e)
             }
         }
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
@@ -243,6 +251,10 @@ class CallForegroundService : Service() {
 /** Thin bridge so the service can talk to CallManager without a hard circular dependency at init. */
 object DeepAppCallBridge {
     fun isInCall(): Boolean = DeepAppCallBridgeHolder.manager?.isInCall() == true
+    fun isRingingPhase(): Boolean = DeepAppCallBridgeHolder.manager?.isRingingPhase() == true
+    fun onTaskRemoved() {
+        DeepAppCallBridgeHolder.manager?.onTaskRemoved()
+    }
     fun hangup() {
         DeepAppCallBridgeHolder.manager?.hangup()
     }

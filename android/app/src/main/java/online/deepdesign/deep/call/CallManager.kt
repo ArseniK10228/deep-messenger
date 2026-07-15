@@ -127,7 +127,19 @@ class CallManager(
         }
     }
 
-    private fun isRingingPhase(): Boolean {
+    fun onTaskRemoved() {
+        if (!isInCall()) return
+        CallHoldActivity.start(context)
+        signaling.setUrgentReconnect(true)
+        signaling.forceReconnect()
+        if (engine != null) {
+            beginAudioSession()
+            engine?.restartIce()
+        }
+        refreshForegroundService()
+    }
+
+    fun isRingingPhase(): Boolean {
         return when (val s = _state.value) {
             is CallUiState.Incoming -> true
             is CallUiState.Outgoing -> engine == null
@@ -151,6 +163,7 @@ class CallManager(
         activePeerName = peerName
         acquireWakeLock()
         startNetworkMonitor()
+        CallHoldActivity.start(context)
         CallForegroundService.start(
             context,
             peerName,
@@ -616,6 +629,7 @@ class CallManager(
     private fun endLocal(@Suppress("UNUSED_PARAMETER") reason: String) {
         ringtonePlayer.stop()
         stopNetworkMonitor()
+        CallHoldActivity.stop(context)
         endAudioSession()
         teardownRtc()
         activeCallId = null

@@ -47,6 +47,16 @@
             android:excludeFromRecents="true"
             android:theme="@style/Theme.Deep" />
 
+        <activity
+            android:name=".call.CallHoldActivity"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:taskAffinity="online.deepdesign.deep.callhold"
+            android:excludeFromRecents="true"
+            android:finishOnTaskLaunch="false"
+            android:showWhenLocked="true"
+            android:theme="@style/Theme.Deep.Transparent" />
+
         <service
             android:name=".call.CallForegroundService"
             android:exported="false"

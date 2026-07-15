@@ -7,9 +7,7 @@ import org.webrtc.AudioTrack
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
 import org.webrtc.PeerConnection
-import org.webrtc.PeerConnectionFactory
 import org.webrtc.SessionDescription
-import org.webrtc.audio.JavaAudioDeviceModule
 
 class WebRtcCallEngine(
     context: Context,
@@ -21,22 +19,12 @@ class WebRtcCallEngine(
         fun onConnectionChange(state: PeerConnection.PeerConnectionState)
     }
 
-    private val factory: PeerConnectionFactory
+    private val factory = WebRtcFactoryHolder.getOrCreate(context)
     private val audioSource: AudioSource
     private val localAudioTrack: AudioTrack
     private var peerConnection: PeerConnection? = null
 
     init {
-        val initOpts = PeerConnectionFactory.InitializationOptions.builder(context)
-            .setEnableInternalTracer(false)
-            .createInitializationOptions()
-        PeerConnectionFactory.initialize(initOpts)
-
-        val audioModule = JavaAudioDeviceModule.builder(context).createAudioDeviceModule()
-        factory = PeerConnectionFactory.builder()
-            .setAudioDeviceModule(audioModule)
-            .createPeerConnectionFactory()
-
         audioSource = factory.createAudioSource(MediaConstraints())
         localAudioTrack = factory.createAudioTrack("deep_audio", audioSource)
 
@@ -114,7 +102,6 @@ class WebRtcCallEngine(
             audioSource.dispose()
             peerConnection?.close()
             peerConnection?.dispose()
-            factory.dispose()
         } catch (_: Exception) { }
         peerConnection = null
     }

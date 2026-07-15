@@ -1,7 +1,9 @@
 package online.deepdesign.deep.call
 
 import android.content.Context
-import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -48,12 +50,16 @@ class CallManager(
     private val _state = MutableStateFlow<CallUiState>(CallUiState.Idle)
     val state: StateFlow<CallUiState> = _state.asStateFlow()
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     private var engine: WebRtcCallEngine? = null
     private var iceServers: List<IceServerDto> = emptyList()
     private var listenJob: Job? = null
     private var activeCallId: String? = null
     private var activePeerName: String = "Deep"
     private var pendingOffer: WsEnvelope? = null
+    private val pendingIce = mutableListOf<IceCandidate>()
 
     fun start() {
         signaling.connect()
@@ -70,7 +76,15 @@ class CallManager(
         _state.value = CallUiState.Idle
     }
 
+    fun clearError() {
+        _error.value = null
+    }
+
     fun startOutgoing(conversationId: String, peerName: String) {
+        if (!hasMicPermission()) {
+            _error.value = "Разреши доступ к микрофону для звонка"
+            return
+        }
         scope.launch {
             try {
                 val resp = api.startCall(StartCallRequest(conversationId))
@@ -81,6 +95,7 @@ class CallManager(
                 CallForegroundService.start(context, peerName, outgoing = true)
             } catch (e: Exception) {
                 _state.value = CallUiState.Idle
+                _error.value = "Не удалось начать звонок"
                 CallForegroundService.stop(context)
             }
         }
@@ -88,6 +103,10 @@ class CallManager(
 
     fun acceptIncoming() {
         val incoming = _state.value as? CallUiState.Incoming ?: return
+        if (!hasMicPermission()) {
+            _error.value = "Разреши доступ к микрофону для звонка"
+            return
+        }
         scope.launch {
             try {
                 val resp = api.acceptCall(incoming.callId)
@@ -102,6 +121,7 @@ class CallManager(
                     handleRemoteSdp(it)
                 }
             } catch (_: Exception) {
+                _error.value = "Не удалось принять звонок"
                 rejectIncoming()
             }
         }
@@ -172,25 +192,27 @@ class CallManager(
         if (activeCallId == null) activeCallId = callId
 
         scope.launch {
-            if (engine == null) {
-                if (iceServers.isEmpty()) {
-                    iceServers = runCatching { api.callIce().iceServers }.getOrDefault(emptyList())
+            try {
+                if (engine == null) {
+                    if (iceServers.isEmpty()) {
+                        iceServers = runCatching { api.callIce().iceServers }.getOrDefault(emptyList())
+                    }
+                    initEngine()
                 }
-                initEngine()
-            }
-            val session = SessionDescription(
-                SessionDescription.Type.fromCanonicalForm(type),
-                sdp
-            )
-            engine?.setRemoteDescription(session) {
-                if (type == "offer") {
-                    engine?.createAnswer { answer ->
-                        signaling.sendSdp(callId, answer.description, answer.type.canonicalForm())
-                        if (_state.value is CallUiState.Incoming) {
-                            _state.value = CallUiState.Active(callId, activePeerName, connected = false)
+                val session = SessionDescription(
+                    SessionDescription.Type.fromCanonicalForm(type),
+                    sdp
+                )
+                engine?.setRemoteDescription(session) {
+                    if (type == "offer") {
+                        engine?.createAnswer { answer ->
+                            signaling.sendSdp(callId, answer.description, answer.type.canonicalForm())
                         }
                     }
                 }
+            } catch (_: Exception) {
+                _error.value = "Ошибка соединения"
+                hangup()
             }
         }
     }
@@ -202,7 +224,12 @@ class CallManager(
             env.sdpMLineIndex ?: 0,
             candidate
         )
-        engine?.addIceCandidate(ice)
+        val eng = engine
+        if (eng == null) {
+            pendingIce.add(ice)
+        } else {
+            eng.addIceCandidate(ice)
+        }
     }
 
     private fun initEngine() {
@@ -214,24 +241,31 @@ class CallManager(
             }
 
             override fun onConnectionChange(state: PeerConnection.PeerConnectionState) {
-                if (state == PeerConnection.PeerConnectionState.CONNECTED) {
-                    _state.update { current ->
-                        if (current is CallUiState.Active) current.copy(connected = true) else current
+                scope.launch {
+                    if (state == PeerConnection.PeerConnectionState.CONNECTED) {
+                        _state.update { current ->
+                            if (current is CallUiState.Active) current.copy(connected = true) else current
+                        }
                     }
-                }
-                if (state == PeerConnection.PeerConnectionState.FAILED ||
-                    state == PeerConnection.PeerConnectionState.DISCONNECTED
-                ) {
-                    hangup()
+                    if (state == PeerConnection.PeerConnectionState.FAILED ||
+                        state == PeerConnection.PeerConnectionState.DISCONNECTED
+                    ) {
+                        if (_state.value is CallUiState.Active) {
+                            hangup()
+                        }
+                    }
                 }
             }
         })
+        pendingIce.forEach { engine?.addIceCandidate(it) }
+        pendingIce.clear()
     }
 
     private fun endLocal(@Suppress("UNUSED_PARAMETER") reason: String) {
         teardownRtc()
         activeCallId = null
         pendingOffer = null
+        pendingIce.clear()
         _state.value = CallUiState.Idle
         CallForegroundService.stop(context)
     }
@@ -239,5 +273,10 @@ class CallManager(
     private fun teardownRtc() {
         engine?.close()
         engine = null
+    }
+
+    private fun hasMicPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
     }
 }

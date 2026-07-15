@@ -1,5 +1,6 @@
 package online.deepdesign.deep.ui.chat
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.media.MediaPlayer
 import android.net.Uri
@@ -147,10 +148,12 @@ private fun FileMessage(msg: MessageDto) {
         modifier = Modifier
             .clickable(enabled = url != null) {
                 url?.let {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse(it))
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
+                    try {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(it))
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    } catch (_: ActivityNotFoundException) { }
                 }
             }
             .padding(horizontal = 4.dp, vertical = 4.dp),

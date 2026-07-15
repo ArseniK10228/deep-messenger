@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,11 +38,10 @@ class ChatViewModel(
     private val conversationId: String
 ) : ViewModel() {
     private val api = DeepApp.instance.api
-    private val signaling = DeepApp.instance.signalingHub
     private val socket = ChatSocket { DeepApp.instance.currentToken() }
     private val voiceRecorder = VoiceRecorder(DeepApp.instance)
     private var wsJob: Job? = null
-    private var receiptJob: Job? = null
+    private var typingJob: Job? = null
 
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
@@ -49,7 +49,6 @@ class ChatViewModel(
     init {
         loadMessages()
         connectWs()
-        listenReceipts()
     }
 
     private fun loadMessages() {
@@ -72,33 +71,20 @@ class ChatViewModel(
                 when (event.type) {
                     "message" -> event.message?.let { onIncomingMessage(it) }
                     "message_deleted" -> event.messageId?.let { removeMessage(it) }
-                    "typing" -> _state.update { it.copy(peerTyping = true) }
+                    "typing" -> {
+                        _state.update { it.copy(peerTyping = true) }
+                        typingJob?.cancel()
+                        typingJob = viewModelScope.launch {
+                            delay(3_000)
+                            _state.update { it.copy(peerTyping = false) }
+                        }
+                    }
                     "message_delivered" -> event.messageId?.let {
                         updateMessageStatus(it, peerDelivered = true)
                     }
                     "message_read" -> event.messageId?.let {
                         updateMessageStatus(it, peerDelivered = true, peerRead = true)
                     }
-                }
-            }
-        }
-    }
-
-    private fun listenReceipts() {
-        receiptJob?.cancel()
-        receiptJob = viewModelScope.launch {
-            signaling.events.collect { event ->
-                if (event.conversationId != null && event.conversationId != conversationId) return@collect
-                when (event.type) {
-                    "message_delivered" -> event.messageId?.let {
-                        updateMessageStatus(it, peerDelivered = true)
-                    }
-                    "message_read" -> event.messageId?.let {
-                        updateMessageStatus(it, peerDelivered = true, peerRead = true)
-                    }
-                    "message" -> event.message?.takeIf { it.conversationId == conversationId }
-                        ?.let { onIncomingMessage(it) }
-                    "message_deleted" -> event.messageId?.let { removeMessage(it) }
                 }
             }
         }
@@ -206,24 +192,29 @@ class ChatViewModel(
     }
 
     private fun onIncomingMessage(msg: MessageDto) {
-        appendMessage(msg)
-        if (!isMine(msg)) {
+        if (msg.conversationId != conversationId) return
+        val added = appendMessage(msg)
+        if (added && !isMine(msg)) {
             socket.sendDelivered(msg.id)
-            signaling.sendDelivered(msg.id)
-            viewModelScope.launch { api.markRead(msg.id) }
+            viewModelScope.launch { runCatching { api.markRead(msg.id) } }
         }
     }
 
-    private fun appendMessage(msg: MessageDto) {
+    private fun appendMessage(msg: MessageDto): Boolean {
+        var added = false
         _state.update { s ->
             if (s.messages.any { it.id == msg.id }) s
-            else s.copy(messages = s.messages + msg)
+            else {
+                added = true
+                s.copy(messages = s.messages + msg)
+            }
         }
+        return added
     }
 
     private fun markIncomingRead(msgs: List<MessageDto>) {
         viewModelScope.launch {
-            msgs.filter { !isMine(it) }.forEach { api.markRead(it.id) }
+            msgs.filter { !isMine(it) }.forEach { runCatching { api.markRead(it.id) } }
         }
     }
 
@@ -271,7 +262,7 @@ class ChatViewModel(
     override fun onCleared() {
         voiceRecorder.cancel()
         wsJob?.cancel()
-        receiptJob?.cancel()
+        typingJob?.cancel()
         super.onCleared()
     }
 

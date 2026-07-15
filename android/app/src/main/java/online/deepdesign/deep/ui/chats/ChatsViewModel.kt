@@ -51,13 +51,6 @@ class ChatsViewModel : ViewModel() {
                 }
             }
         }
-        viewModelScope.launch {
-            DeepApp.instance.signalingHub.events.collect { env ->
-                if (env.type == "message" || env.type == "message_deleted") {
-                    refresh()
-                }
-            }
-        }
     }
 
     fun refresh() {

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -107,10 +108,27 @@ fun ChatScreen(
         if (granted) vm.startRecording()
     }
 
-    LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) {
-            listState.animateScrollToItem(state.messages.lastIndex)
-        }
+    val callPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) onStartCall()
+    }
+
+    fun requestCall() {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) onStartCall()
+        else callPermission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    LaunchedEffect(state.messages.lastOrNull()?.id) {
+        val last = state.messages.lastIndex
+        if (last < 0) return@LaunchedEffect
+        val visible = listState.layoutInfo.visibleItemsInfo
+        val atBottom = visible.isEmpty() || visible.lastOrNull()?.index?.let { it >= last - 1 } == true
+        if (atBottom) listState.animateScrollToItem(last)
     }
 
     Scaffold(
@@ -128,7 +146,7 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onStartCall) {
+                    IconButton(onClick = { requestCall() }) {
                         Icon(Icons.Default.Call, contentDescription = "Звонок", tint = DeepAccent)
                     }
                 },
@@ -240,9 +258,11 @@ fun ChatScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            horizontal = 12.dp,
-                            vertical = 8.dp
+                        contentPadding = PaddingValues(
+                            start = 12.dp,
+                            top = 8.dp,
+                            end = 12.dp,
+                            bottom = if (state.peerTyping) 36.dp else 8.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -279,9 +299,12 @@ fun ChatScreen(
                 Text(
                     text = it,
                     color = DeepError,
+                    style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(8.dp)
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp)
+                        .background(DeepSurface.copy(alpha = 0.9f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
         }

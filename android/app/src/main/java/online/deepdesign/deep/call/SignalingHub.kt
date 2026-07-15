@@ -33,7 +33,7 @@ class SignalingHub(
     )
 
     fun connect() {
-        disconnect()
+        if (ws != null) return
         val token = tokenProvider() ?: return
         val url = "${ApiConfig.WS_URL}?token=${java.net.URLEncoder.encode(token, "UTF-8")}"
         val client = ApiClient.okHttp(tokenProvider)

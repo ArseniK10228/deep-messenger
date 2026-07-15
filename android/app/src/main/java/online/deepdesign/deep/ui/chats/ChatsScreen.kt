@@ -100,13 +100,16 @@ fun ChatsScreen(
             }
         }
     ) { padding ->
-        PullToRefreshBox(
-            isRefreshing = state.loading && state.conversations.isNotEmpty(),
-            onRefresh = vm::refresh,
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            PullToRefreshBox(
+                isRefreshing = state.loading && state.conversations.isNotEmpty(),
+                onRefresh = vm::refresh,
+                modifier = Modifier.fillMaxSize()
+            ) {
             when {
                 state.loading && state.conversations.isEmpty() -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -148,14 +151,20 @@ fun ChatsScreen(
                     }
                 }
             }
-        }
+            }
 
-        state.error?.let {
-            Text(
-                text = it,
-                color = DeepError,
-                modifier = Modifier.padding(16.dp)
-            )
+            state.error?.let {
+                Text(
+                    text = it,
+                    color = DeepError,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(16.dp)
+                        .background(DeepSurface.copy(alpha = 0.95f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
         }
     }
 

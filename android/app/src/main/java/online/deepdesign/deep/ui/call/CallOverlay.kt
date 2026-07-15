@@ -14,7 +14,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import online.deepdesign.deep.call.CallUiState
 import online.deepdesign.deep.ui.components.deepAppear
@@ -71,7 +71,14 @@ private fun IncomingCallUi(callerName: String, onAccept: () -> Unit, onReject: (
     ) {
         Text("Входящий звонок", color = DeepMuted, style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(12.dp))
-        Text(callerName, color = DeepText, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+        Text(
+            callerName,
+            color = DeepText,
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
         Spacer(Modifier.height(48.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
             FloatingActionButton(
@@ -80,7 +87,7 @@ private fun IncomingCallUi(callerName: String, onAccept: () -> Unit, onReject: (
                 contentColor = DeepText,
                 shape = CircleShape
             ) {
-                Icon(Icons.Default.Close, contentDescription = "Отклонить")
+                Icon(Icons.Default.CallEnd, contentDescription = "Отклонить")
             }
             FloatingActionButton(
                 onClick = onAccept,
@@ -112,7 +119,14 @@ private fun ActiveCallUi(
     ) {
         Text(title, color = DeepMuted, style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(12.dp))
-        Text(peerName, color = DeepText, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+        Text(
+            peerName,
+            color = DeepText,
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
         Text(subtitle, color = DeepMuted, style = MaterialTheme.typography.bodyLarge)
         Spacer(Modifier.height(48.dp))
         FloatingActionButton(

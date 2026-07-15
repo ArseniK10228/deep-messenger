@@ -1,5 +1,6 @@
 package online.deepdesign.deep.call
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,10 +8,13 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import online.deepdesign.deep.MainActivity
 import online.deepdesign.deep.R
 
@@ -26,21 +30,37 @@ class CallForegroundService : Service() {
             }
             else -> {
                 val peer = intent?.getStringExtra(EXTRA_PEER) ?: "Deep"
+                if (!hasMicPermission()) {
+                    Log.w(TAG, "RECORD_AUDIO not granted — cannot start call FGS")
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
                 ensureChannel()
                 val notification = buildNotification(peer)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    startForeground(
-                        NOTIFICATION_ID,
-                        notification,
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-                    )
-                } else {
-                    @Suppress("DEPRECATION")
-                    startForeground(NOTIFICATION_ID, notification)
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        startForeground(
+                            NOTIFICATION_ID,
+                            notification,
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                        )
+                    } else {
+                        @Suppress("DEPRECATION")
+                        startForeground(NOTIFICATION_ID, notification)
+                    }
+                } catch (e: SecurityException) {
+                    Log.e(TAG, "startForeground failed", e)
+                    stopSelf()
+                    return START_NOT_STICKY
                 }
             }
         }
         return START_STICKY
+    }
+
+    private fun hasMicPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
     }
 
     private fun buildNotification(peer: String): Notification {
@@ -72,15 +92,25 @@ class CallForegroundService : Service() {
     }
 
     companion object {
+        private const val TAG = "CallForegroundService"
         private const val CHANNEL_ID = "deep_calls"
         private const val NOTIFICATION_ID = 42
         private const val EXTRA_PEER = "peer"
         private const val ACTION_STOP = "stop"
 
         fun start(context: Context, peerName: String, outgoing: Boolean) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                return
+            }
             val intent = Intent(context, CallForegroundService::class.java)
                 .putExtra(EXTRA_PEER, if (outgoing) "Вызов: $peerName" else peerName)
-            context.startForegroundService(intent)
+            try {
+                context.startForegroundService(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start call service", e)
+            }
         }
 
         fun stop(context: Context) {

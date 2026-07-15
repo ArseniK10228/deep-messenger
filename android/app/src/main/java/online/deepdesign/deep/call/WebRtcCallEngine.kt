@@ -196,30 +196,35 @@ class WebRtcCallEngine(
 
     fun readCallStats(onResult: (micLevel: Float, rttMs: Int?) -> Unit) {
         val pc = peerConnection ?: return
-        pc.getStats(object : RTCStatsCollectorCallback {
-            override fun onStatsDelivered(report: RTCStatsReport?) {
-                if (report == null) return
-                var mic = 0f
-                var rttMs: Int? = null
-                for (stats in report.statsMap.values) {
-                    when (stats.type) {
-                        "media-source" -> {
-                            if (stats.members["kind"] == "audio") {
-                                (stats.members["audioLevel"] as? Number)?.toFloat()?.let { mic = it }
-                            }
-                        }
-                        "candidate-pair" -> {
-                            if (stats.members["state"] == "succeeded") {
-                                (stats.members["currentRoundTripTime"] as? Number)?.toDouble()?.let {
-                                    rttMs = (it * 1000).toInt().coerceAtLeast(1)
+        runCatching {
+            pc.getStats(object : RTCStatsCollectorCallback {
+                override fun onStatsDelivered(report: RTCStatsReport?) {
+                    if (report == null) return
+                    try {
+                        var mic = 0f
+                        var rttMs: Int? = null
+                        for (stats in report.statsMap.values) {
+                            when (stats.type) {
+                                "media-source" -> {
+                                    if (stats.members["kind"] == "audio") {
+                                        (stats.members["audioLevel"] as? Number)?.toFloat()?.let { mic = it }
+                                    }
+                                }
+                                "candidate-pair" -> {
+                                    if (stats.members["state"] == "succeeded") {
+                                        (stats.members["currentRoundTripTime"] as? Number)?.toDouble()?.let {
+                                            rttMs = (it * 1000).toInt().coerceAtLeast(1)
+                                        }
+                                    }
                                 }
                             }
                         }
+                        onResult(mic, rttMs)
+                    } catch (_: Exception) {
                     }
                 }
-                onResult(mic, rttMs)
-            }
-        })
+            })
+        }
     }
 
     fun close() {

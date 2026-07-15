@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.SessionBootstrap
 import online.deepdesign.deep.data.ChatEvent
@@ -18,7 +19,7 @@ class DeepMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         scope.launch {
             val app = DeepApp.instance
-            SessionBootstrap.restore(app.sessionStore, app)
+            runCatching { SessionBootstrap.restore(app.sessionStore, app) }
             runCatching {
                 app.api.registerFcm(FcmRegisterRequest(token))
             }
@@ -31,16 +32,18 @@ class DeepMessagingService : FirebaseMessagingService() {
         val notifBody = message.notification?.body
         scope.launch {
             val app = DeepApp.instance
-            SessionBootstrap.restore(app.sessionStore, app)
+            runCatching { SessionBootstrap.restore(app.sessionStore, app) }
             when (data["type"]) {
-                "incoming_call" -> {
+                "incoming_call" -> withContext(Dispatchers.Main.immediate) {
                     app.callManager.handleIncomingPush(data)
                     val callId = data["callId"]
                     if (callId != null && app.callManager.shouldPostIncomingNotification(callId)) {
-                        IncomingCallNotifier.show(this@DeepMessagingService, data)
+                        runCatching {
+                            IncomingCallNotifier.show(this@DeepMessagingService, data)
+                        }
                     }
                 }
-                "call_ended" -> {
+                "call_ended" -> withContext(Dispatchers.Main.immediate) {
                     app.callManager.handleIncomingPush(data)
                 }
                 "message" -> {

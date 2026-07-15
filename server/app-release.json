@@ -1,7 +1,7 @@
 {
-  "versionCode": 20,
-  "versionName": "0.3.17",
+  "versionCode": 21,
+  "versionName": "0.3.18",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Статус сети в звонке, индикатор микрофона, фикс двойного рингтона и сессии.",
+  "changelog": "Надёжнее входящие звонки, фикс крашей при звонке из фона.",
   "forceUpdate": false
 }

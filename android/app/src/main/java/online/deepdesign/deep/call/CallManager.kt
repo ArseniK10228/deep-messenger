@@ -108,6 +108,9 @@ class CallManager(
     private var iceDegraded = false
     @Volatile
     private var lastRttMs: Int? = null
+    @Volatile
+    private var pendingMicLevel = 0f
+    private val incomingLock = Any()
     private val ringtonePlayer = CallRingtonePlayer(context)
 
     init {
@@ -421,23 +424,41 @@ class CallManager(
         callerName: String,
         video: Boolean
     ) {
-        if (isIncomingRinging(callId)) return
-        if (_state.value is CallUiState.Outgoing || _state.value is CallUiState.Active) return
-        _overlayExpanded.value = true
-        _videoOn.value = video
-        _state.value = CallUiState.Incoming(callId, conversationId, callerName, video)
-        activeCallId = callId
-        activePeerName = callerName
-        setCallSignalingPriority(true)
-        ringtonePlayer.playIncoming()
-        signaling.connect()
-        startCallProtection(callerName, outgoing = false, video = video)
-        if (!CallAppState.isInForeground()) {
-            context.startActivity(
-                IncomingCallActivity.intent(context, callId, conversationId, callerName, video)
-            )
+        synchronized(incomingLock) {
+            if (isIncomingRinging(callId)) return
+            if (_state.value is CallUiState.Outgoing || _state.value is CallUiState.Active) return
+            _overlayExpanded.value = true
+            _videoOn.value = video
+            _state.value = CallUiState.Incoming(callId, conversationId, callerName, video)
+            activeCallId = callId
+            activePeerName = callerName
+            setCallSignalingPriority(true)
+            runCatching { ringtonePlayer.playIncoming() }
+            signaling.connect()
+            startCallProtection(callerName, outgoing = false, video = video)
+            if (!CallAppState.isInForeground()) {
+                runCatching {
+                    IncomingCallNotifier.show(
+                        context,
+                        incomingCallData(callId, conversationId, callerName, video)
+                    )
+                }
+            }
         }
     }
+
+    private fun incomingCallData(
+        callId: String,
+        conversationId: String,
+        callerName: String,
+        video: Boolean
+    ): Map<String, String> = mapOf(
+        "type" to "incoming_call",
+        "callId" to callId,
+        "conversationId" to conversationId,
+        "callerName" to callerName,
+        "video" to if (video) "true" else "false"
+    )
 
     private fun handleSignal(env: WsEnvelope) {
         when (env.type) {
@@ -617,21 +638,22 @@ class CallManager(
             while (isActive) {
                 val eng = engine
                 if (eng != null && !_muted.value) {
-                    eng.readCallStats { mic, rtt ->
-                        scope.launch {
-                            _micLevel.value = mic
-                            lastRttMs = rtt
-                            updateCallNetwork(
-                                signaling.wsConnected.value,
-                                signaling.wsReconnecting.value,
-                                _state.value
-                            )
+                    runCatching {
+                        eng.readCallStats { mic, rtt ->
+                            pendingMicLevel = mic
+                            if (rtt != null) lastRttMs = rtt
                         }
                     }
+                    _micLevel.value = pendingMicLevel
+                    updateCallNetwork(
+                        signaling.wsConnected.value,
+                        signaling.wsReconnecting.value,
+                        _state.value
+                    )
                 } else {
                     _micLevel.value = 0f
                 }
-                delay(120)
+                delay(200)
             }
         }
     }

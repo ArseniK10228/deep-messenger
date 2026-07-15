@@ -94,7 +94,9 @@ object IncomingCallNotifier {
             flags = flags or Notification.FLAG_INSISTENT
         }
 
-        NotificationManagerCompat.from(context).notify(notificationId, notification)
+        runCatching {
+            NotificationManagerCompat.from(context).notify(notificationId, notification)
+        }
     }
 
     fun dismiss(context: Context, callId: String? = null) {

@@ -3,8 +3,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import type { FastifyInstance } from 'fastify';
 
-const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const releasePath = path.join(serverRoot, 'app-release.json');
+const routesDir = path.dirname(fileURLToPath(import.meta.url));
+// dist/routes/app.js → server/app-release.json
+const releasePath = path.resolve(routesDir, '../../app-release.json');
 
 export interface AppRelease {
   versionCode: number;

@@ -7,10 +7,19 @@ on:
     paths:
       - "android/**"
       - "server/app-release.json"
+      - ".github/workflows/build-apk.yml"
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
 
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    env:
+      SSH_KEY_FILE: /home/runner/.ssh/vps_deploy_key
+      EXPECTED_DEPLOY_PUBKEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA2wDQHc8nJInmTGwEDQklnRelm3nG5gxBxTXjTMS0eN
+
     steps:
       - uses: actions/checkout@v4
 
@@ -20,46 +29,100 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Prepare Android signing keystore
+        env:
+          ANDROID_DEBUG_KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$ANDROID_DEBUG_KEYSTORE_B64" ]; then
+            echo "$ANDROID_DEBUG_KEYSTORE_B64" | base64 -d > android/app/ci-debug.keystore
+            echo "Using CI debug keystore (matches local Android Studio installs)"
+          else
+            echo "::warning::ANDROID_DEBUG_KEYSTORE_B64 not set — APK signature may differ from local builds"
+          fi
+
       - name: Write google-services.json
         env:
           GOOGLE_SERVICES: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
         run: |
           if [ -z "$GOOGLE_SERVICES" ]; then
-            echo "ANDROID_GOOGLE_SERVICES_JSON not set — skipping APK build"
-            exit 0
+            echo "::error::ANDROID_GOOGLE_SERVICES_JSON secret is required for APK build"
+            exit 1
           fi
           printf '%s' "$GOOGLE_SERVICES" > android/app/google-services.json
 
-      - name: Assemble debug APK
-        env:
-          GOOGLE_SERVICES: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
+      - name: Sync app-release.json from Gradle
         run: |
-          if [ -z "$GOOGLE_SERVICES" ]; then exit 0; fi
+          VC=$(grep -E 'versionCode\s*=' android/app/build.gradle.kts | head -1 | grep -oE '[0-9]+')
+          VN=$(grep -E 'versionName\s*=' android/app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          node -e "
+            const fs = require('fs');
+            const p = 'server/app-release.json';
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            j.versionCode = Number(process.env.VC);
+            j.versionName = process.env.VN;
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+          " 
+          echo "Release metadata: versionCode=$VC versionName=$VN"
+          cat server/app-release.json
+
+      - name: Ensure Gradle wrapper
+        run: |
           cd android
-          chmod +x gradlew 2>/dev/null || true
           if [ ! -f gradlew ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq gradle
             gradle wrapper --gradle-version 8.11.1
           fi
-          ./gradlew :app:assembleDebug --no-daemon
+          chmod +x gradlew
+
+      - name: Assemble debug APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: android
+          ANDROID_KEY_ALIAS: androiddebugkey
+          ANDROID_KEY_PASSWORD: android
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: deep-apk
           path: android/app/build/outputs/apk/debug/*.apk
-        continue-on-error: true
+          retention-days: 14
+
+      - name: Prepare SSH key
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          install -m 700 -d /home/runner/.ssh
+          KEY_RAW=$(echo "$VPS_SSH_KEY" | tr -d '\r')
+          if echo "$KEY_RAW" | grep -q 'BEGIN OPENSSH PRIVATE KEY'; then
+            echo "$KEY_RAW" > "$SSH_KEY_FILE"
+          else
+            BODY=$(echo "$KEY_RAW" | tr -d ' \n')
+            { echo '-----BEGIN OPENSSH PRIVATE KEY-----'; echo "$BODY" | fold -w 70; echo '-----END OPENSSH PRIVATE KEY-----'; } > "$SSH_KEY_FILE"
+          fi
+          chmod 600 "$SSH_KEY_FILE"
 
       - name: Publish APK to VPS
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
-          if [ ! -f android/app/google-services.json ]; then exit 0; fi
-          APK=$(ls android/app/build/outputs/apk/debug/*.apk 2>/dev/null | head -1)
-          if [ -z "$APK" ]; then exit 0; fi
-          install -m 700 -d ~/.ssh
-          printf '%s' "$VPS_SSH_KEY" > ~/.ssh/key
-          chmod 600 ~/.ssh/key
-          scp -i ~/.ssh/key -o StrictHostKeyChecking=accept-new "$APK" "${VPS_USER}@${VPS_HOST}:/var/www/deep-messenger/deep.apk"
-        continue-on-error: true
+          APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
+          test -n "$APK"
+          ssh -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
+            "${VPS_USER}@${VPS_HOST}" 'mkdir -p /var/www/deep-messenger'
+          scp -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=60 \
+            "$APK" "${VPS_USER}@${VPS_HOST}:/var/www/deep-messenger/deep.apk"
+          ssh -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=accept-new \
+            "${VPS_USER}@${VPS_HOST}" 'chmod 644 /var/www/deep-messenger/deep.apk && ls -lh /var/www/deep-messenger/deep.apk'
+
+      - name: Smoke test OTA endpoints
+        run: |
+          curl -fsS --max-time 20 https://deepdesignpc.online/deep.apk -o /tmp/deep.apk
+          test -s /tmp/deep.apk
+          ls -lh /tmp/deep.apk
+          echo "APK download OK"

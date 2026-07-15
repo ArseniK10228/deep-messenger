@@ -38,7 +38,23 @@ android {
         }
     }
 
+    signingConfigs {
+        if (file("ci-debug.keystore").exists()) {
+            create("ciDebug") {
+                storeFile = file("ci-debug.keystore")
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "android"
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "androiddebugkey"
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: "android"
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (file("ci-debug.keystore").exists()) {
+                signingConfig = signingConfigs.getByName("ciDebug")
+            }
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(

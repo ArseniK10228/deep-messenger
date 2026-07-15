@@ -128,4 +128,5 @@ jobs:
             exit 1
           fi
           curl -fsS --max-time 15 https://deepdesignpc.online/ >/dev/null
+          curl -fsS --max-time 15 https://api.deepdesignpc.online/api/v1/app/release | grep -q '"versionCode"'
           echo "Smoke OK"

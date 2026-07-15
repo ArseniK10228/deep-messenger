@@ -41,7 +41,7 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/calls', async (req, reply) => {
     const user = getAuthUser(req);
-    const val body = req.body as { conversationId?: string; video?: boolean };
+    const body = req.body as { conversationId?: string; video?: boolean };
     if (!body.conversationId) {
       return reply.code(400).send({ error: 'conversationId required' });
     }

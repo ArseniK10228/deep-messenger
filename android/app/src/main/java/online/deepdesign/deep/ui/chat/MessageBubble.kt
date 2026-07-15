@@ -3,9 +3,9 @@ package online.deepdesign.deep.ui.chat
 import android.content.Intent
 import android.media.MediaPlayer
 import android.net.Uri
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +56,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(msg: MessageDto, mine: Boolean, onLongClick: (() -> Unit)? = null) {
     val bg = if (mine) DeepBubbleOut else DeepBubbleIn

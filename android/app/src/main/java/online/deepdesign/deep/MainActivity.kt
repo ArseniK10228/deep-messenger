@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import online.deepdesign.deep.call.CallPermissions
 import online.deepdesign.deep.call.CallUiState
 import online.deepdesign.deep.navigation.DeepNavHost
 import online.deepdesign.deep.ui.call.CallMinimizedBar
@@ -45,6 +46,7 @@ class MainActivity : ComponentActivity() {
                 val overlayExpanded by callManager.overlayExpanded.collectAsState()
                 val videoOn by callManager.videoOn.collectAsState()
                 val localVideo by callManager.localVideoTrack.collectAsState()
+                val localVideoMirror by callManager.localVideoMirror.collectAsState()
                 val remoteVideo by callManager.remoteVideoTrack.collectAsState()
                 val snackbar = remember { SnackbarHostState() }
 
@@ -54,13 +56,27 @@ class MainActivity : ComponentActivity() {
                     if (granted) callManager.acceptIncoming()
                 }
 
+                val videoAcceptPermissions = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestMultiplePermissions()
+                ) { results ->
+                    val mic = results[Manifest.permission.RECORD_AUDIO] == true
+                    val cam = results[Manifest.permission.CAMERA] == true
+                    if (mic && cam) callManager.acceptIncoming()
+                }
+
                 fun acceptCall() {
-                    val granted = ContextCompat.checkSelfPermission(
-                        this@MainActivity,
-                        Manifest.permission.RECORD_AUDIO
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (granted) callManager.acceptIncoming()
-                    else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                    val incoming = callState as? CallUiState.Incoming
+                    if (incoming?.video == true) {
+                        val missing = CallPermissions.missingForVideo(this@MainActivity)
+                        when {
+                            missing.isEmpty() -> callManager.acceptIncoming()
+                            else -> videoAcceptPermissions.launch(missing)
+                        }
+                    } else if (CallPermissions.hasMic(this@MainActivity)) {
+                        callManager.acceptIncoming()
+                    } else {
+                        micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                    }
                 }
 
                 LaunchedEffect(callError) {
@@ -89,6 +105,7 @@ class MainActivity : ComponentActivity() {
                                     speakerOn = speakerOn,
                                     videoOn = videoOn,
                                     localVideo = localVideo,
+                                    localVideoMirror = localVideoMirror,
                                     remoteVideo = remoteVideo,
                                     onAccept = { acceptCall() },
                                     onReject = { callManager.rejectIncoming() },

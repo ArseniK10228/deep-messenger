@@ -7,24 +7,27 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Cameraswitch
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -49,9 +52,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.CircleShape
 import online.deepdesign.deep.call.CallUiState
-import org.webrtc.VideoTrack
 import online.deepdesign.deep.ui.components.ChatAvatar
 import online.deepdesign.deep.ui.components.deepAppear
 import online.deepdesign.deep.ui.theme.DeepAccent
@@ -60,6 +61,7 @@ import online.deepdesign.deep.ui.theme.DeepError
 import online.deepdesign.deep.ui.theme.DeepMuted
 import online.deepdesign.deep.ui.theme.DeepSurfaceHigh
 import online.deepdesign.deep.ui.theme.DeepText
+import org.webrtc.VideoTrack
 
 @Composable
 fun CallOverlay(
@@ -68,6 +70,7 @@ fun CallOverlay(
     speakerOn: Boolean,
     videoOn: Boolean,
     localVideo: VideoTrack?,
+    localVideoMirror: Boolean,
     remoteVideo: VideoTrack?,
     onAccept: () -> Unit,
     onReject: () -> Unit,
@@ -88,6 +91,7 @@ fun CallOverlay(
                 muted = muted,
                 videoOn = videoOn,
                 localVideo = localVideo,
+                localVideoMirror = localVideoMirror,
                 remoteVideo = remoteVideo,
                 onToggleMute = onToggleMute,
                 onToggleVideo = onToggleVideo,
@@ -116,6 +120,7 @@ fun CallOverlay(
                 muted = muted,
                 videoOn = videoOn,
                 localVideo = localVideo,
+                localVideoMirror = localVideoMirror,
                 remoteVideo = remoteVideo,
                 onToggleMute = onToggleMute,
                 onToggleVideo = onToggleVideo,
@@ -148,13 +153,23 @@ private fun CallBackground(content: @Composable () -> Unit) {
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF1A1030),
+                        Color(0xFF221438),
                         DeepBg,
-                        Color(0xFF0A0A12)
+                        Color(0xFF080810)
                     )
                 )
             )
     ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(DeepAccent.copy(alpha = 0.12f), Color.Transparent),
+                        radius = 900f
+                    )
+                )
+        )
         content()
     }
 }
@@ -177,19 +192,20 @@ private fun IncomingCallUi(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 28.dp, vertical = 48.dp)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 28.dp, vertical = 32.dp)
                 .deepAppear(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.weight(0.35f))
-            Text(
-                if (video) "Входящий видеозвонок" else "Входящий звонок",
-                color = DeepMuted,
-                style = MaterialTheme.typography.titleMedium
+            Spacer(Modifier.weight(0.3f))
+            CallStatusChip(
+                text = if (video) "Входящий видеозвонок" else "Входящий звонок",
+                accent = true
             )
             Spacer(Modifier.height(28.dp))
             Box(Modifier.scale(pulse)) {
-                ChatAvatar(name = callerName, size = 120.dp)
+                ChatAvatar(name = callerName, size = 124.dp)
             }
             Spacer(Modifier.height(20.dp))
             Text(
@@ -214,7 +230,7 @@ private fun IncomingCallUi(
                     onClick = onReject
                 )
                 CallActionButton(
-                    icon = Icons.Default.Call,
+                    icon = if (video) Icons.Default.Videocam else Icons.Default.Call,
                     label = "Принять",
                     containerColor = DeepAccent,
                     onClick = onAccept
@@ -245,45 +261,37 @@ private fun OngoingCallUi(
 
     CallBackground {
         Box(Modifier.fillMaxSize()) {
-            CallMinimizeButton(
-                onClick = onMinimize,
-                modifier = Modifier.align(Alignment.TopStart)
-            )
+            CallMinimizeButton(onClick = onMinimize, modifier = Modifier.align(Alignment.TopStart))
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 24.dp, vertical = 40.dp),
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-            Spacer(Modifier.weight(0.3f))
-            Box(Modifier.scale(pulse)) {
-                ChatAvatar(name = peerName, size = 128.dp, online = connected)
-            }
-            Spacer(Modifier.height(24.dp))
-            Text(
-                peerName,
-                color = DeepText,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(status, color = if (connected) DeepAccent else DeepMuted, style = MaterialTheme.typography.bodyLarge)
-            Spacer(Modifier.weight(1f))
+                Spacer(Modifier.weight(0.22f))
+                CallStatusChip(text = status, accent = connected)
+                Spacer(Modifier.height(28.dp))
+                Box(Modifier.scale(pulse)) {
+                    ChatAvatar(name = peerName, size = 132.dp, online = connected)
+                }
+                Spacer(Modifier.height(20.dp))
+                Text(
+                    peerName,
+                    color = DeepText,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.weight(1f))
 
-            Surface(
-                color = DeepSurfaceHigh.copy(alpha = 0.65f),
-                shape = CircleShape,
-                modifier = Modifier.padding(bottom = 28.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                CallControlsDock {
                     CallControlChip(
                         icon = if (muted) Icons.Default.MicOff else Icons.Default.Mic,
-                        label = if (muted) "Вкл. звук" else "Микрофон",
+                        label = if (muted) "Вкл." else "Микрофон",
                         active = muted,
                         onClick = onToggleMute
                     )
@@ -293,20 +301,8 @@ private fun OngoingCallUi(
                         active = speakerOn,
                         onClick = onToggleSpeaker
                     )
+                    HangupChip(onClick = onHangup)
                 }
-            }
-
-            FloatingActionButton(
-                onClick = onHangup,
-                containerColor = DeepError,
-                contentColor = DeepText,
-                shape = CircleShape,
-                modifier = Modifier.size(76.dp)
-            ) {
-                Icon(Icons.Default.CallEnd, contentDescription = "Завершить", modifier = Modifier.size(34.dp))
-            }
-            Spacer(Modifier.height(16.dp))
-            Text("Завершить", color = DeepMuted, style = MaterialTheme.typography.labelMedium)
             }
         }
     }
@@ -320,6 +316,7 @@ private fun VideoCallUi(
     muted: Boolean,
     videoOn: Boolean,
     localVideo: VideoTrack?,
+    localVideoMirror: Boolean,
     remoteVideo: VideoTrack?,
     onToggleMute: () -> Unit,
     onToggleVideo: () -> Unit,
@@ -328,26 +325,62 @@ private fun VideoCallUi(
     onMinimize: () -> Unit
 ) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        if (remoteVideo != null && connected) {
-            WebRtcVideoView(track = remoteVideo, mirror = false, modifier = Modifier.fillMaxSize())
-        } else {
-            CallBackground {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    ChatAvatar(name = peerName, size = 120.dp, online = connected)
+        when {
+            remoteVideo != null && connected -> {
+                WebRtcVideoView(track = remoteVideo, mirror = false, modifier = Modifier.fillMaxSize())
+            }
+            videoOn && localVideo != null -> {
+                WebRtcVideoView(track = localVideo, mirror = localVideoMirror, modifier = Modifier.fillMaxSize())
+            }
+            else -> {
+                CallBackground {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        ChatAvatar(name = peerName, size = 120.dp, online = connected)
+                    }
                 }
             }
         }
 
-        if (videoOn && localVideo != null) {
-            WebRtcVideoView(
-                track = localVideo,
-                mirror = true,
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(160.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Black.copy(alpha = 0.72f), Color.Transparent)
+                    )
+                )
+        )
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.82f))
+                    )
+                )
+        )
+
+        if (videoOn && localVideo != null && remoteVideo != null && connected) {
+            Surface(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 64.dp, end = 16.dp)
-                    .size(110.dp, 156.dp)
-                    .clip(RoundedCornerShape(16.dp))
-            )
+                    .statusBarsPadding()
+                    .padding(top = 56.dp, end = 16.dp)
+                    .size(112.dp, 158.dp)
+                    .border(2.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+                shape = RoundedCornerShape(18.dp),
+                shadowElevation = 8.dp
+            ) {
+                WebRtcVideoView(
+                    track = localVideo,
+                    mirror = localVideoMirror,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
 
         CallMinimizeButton(
@@ -363,49 +396,95 @@ private fun VideoCallUi(
                 .padding(top = 56.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(peerName, color = DeepText, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(status, color = if (connected) DeepAccent else DeepMuted)
+            Text(
+                peerName,
+                color = Color.White,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            CallStatusChip(text = status, accent = connected, light = true)
         }
 
-        Surface(
-            color = Color.Black.copy(alpha = 0.55f),
-            shape = RoundedCornerShape(24.dp),
+        CallControlsDock(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 20.dp),
+            dark = true
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CallControlChip(
-                    icon = if (muted) Icons.Default.MicOff else Icons.Default.Mic,
-                    label = "Микрофон",
-                    active = muted,
-                    onClick = onToggleMute
-                )
-                CallControlChip(
-                    icon = if (videoOn) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                    label = "Камера",
-                    active = !videoOn,
-                    onClick = onToggleVideo
-                )
-                CallControlChip(
-                    icon = Icons.Default.Cameraswitch,
-                    label = "Сменить",
-                    active = false,
-                    onClick = onSwitchCamera
-                )
-                FloatingActionButton(
-                    onClick = onHangup,
-                    containerColor = DeepError,
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    Icon(Icons.Default.CallEnd, contentDescription = "Завершить")
-                }
-            }
+            CallControlChip(
+                icon = if (muted) Icons.Default.MicOff else Icons.Default.Mic,
+                label = "Микрофон",
+                active = muted,
+                onClick = onToggleMute,
+                light = true
+            )
+            CallControlChip(
+                icon = if (videoOn) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                label = "Камера",
+                active = !videoOn,
+                onClick = onToggleVideo,
+                light = true
+            )
+            CallControlChip(
+                icon = Icons.Default.Cameraswitch,
+                label = "Сменить",
+                active = false,
+                onClick = onSwitchCamera,
+                light = true
+            )
+            HangupChip(onClick = onHangup)
         }
+    }
+}
+
+@Composable
+private fun CallStatusChip(
+    text: String,
+    accent: Boolean,
+    light: Boolean = false
+) {
+    val bg = when {
+        light && accent -> DeepAccent.copy(alpha = 0.35f)
+        light -> Color.White.copy(alpha = 0.14f)
+        accent -> DeepAccent.copy(alpha = 0.22f)
+        else -> DeepSurfaceHigh.copy(alpha = 0.55f)
+    }
+    val color = when {
+        light && accent -> Color.White
+        light -> Color.White.copy(alpha = 0.85f)
+        accent -> DeepAccent
+        else -> DeepMuted
+    }
+    Surface(color = bg, shape = RoundedCornerShape(20.dp)) {
+        Text(
+            text,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+            color = color,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun CallControlsDock(
+    modifier: Modifier = Modifier,
+    dark: Boolean = false,
+    content: @Composable RowScope.() -> Unit
+) {
+    Surface(
+        modifier = modifier,
+        color = if (dark) Color.Black.copy(alpha = 0.55f) else DeepSurfaceHigh.copy(alpha = 0.78f),
+        shape = RoundedCornerShape(28.dp),
+        shadowElevation = if (dark) 0.dp else 8.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content
+        )
     }
 }
 
@@ -435,24 +514,10 @@ private fun CallMinimizeButton(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(
-                Icons.Default.KeyboardArrowDown,
-                contentDescription = null,
-                tint = contentColor,
-                modifier = Modifier.size(22.dp)
-            )
+            Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = contentColor, modifier = Modifier.size(22.dp))
             Column {
-                Text(
-                    "В чат",
-                    color = contentColor,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    "свернуть",
-                    color = subColor,
-                    style = MaterialTheme.typography.labelSmall
-                )
+                Text("В чат", color = contentColor, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Text("свернуть", color = subColor, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -471,7 +536,7 @@ private fun CallActionButton(
             containerColor = containerColor,
             contentColor = DeepText,
             shape = CircleShape,
-            modifier = Modifier.size(68.dp)
+            modifier = Modifier.size(72.dp)
         ) {
             Icon(icon, contentDescription = label, modifier = Modifier.size(30.dp))
         }
@@ -481,29 +546,47 @@ private fun CallActionButton(
 }
 
 @Composable
+private fun HangupChip(onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        FloatingActionButton(
+            onClick = onClick,
+            containerColor = DeepError,
+            contentColor = Color.White,
+            shape = CircleShape,
+            modifier = Modifier.size(58.dp)
+        ) {
+            Icon(Icons.Default.CallEnd, contentDescription = "Завершить", modifier = Modifier.size(28.dp))
+        }
+        Spacer(Modifier.height(6.dp))
+        Text("Сброс", color = DeepMuted, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
 private fun CallControlChip(
     icon: ImageVector,
     label: String,
     active: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    light: Boolean = false
 ) {
+    val activeBg = if (light) Color.White.copy(alpha = 0.22f) else DeepAccent.copy(alpha = 0.35f)
+    val iconTint = when {
+        active -> DeepAccent
+        light -> Color.White
+        else -> DeepText
+    }
+    val labelColor = if (light) Color.White.copy(alpha = 0.8f) else DeepMuted
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         IconButton(
             onClick = onClick,
             modifier = Modifier
-                .size(56.dp)
-                .background(
-                    if (active) DeepAccent.copy(alpha = 0.35f) else Color.Transparent,
-                    CircleShape
-                )
+                .size(52.dp)
+                .background(if (active) activeBg else Color.Transparent, CircleShape)
         ) {
-            Icon(
-                icon,
-                contentDescription = label,
-                tint = if (active) DeepAccent else DeepText,
-                modifier = Modifier.size(26.dp)
-            )
+            Icon(icon, contentDescription = label, tint = iconTint, modifier = Modifier.size(24.dp))
         }
-        Text(label, color = DeepMuted, style = MaterialTheme.typography.labelSmall)
+        Text(label, color = labelColor, style = MaterialTheme.typography.labelSmall)
     }
 }

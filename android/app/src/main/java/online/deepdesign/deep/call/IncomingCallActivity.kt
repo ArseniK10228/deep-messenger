@@ -26,12 +26,21 @@ import online.deepdesign.deep.ui.theme.DeepTheme
 
 class IncomingCallActivity : ComponentActivity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var isVideoCall = false
 
     private val micPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) acceptCall()
         else finish()
+    }
+
+    private val videoPermissions = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val mic = results[Manifest.permission.RECORD_AUDIO] == true
+        val cam = results[Manifest.permission.CAMERA] == true
+        if (mic && cam) acceptCall() else finish()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,12 +58,12 @@ class IncomingCallActivity : ComponentActivity() {
         val callId = intent.getStringExtra(EXTRA_CALL_ID) ?: run { finish(); return }
         val conversationId = intent.getStringExtra(EXTRA_CONVERSATION_ID).orEmpty()
         val callerName = intent.getStringExtra(EXTRA_CALLER_NAME) ?: "Deep"
-        val video = intent.getBooleanExtra(EXTRA_VIDEO, false)
+        isVideoCall = intent.getBooleanExtra(EXTRA_VIDEO, false)
 
         scope.launch {
             val app = DeepApp.instance
             SessionBootstrap.restore(app.sessionStore, app)
-            app.callManager.prepareIncomingFromNotification(callId, conversationId, callerName, video)
+            app.callManager.prepareIncomingFromNotification(callId, conversationId, callerName, isVideoCall)
         }
 
         setContent {
@@ -65,6 +74,7 @@ class IncomingCallActivity : ComponentActivity() {
                 val speakerOn by callManager.speakerOn.collectAsState()
                 val videoOn by callManager.videoOn.collectAsState()
                 val localVideo by callManager.localVideoTrack.collectAsState()
+                val localVideoMirror by callManager.localVideoMirror.collectAsState()
                 val remoteVideo by callManager.remoteVideoTrack.collectAsState()
 
                 CallOverlay(
@@ -73,6 +83,7 @@ class IncomingCallActivity : ComponentActivity() {
                     speakerOn = speakerOn,
                     videoOn = videoOn,
                     localVideo = localVideo,
+                    localVideoMirror = localVideoMirror,
                     remoteVideo = remoteVideo,
                     onAccept = { requestAccept() },
                     onReject = {
@@ -99,9 +110,15 @@ class IncomingCallActivity : ComponentActivity() {
     }
 
     private fun requestAccept() {
-        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
-            PackageManager.PERMISSION_GRANTED
-        if (granted) acceptCall() else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+        if (isVideoCall) {
+            val missing = CallPermissions.missingForVideo(this)
+            if (missing.isEmpty()) acceptCall()
+            else videoPermissions.launch(missing)
+        } else if (CallPermissions.hasMic(this)) {
+            acceptCall()
+        } else {
+            micPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
     private fun acceptCall() {

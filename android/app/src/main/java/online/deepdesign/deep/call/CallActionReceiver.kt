@@ -1,11 +1,8 @@
 package online.deepdesign.deep.call
 
-import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,16 +26,19 @@ class CallActionReceiver : BroadcastReceiver() {
                         val callId = intent.getStringExtra(EXTRA_CALL_ID) ?: return@launch
                         val conversationId = intent.getStringExtra(EXTRA_CONVERSATION_ID).orEmpty()
                         val callerName = intent.getStringExtra(EXTRA_CALLER_NAME) ?: "Deep"
-                        app.callManager.prepareIncomingFromNotification(callId, conversationId, callerName)
+                        val video = intent.getBooleanExtra(EXTRA_VIDEO, false)
+                        app.callManager.prepareIncomingFromNotification(callId, conversationId, callerName, video)
                         IncomingCallNotifier.dismiss(context)
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
-                            == PackageManager.PERMISSION_GRANTED
-                        ) {
+                        if (video && !CallPermissions.hasVideoCallPermissions(context)) {
+                            context.startActivity(
+                                IncomingCallActivity.intent(context, callId, conversationId, callerName, video)
+                            )
+                        } else if (CallPermissions.hasMic(context)) {
                             app.callManager.acceptIncoming()
                             context.startActivity(MainActivity.callIntent(context))
                         } else {
                             context.startActivity(
-                                IncomingCallActivity.intent(context, callId, conversationId, callerName)
+                                IncomingCallActivity.intent(context, callId, conversationId, callerName, video)
                             )
                         }
                     }
@@ -59,17 +59,20 @@ class CallActionReceiver : BroadcastReceiver() {
         const val EXTRA_CALL_ID = "callId"
         const val EXTRA_CONVERSATION_ID = "conversationId"
         const val EXTRA_CALLER_NAME = "callerName"
+        const val EXTRA_VIDEO = "video"
 
         fun acceptIntent(
             context: Context,
             callId: String,
             conversationId: String,
-            callerName: String
+            callerName: String,
+            video: Boolean = false
         ): Intent = Intent(context, CallActionReceiver::class.java).apply {
             action = ACTION_ACCEPT
             putExtra(EXTRA_CALL_ID, callId)
             putExtra(EXTRA_CONVERSATION_ID, conversationId)
             putExtra(EXTRA_CALLER_NAME, callerName)
+            putExtra(EXTRA_VIDEO, video)
         }
 
         fun rejectIntent(context: Context, callId: String): Intent =

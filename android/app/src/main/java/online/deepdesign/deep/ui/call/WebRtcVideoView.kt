@@ -9,6 +9,8 @@ import org.webrtc.RendererCommon
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoTrack
 
+private const val TRACK_TAG_KEY = 0xDEE70001
+
 @Composable
 fun WebRtcVideoView(
     track: VideoTrack?,
@@ -29,10 +31,18 @@ fun WebRtcVideoView(
         },
         update = { renderer ->
             renderer.setMirror(mirror)
-            track?.addSink(renderer)
+            @Suppress("UNCHECKED_CAST")
+            val previous = renderer.getTag(TRACK_TAG_KEY) as? VideoTrack
+            if (previous !== track) {
+                previous?.removeSink(renderer)
+                renderer.setTag(TRACK_TAG_KEY, track)
+                track?.addSink(renderer)
+            }
         },
         onRelease = { renderer ->
-            track?.removeSink(renderer)
+            @Suppress("UNCHECKED_CAST")
+            (renderer.getTag(TRACK_TAG_KEY) as? VideoTrack)?.removeSink(renderer)
+            renderer.setTag(TRACK_TAG_KEY, null)
             renderer.release()
         }
     )

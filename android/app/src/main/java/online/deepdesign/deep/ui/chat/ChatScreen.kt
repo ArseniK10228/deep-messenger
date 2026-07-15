@@ -132,19 +132,20 @@ fun ChatScreen(
         pendingCallAction = null
     }
 
-    fun requestCall() {
-        val granted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-        if (granted) onStartCall()
-        else {
-            pendingCallAction = onStartCall
-            callMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+    val videoCallPermissions = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val mic = results[Manifest.permission.RECORD_AUDIO] == true
+        val cam = results[Manifest.permission.CAMERA] == true
+        when {
+            !mic -> vm.showError("Нужен доступ к микрофону для видеозвонка")
+            !cam -> vm.showError("Нужен доступ к камере для видеозвонка")
+            else -> pendingCallAction?.invoke()
         }
+        pendingCallAction = null
     }
 
-    val videoPermission = rememberLauncherForActivityResult(
+    val cameraPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) pendingCallAction?.invoke()
@@ -152,21 +153,30 @@ fun ChatScreen(
         pendingCallAction = null
     }
 
+    fun requestCall() {
+        if (online.deepdesign.deep.call.CallPermissions.hasMic(context)) onStartCall()
+        else {
+            pendingCallAction = onStartCall
+            callMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
     fun requestVideoCall() {
-        val mic = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-            PackageManager.PERMISSION_GRANTED
-        val cam = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-            PackageManager.PERMISSION_GRANTED
+        val missing = online.deepdesign.deep.call.CallPermissions.missingForVideo(context)
         when {
-            !mic -> {
+            missing.isEmpty() -> onStartVideoCall()
+            missing.size > 1 -> {
+                pendingCallAction = onStartVideoCall
+                videoCallPermissions.launch(missing)
+            }
+            missing[0] == Manifest.permission.RECORD_AUDIO -> {
                 pendingCallAction = { requestVideoCall() }
                 callMicPermission.launch(Manifest.permission.RECORD_AUDIO)
             }
-            !cam -> {
+            else -> {
                 pendingCallAction = onStartVideoCall
-                videoPermission.launch(Manifest.permission.CAMERA)
+                cameraPermission.launch(Manifest.permission.CAMERA)
             }
-            else -> onStartVideoCall()
         }
     }
 

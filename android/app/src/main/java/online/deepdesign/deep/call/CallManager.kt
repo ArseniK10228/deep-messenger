@@ -76,6 +76,9 @@ class CallManager(
     private val _localVideoTrack = MutableStateFlow<VideoTrack?>(null)
     val localVideoTrack: StateFlow<VideoTrack?> = _localVideoTrack.asStateFlow()
 
+    private val _localVideoMirror = MutableStateFlow(false)
+    val localVideoMirror: StateFlow<Boolean> = _localVideoMirror.asStateFlow()
+
     private val _remoteVideoTrack = MutableStateFlow<VideoTrack?>(null)
     val remoteVideoTrack: StateFlow<VideoTrack?> = _remoteVideoTrack.asStateFlow()
 
@@ -191,6 +194,7 @@ class CallManager(
                 setCallSignalingPriority(true)
                 beginAudioSession()
                 CallForegroundService.start(context, peerName, outgoing = true, video = video)
+                if (video) initEngine()
             } catch (e: Exception) {
                 _state.value = CallUiState.Idle
                 _error.value = e.message?.takeIf { it.isNotBlank() } ?: "Не удалось начать звонок"
@@ -203,6 +207,10 @@ class CallManager(
         val incoming = _state.value as? CallUiState.Incoming ?: return
         if (!hasMicPermission()) {
             _error.value = "Разреши доступ к микрофону для звонка"
+            return
+        }
+        if (incoming.video && !hasCameraPermission()) {
+            _error.value = "Разреши доступ к камере для видеозвонка"
             return
         }
         scope.launch {
@@ -255,7 +263,9 @@ class CallManager(
     }
 
     fun switchCamera() {
-        engine?.switchCamera()
+        engine?.switchCamera {
+            _localVideoMirror.value = false
+        }
     }
 
     fun handleIncomingPush(data: Map<String, String>) {
@@ -431,6 +441,8 @@ class CallManager(
                 }
             }
         })
+        // Front camera on many devices is already mirrored by the driver — extra flip inverts controls.
+        _localVideoMirror.value = false
         engine?.localVideoTrackFlow?.value?.let { _localVideoTrack.value = it }
         pendingIce.forEach { engine?.addIceCandidate(it) }
         pendingIce.clear()
@@ -479,6 +491,7 @@ class CallManager(
         _speakerOn.value = false
         _videoOn.value = true
         _localVideoTrack.value = null
+        _localVideoMirror.value = false
         _remoteVideoTrack.value = null
         _overlayExpanded.value = true
         setCallSignalingPriority(false)

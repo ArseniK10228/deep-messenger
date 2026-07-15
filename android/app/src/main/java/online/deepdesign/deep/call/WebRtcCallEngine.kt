@@ -123,11 +123,12 @@ class WebRtcCallEngine(
         peerConnection?.addTrack(localVideoTrack, listOf("deep_stream"))
     }
 
-    fun switchCamera() {
+    fun switchCamera(onDone: ((Boolean) -> Unit)? = null) {
         val capturer = videoCapturer as? org.webrtc.CameraVideoCapturer ?: return
         capturer.switchCamera(object : org.webrtc.CameraVideoCapturer.CameraSwitchHandler {
             override fun onCameraSwitchDone(isFront: Boolean) {
                 usingFrontCamera = isFront
+                onDone?.invoke(isFront)
             }
             override fun onCameraSwitchError(error: String?) {}
         })

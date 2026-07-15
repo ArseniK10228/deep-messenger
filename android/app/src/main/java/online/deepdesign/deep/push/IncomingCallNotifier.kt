@@ -23,20 +23,21 @@ object IncomingCallNotifier {
         val callId = data["callId"] ?: return
         val conversationId = data["conversationId"] ?: ""
         val callerName = data["callerName"] ?: "Deep"
+        val video = data["video"] == "true"
 
         ensureChannel(context)
 
         val fullScreen = PendingIntent.getActivity(
             context,
             callId.hashCode(),
-            IncomingCallActivity.intent(context, callId, conversationId, callerName),
+            IncomingCallActivity.intent(context, callId, conversationId, callerName, video),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val accept = PendingIntent.getBroadcast(
             context,
             callId.hashCode() + 1,
-            CallActionReceiver.acceptIntent(context, callId, conversationId, callerName),
+            CallActionReceiver.acceptIntent(context, callId, conversationId, callerName, video),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -49,7 +50,7 @@ object IncomingCallNotifier {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Входящий звонок")
+            .setContentTitle(if (video) "Входящий видеозвонок" else "Входящий звонок")
             .setContentText(callerName)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_MAX)

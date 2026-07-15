@@ -1,7 +1,7 @@
 {
-  "versionCode": 8,
-  "versionName": "0.3.5",
+  "versionCode": 9,
+  "versionName": "0.3.6",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Видеозвонки: фикс камеры/разрешений, зеркало, улучшенный UI звонков.",
+  "changelog": "Фикс чата: клавиатура больше не уносит сообщения вверх.",
   "forceUpdate": false
 }

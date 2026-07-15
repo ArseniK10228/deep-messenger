@@ -12,12 +12,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -96,7 +99,8 @@ fun ChatScreen(
     val state by vm.state.collectAsState()
     val listState = rememberLazyListState()
     val context = LocalContext.current
-    val reversedMessages = remember(state.messages) { state.messages.asReversed() }
+    val density = LocalDensity.current
+    val imeBottomPx = WindowInsets.ime.getBottom(density)
     var showAttach by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<MessageDto?>(null) }
     val attachSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -180,17 +184,25 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(state.loading, reversedMessages.size) {
-        if (!state.loading && reversedMessages.isNotEmpty()) {
-            listState.scrollToItem(0)
+    LaunchedEffect(state.loading, state.messages.size) {
+        if (!state.loading && state.messages.isNotEmpty()) {
+            listState.scrollToItem(state.messages.lastIndex)
         }
     }
 
-    LaunchedEffect(reversedMessages.firstOrNull()?.id, state.highlightMessageId) {
-        if (reversedMessages.isEmpty()) return@LaunchedEffect
-        val nearBottom = listState.firstVisibleItemIndex <= 2
+    LaunchedEffect(state.messages.lastOrNull()?.id, state.highlightMessageId) {
+        if (state.messages.isEmpty()) return@LaunchedEffect
+        val lastIndex = state.messages.lastIndex
+        val nearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+            ?.let { it >= lastIndex - 2 } != false
         if (nearBottom || state.highlightMessageId != null) {
-            listState.animateScrollToItem(0)
+            listState.animateScrollToItem(lastIndex)
+        }
+    }
+
+    LaunchedEffect(imeBottomPx) {
+        if (imeBottomPx > 0 && state.messages.isNotEmpty()) {
+            listState.animateScrollToItem(state.messages.lastIndex)
         }
     }
 
@@ -249,6 +261,7 @@ fun ChatScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .navigationBarsPadding()
                             .imePadding()
                             .padding(horizontal = 6.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -357,11 +370,7 @@ fun ChatScreen(
                 else -> {
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .imePadding()
-                            .navigationBarsPadding(),
-                        reverseLayout = true,
+                        modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
                             start = 12.dp,
                             top = 8.dp,
@@ -370,7 +379,7 @@ fun ChatScreen(
                         ),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(reversedMessages, key = { it.id }) { msg ->
+                        items(state.messages, key = { it.id }) { msg ->
                             MessageBubble(
                                 msg = msg,
                                 mine = vm.isMine(msg),

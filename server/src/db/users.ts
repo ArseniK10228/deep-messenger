@@ -1,12 +1,35 @@
-import { query } from '../db/client.js';
+import { isValidUsername, normalizeSearchKey, normalizeUsername } from '../lib/searchNormalize.js';
+import { query } from './client.js';
 
 export interface UserRow {
   id: string;
   phone: string | null;
   email: string | null;
+  username: string | null;
   display_name: string;
   avatar_path: string | null;
   fcm_token: string | null;
+}
+
+export function mapUserDto(row: UserRow) {
+  return {
+    id: row.id,
+    email: row.email,
+    phone: row.phone || '',
+    username: row.username,
+    displayName: row.display_name,
+    avatarUrl: row.avatar_path ? `/media/${row.avatar_path}` : null
+  };
+}
+
+async function suggestUsernameFromEmail(email: string, excludeUserId?: string): Promise<string | null> {
+  const local = (email.split('@')[0] || '').toLowerCase();
+  if (!isValidUsername(local)) return null;
+  const taken = await query(
+    `SELECT 1 FROM users WHERE lower(username) = $1 ${excludeUserId ? 'AND id <> $2' : ''} LIMIT 1`,
+    excludeUserId ? [local, excludeUserId] : [local]
+  );
+  return taken.rowCount ? null : local;
 }
 
 export async function findUserByEmail(email: string): Promise<UserRow | null> {
@@ -17,19 +40,32 @@ export async function findUserByEmail(email: string): Promise<UserRow | null> {
 export async function upsertUserByEmail(email: string, displayName?: string): Promise<UserRow> {
   const existing = await findUserByEmail(email);
   if (existing) {
+    let row = existing;
     if (displayName && displayName !== existing.display_name) {
       await query('UPDATE users SET display_name = $2, updated_at = now() WHERE id = $1', [
         existing.id,
         displayName
       ]);
-      return { ...existing, display_name: displayName };
+      row = { ...row, display_name: displayName };
     }
-    return existing;
+    if (!row.username) {
+      const username = await suggestUsernameFromEmail(email, row.id);
+      if (username) {
+        await query('UPDATE users SET username = $2, updated_at = now() WHERE id = $1', [
+          row.id,
+          username
+        ]);
+        row = { ...row, username };
+      }
+    }
+    return row;
   }
+
   const local = email.split('@')[0] || email;
+  const username = await suggestUsernameFromEmail(email);
   const r = await query<UserRow>(
-    `INSERT INTO users (email, display_name) VALUES ($1, $2) RETURNING *`,
-    [email, displayName || local]
+    `INSERT INTO users (email, display_name, username) VALUES ($1, $2, $3) RETURNING *`,
+    [email, displayName || local, username]
   );
   return r.rows[0];
 }
@@ -67,30 +103,100 @@ export async function getUserById(id: string): Promise<UserRow | null> {
   return r.rows[0] || null;
 }
 
-export async function searchUsersByQuery(
-  q: string,
-  excludeUserId: string
-): Promise<UserRow[]> {
-  const term = q.trim().toLowerCase();
+export async function updateUserProfile(
+  userId: string,
+  input: { displayName?: string; username?: string }
+): Promise<UserRow> {
+  const current = await getUserById(userId);
+  if (!current) throw new Error('USER_NOT_FOUND');
+
+  const displayName = input.displayName?.trim();
+  const usernameRaw = input.username !== undefined ? normalizeUsername(input.username) : undefined;
+
+  if (usernameRaw !== undefined) {
+    if (usernameRaw && !isValidUsername(usernameRaw)) {
+      throw new Error('INVALID_USERNAME');
+    }
+    if (usernameRaw) {
+      const taken = await query(
+        'SELECT 1 FROM users WHERE lower(username) = $1 AND id <> $2 LIMIT 1',
+        [usernameRaw, userId]
+      );
+      if (taken.rowCount) throw new Error('USERNAME_TAKEN');
+    }
+  }
+
   const r = await query<UserRow>(
-    `SELECT id, phone, email, display_name, avatar_path, fcm_token
-     FROM users
-     WHERE id <> $2
-       AND (
-         (email IS NOT NULL AND email ILIKE $1)
-         OR (phone <> '' AND phone LIKE $3)
-         OR display_name ILIKE $1
-       )
-     ORDER BY display_name, email, phone
-     LIMIT 20`,
-    [`%${term}%`, excludeUserId, `${q.replace(/\D/g, '')}%`]
+    `UPDATE users SET
+       display_name = COALESCE($2, display_name),
+       username = CASE WHEN $3::text IS NULL THEN username ELSE NULLIF($3, '') END,
+       updated_at = now()
+     WHERE id = $1
+     RETURNING *`,
+    [userId, displayName || null, usernameRaw ?? null]
   );
-  return r.rows;
+  return r.rows[0];
 }
 
-export async function searchUsersByPhonePrefix(phonePrefix: string, excludeUserId: string): Promise<UserRow[]> {
+function userMatchesQuery(row: UserRow, rawQuery: string): boolean {
+  const key = normalizeSearchKey(rawQuery);
+  if (!key) return false;
+
+  const haystacks = [
+    row.username,
+    row.display_name,
+    row.email,
+    row.email?.split('@')[0],
+    row.phone
+  ];
+
+  return haystacks.some((part) => {
+    if (!part) return false;
+    const normalized = normalizeSearchKey(part);
+    return normalized.includes(key) || part.toLowerCase().includes(rawQuery.trim().toLowerCase());
+  });
+}
+
+export async function searchUsersByQuery(q: string, excludeUserId: string): Promise<UserRow[]> {
+  const raw = q.trim().replace(/^@/, '');
+  if (raw.length < 2) return [];
+
+  const loose = `%${raw.toLowerCase()}%`;
+  const phonePrefix = `${raw.replace(/\D/g, '')}%`;
+
   const r = await query<UserRow>(
-    `SELECT id, phone, email, display_name, avatar_path, fcm_token
+    `SELECT id, phone, email, username, display_name, avatar_path, fcm_token
+     FROM users
+     WHERE id <> $1
+       AND (
+         (email IS NOT NULL AND email ILIKE $2)
+         OR split_part(email, '@', 1) ILIKE $2
+         OR (username IS NOT NULL AND username ILIKE $2)
+         OR display_name ILIKE $2
+         OR (phone IS NOT NULL AND phone <> '' AND phone LIKE $3)
+       )
+     ORDER BY
+       CASE
+         WHEN username IS NOT NULL AND lower(username) = lower($4) THEN 0
+         WHEN username IS NOT NULL AND username ILIKE $5 THEN 1
+         ELSE 2
+       END,
+       display_name,
+       username,
+       email
+     LIMIT 50`,
+    [excludeUserId, loose, phonePrefix, raw.toLowerCase(), `${raw.toLowerCase()}%`]
+  );
+
+  return r.rows.filter((row) => userMatchesQuery(row, raw)).slice(0, 20);
+}
+
+export async function searchUsersByPhonePrefix(
+  phonePrefix: string,
+  excludeUserId: string
+): Promise<UserRow[]> {
+  const r = await query<UserRow>(
+    `SELECT id, phone, email, username, display_name, avatar_path, fcm_token
      FROM users
      WHERE phone LIKE $1 AND id <> $2 AND phone <> ''
      ORDER BY phone

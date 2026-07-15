@@ -42,6 +42,9 @@ interface DeepApi {
     @GET("api/v1/me")
     suspend fun me(): MeResponse
 
+    @retrofit2.http.PATCH("api/v1/me")
+    suspend fun updateProfile(@Body body: UpdateProfileRequest): MeResponse
+
     @GET("api/v1/conversations")
     suspend fun conversations(): ConversationsResponse
 

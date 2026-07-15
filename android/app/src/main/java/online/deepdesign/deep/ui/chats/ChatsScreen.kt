@@ -21,6 +21,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -69,6 +72,7 @@ fun ChatsScreen(
 ) {
     val state by vm.state.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Scaffold(
         containerColor = DeepBg,
@@ -76,6 +80,11 @@ fun ChatsScreen(
             TopAppBar(
                 title = {
                     Text("Deep", color = DeepAccent, fontWeight = FontWeight.Bold)
+                },
+                actions = {
+                    IconButton(onClick = { vm.toggleProfile(true) }) {
+                        Icon(Icons.Default.Person, contentDescription = "Профиль", tint = DeepMuted)
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepBg)
             )
@@ -116,7 +125,7 @@ fun ChatsScreen(
                         Text("Пока нет чатов", color = DeepText, style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "Нажми + чтобы найти контакт по номеру",
+                            "Нажми + чтобы найти по @username или email",
                             color = DeepMuted,
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -160,9 +169,32 @@ fun ChatsScreen(
                 query = state.searchQuery,
                 onQueryChange = vm::onSearchQueryChange,
                 searching = state.searching,
+                searchError = state.searchError,
                 results = state.searchResults,
+                userTitle = vm::userTitle,
+                userSubtitle = vm::userSubtitle,
                 onPick = { user -> vm.startChatWithUser(user, onOpenChat) },
                 onClose = { vm.toggleNewChat(false) }
+            )
+        }
+    }
+
+    if (state.showProfile) {
+        ModalBottomSheet(
+            onDismissRequest = { vm.toggleProfile(false) },
+            sheetState = profileSheetState,
+            containerColor = DeepSurface
+        ) {
+            ProfileSheet(
+                displayName = state.profileDisplayName,
+                username = state.profileUsername,
+                saving = state.profileSaving,
+                loading = state.profileLoading,
+                error = state.profileError,
+                onDisplayNameChange = vm::onProfileDisplayNameChange,
+                onUsernameChange = vm::onProfileUsernameChange,
+                onSave = vm::saveProfile,
+                onClose = { vm.toggleProfile(false) }
             )
         }
     }
@@ -227,7 +259,10 @@ private fun NewChatSheet(
     query: String,
     onQueryChange: (String) -> Unit,
     searching: Boolean,
+    searchError: String?,
     results: List<UserDto>,
+    userTitle: (UserDto) -> String,
+    userSubtitle: (UserDto) -> String,
     onPick: (UserDto) -> Unit,
     onClose: () -> Unit
 ) {
@@ -253,10 +288,10 @@ private fun NewChatSheet(
                 .padding(vertical = 12.dp),
             value = query,
             onValueChange = onQueryChange,
-            label = { Text("Email или имя") },
-            placeholder = { Text("user@mail.ru") },
+            label = { Text("@username, имя или email") },
+            placeholder = { Text("arsenilk") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = DeepAccent,
@@ -273,7 +308,9 @@ private fun NewChatSheet(
                     .align(Alignment.CenterHorizontally)
                     .padding(16.dp)
             )
-        } else if (query.trim().length >= 3 && results.isEmpty()) {
+        } else if (searchError != null) {
+            Text(searchError, color = DeepError, modifier = Modifier.padding(8.dp))
+        } else if (query.trim().length >= 2 && results.isEmpty()) {
             Text("Никого не нашли", color = DeepMuted, modifier = Modifier.padding(8.dp))
         }
         results.forEach { user ->
@@ -285,23 +322,121 @@ private fun NewChatSheet(
                     .padding(vertical = 12.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = user.displayName.ifBlank {
-                        user.email.orEmpty().ifBlank { user.phone }
-                    },
-                    color = DeepText,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = user.email.orEmpty().ifBlank { user.phone },
-                    color = DeepMuted,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = userTitle(user),
+                        color = DeepText,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = userSubtitle(user),
+                        color = DeepMuted,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
         }
     }
 }
+
+@Composable
+private fun ProfileSheet(
+    displayName: String,
+    username: String,
+    saving: Boolean,
+    loading: Boolean,
+    error: String?,
+    onDisplayNameChange: (String) -> Unit,
+    onUsernameChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onClose: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(bottom = 32.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Профиль", color = DeepText, style = MaterialTheme.typography.titleLarge)
+            IconButton(onClick = onClose) {
+                Icon(Icons.Default.Close, contentDescription = "Закрыть", tint = DeepMuted)
+            }
+        }
+        Text(
+            text = "Username нужен, чтобы тебя находили в поиске",
+            color = DeepMuted,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        if (loading) {
+            CircularProgressIndicator(
+                color = DeepAccent,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(16.dp)
+            )
+        } else {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = displayName,
+                onValueChange = onDisplayNameChange,
+                label = { Text("Имя") },
+                singleLine = true,
+                shape = RoundedCornerShape(16.dp),
+                colors = outlinedFieldColors()
+            )
+            OutlinedTextField(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                value = username,
+                onValueChange = onUsernameChange,
+                label = { Text("Username") },
+                placeholder = { Text("arsenilk") },
+                prefix = { Text("@", color = DeepMuted) },
+                singleLine = true,
+                shape = RoundedCornerShape(16.dp),
+                colors = outlinedFieldColors()
+            )
+            error?.let {
+                Text(it, color = DeepError, modifier = Modifier.padding(top = 8.dp))
+            }
+            Button(
+                onClick = onSave,
+                enabled = !saving,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = DeepAccent)
+            ) {
+                if (saving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = DeepText
+                    )
+                } else {
+                    Text("Сохранить")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun outlinedFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = DeepAccent,
+    unfocusedBorderColor = DeepSurfaceHigh,
+    focusedContainerColor = DeepSurfaceHigh,
+    unfocusedContainerColor = DeepSurfaceHigh,
+    cursorColor = DeepAccent
+)
 
 private fun formatTime(iso: String?): String? {
     if (iso.isNullOrBlank()) return null

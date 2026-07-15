@@ -64,6 +64,7 @@ export async function listConversationsForUser(userId: string) {
                 'id', u.id,
                 'email', u.email,
                 'phone', COALESCE(u.phone, ''),
+                'username', u.username,
                 'displayName', u.display_name,
                 'avatarUrl', CASE WHEN u.avatar_path IS NOT NULL THEN '/media/' || u.avatar_path END
               ))

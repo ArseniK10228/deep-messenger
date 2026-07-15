@@ -46,8 +46,18 @@ data class UserDto(
     val id: String,
     val email: String? = null,
     val phone: String,
+    val username: String? = null,
     val displayName: String,
     val avatarUrl: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class MeResponse(val user: UserDto)
+
+@JsonClass(generateAdapter = true)
+data class UpdateProfileRequest(
+    val displayName: String? = null,
+    val username: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -107,9 +117,6 @@ data class DirectChatRequest(val userId: String)
 
 @JsonClass(generateAdapter = true)
 data class DirectChatResponse(val conversationId: String)
-
-@JsonClass(generateAdapter = true)
-data class MeResponse(val user: UserDto)
 
 @JsonClass(generateAdapter = true)
 data class UsersSearchResponse(val users: List<UserDto>)

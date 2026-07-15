@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { createEmailOtp, normalizeEmail, verifyEmailOtp } from '../lib/emailOtp.js';
 import { sendOtpEmail } from '../lib/resend.js';
-import { upsertUserByEmail } from '../db/users.js';
+import { upsertUserByEmail, mapUserDto } from '../db/users.js';
 
 export async function registerEmailAuthRoutes(app: FastifyInstance): Promise<void> {
   app.post('/auth/email/send', async (req, reply) => {
@@ -69,13 +69,7 @@ export async function registerEmailAuthRoutes(app: FastifyInstance): Promise<voi
 
       return {
         token,
-        user: {
-          id: user.id,
-          email: user.email,
-          phone: user.phone || '',
-          displayName: user.display_name,
-          avatarUrl: user.avatar_path ? `/media/${user.avatar_path}` : null
-        }
+        user: mapUserDto(user)
       };
     } catch (err) {
       req.log.error(err);

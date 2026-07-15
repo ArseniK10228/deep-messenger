@@ -206,12 +206,11 @@ class CallManager(
     fun toggleSpeaker() {
         if (!isInCall()) return
         val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        if (engine != null) {
-            am.mode = AudioManager.MODE_IN_COMMUNICATION
-        }
+        am.mode = AudioManager.MODE_IN_COMMUNICATION
         val next = !_speakerOn.value
         _speakerOn.value = next
         am.isSpeakerphoneOn = next
+        ringtonePlayer.applySpeakerRoute(next)
     }
 
     fun minimizeOverlay() {

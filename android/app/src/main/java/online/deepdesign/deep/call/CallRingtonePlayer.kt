@@ -19,6 +19,7 @@ class CallRingtonePlayer(context: Context) {
     private var toneGenerator: ToneGenerator? = null
     private var ringbackHandler: Handler? = null
     private var ringbackActive = false
+    private var speakerOn = false
 
     fun playIncoming() {
         stop()
@@ -44,12 +45,38 @@ class CallRingtonePlayer(context: Context) {
     fun playOutgoingRingback() {
         stop()
         ringbackActive = true
+        configureCallAudioRoute(speakerOn)
         try {
             toneGenerator = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 85)
             ringbackHandler = Handler(Looper.getMainLooper())
             ringbackHandler?.post(ringbackRunnable)
         } catch (e: Exception) {
             Log.w(TAG, "playOutgoingRingback failed", e)
+        }
+    }
+
+    /** Re-route ringback when user toggles speaker during outgoing dial tone. */
+    fun applySpeakerRoute(speakerOn: Boolean) {
+        this.speakerOn = speakerOn
+        configureCallAudioRoute(speakerOn)
+        if (!ringbackActive) return
+        refreshRingbackGenerator()
+    }
+
+    private fun configureCallAudioRoute(speakerOn: Boolean) {
+        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        am.mode = AudioManager.MODE_IN_COMMUNICATION
+        am.isSpeakerphoneOn = speakerOn
+    }
+
+    private fun refreshRingbackGenerator() {
+        runCatching { toneGenerator?.stopTone() }
+        runCatching { toneGenerator?.release() }
+        toneGenerator = null
+        try {
+            toneGenerator = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 85)
+        } catch (e: Exception) {
+            Log.w(TAG, "refreshRingbackGenerator failed", e)
         }
     }
 

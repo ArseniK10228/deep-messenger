@@ -1,7 +1,7 @@
 {
-  "versionCode": 17,
-  "versionName": "0.3.14",
+  "versionCode": 18,
+  "versionName": "0.3.15",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Один экран звонка (без CallHold поверх), надёжный сброс при hangup друга.",
+  "changelog": "Гудки при исходящем переключаются на громкую связь вместе с динамиком.",
   "forceUpdate": false
 }

@@ -34,9 +34,11 @@ class ChatViewModel(
     private val conversationId: String
 ) : ViewModel() {
     private val api = DeepApp.instance.api
+    private val signaling = DeepApp.instance.signalingHub
     private val socket = ChatSocket { DeepApp.instance.currentToken() }
     private val voiceRecorder = VoiceRecorder(DeepApp.instance)
     private var wsJob: Job? = null
+    private var receiptJob: Job? = null
 
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
@@ -44,6 +46,7 @@ class ChatViewModel(
     init {
         loadMessages()
         connectWs()
+        listenReceipts()
     }
 
     private fun loadMessages() {
@@ -52,7 +55,7 @@ class ChatViewModel(
             try {
                 val msgs = api.messages(conversationId).messages
                 _state.update { it.copy(loading = false, messages = msgs) }
-                msgs.lastOrNull()?.id?.let { api.markRead(it) }
+                markIncomingRead(msgs)
             } catch (e: Exception) {
                 _state.update { it.copy(loading = false, error = e.message) }
             }
@@ -64,9 +67,34 @@ class ChatViewModel(
         wsJob = viewModelScope.launch {
             socket.events(conversationId).collect { event ->
                 when (event.type) {
-                    "message" -> event.message?.let { appendMessage(it) }
+                    "message" -> event.message?.let { onIncomingMessage(it) }
                     "message_deleted" -> event.messageId?.let { removeMessage(it) }
                     "typing" -> _state.update { it.copy(peerTyping = true) }
+                    "message_delivered" -> event.messageId?.let {
+                        updateMessageStatus(it, peerDelivered = true)
+                    }
+                    "message_read" -> event.messageId?.let {
+                        updateMessageStatus(it, peerDelivered = true, peerRead = true)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun listenReceipts() {
+        receiptJob?.cancel()
+        receiptJob = viewModelScope.launch {
+            signaling.events.collect { event ->
+                if (event.conversationId != null && event.conversationId != conversationId) return@collect
+                when (event.type) {
+                    "message_delivered" -> event.messageId?.let {
+                        updateMessageStatus(it, peerDelivered = true)
+                    }
+                    "message_read" -> event.messageId?.let {
+                        updateMessageStatus(it, peerDelivered = true, peerRead = true)
+                    }
+                    "message" -> event.message?.takeIf { it.conversationId == conversationId }
+                        ?.let { onIncomingMessage(it) }
                 }
             }
         }
@@ -173,12 +201,40 @@ class ChatViewModel(
         _state.update { it.copy(recording = false) }
     }
 
+    private fun onIncomingMessage(msg: MessageDto) {
+        appendMessage(msg)
+        if (!isMine(msg)) {
+            socket.sendDelivered(msg.id)
+            signaling.sendDelivered(msg.id)
+            viewModelScope.launch { api.markRead(msg.id) }
+        }
+    }
+
     private fun appendMessage(msg: MessageDto) {
         _state.update { s ->
             if (s.messages.any { it.id == msg.id }) s
             else s.copy(messages = s.messages + msg)
         }
-        viewModelScope.launch { api.markRead(msg.id) }
+    }
+
+    private fun markIncomingRead(msgs: List<MessageDto>) {
+        viewModelScope.launch {
+            msgs.filter { !isMine(it) }.forEach { api.markRead(it.id) }
+        }
+    }
+
+    private fun updateMessageStatus(messageId: String, peerDelivered: Boolean, peerRead: Boolean = false) {
+        _state.update { s ->
+            s.copy(
+                messages = s.messages.map { m ->
+                    if (m.id != messageId) m
+                    else m.copy(
+                        peerDelivered = peerDelivered || m.peerDelivered == true,
+                        peerRead = peerRead || m.peerRead == true
+                    )
+                }
+            )
+        }
     }
 
     private fun removeMessage(id: String) {
@@ -190,6 +246,7 @@ class ChatViewModel(
     override fun onCleared() {
         voiceRecorder.cancel()
         wsJob?.cancel()
+        receiptJob?.cancel()
         super.onCleared()
     }
 

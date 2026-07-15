@@ -23,6 +23,9 @@ class DeepApp : Application() {
     lateinit var callManager: CallManager
         private set
 
+    lateinit var signalingHub: SignalingHub
+        private set
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     @Volatile
@@ -38,6 +41,7 @@ class DeepApp : Application() {
         api = ApiClient.create { cachedToken }
         DeepAppToken.current = { cachedToken }
         val signaling = SignalingHub { cachedToken }
+        signalingHub = signaling
         callManager = CallManager(this, signaling)
     }
 

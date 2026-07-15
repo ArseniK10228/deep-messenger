@@ -9,6 +9,8 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import online.deepdesign.deep.data.ApiClient
 import online.deepdesign.deep.data.ApiConfig
+import online.deepdesign.deep.data.ChatEvent
+import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.WsEnvelope
 
 class SignalingHub(
@@ -26,6 +28,10 @@ class SignalingHub(
         "call_sdp", "call_ice"
     )
 
+    private val chatTypes = setOf(
+        "message", "message_delivered", "message_read", "message_deleted"
+    )
+
     fun connect() {
         disconnect()
         val token = tokenProvider() ?: return
@@ -37,7 +43,16 @@ class SignalingHub(
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     try {
                         val env = adapter.fromJson(text) ?: return
-                        if (env.type in callTypes) _events.tryEmit(env)
+                        if (env.type in callTypes || env.type in chatTypes) {
+                            _events.tryEmit(env)
+                        }
+                        if (env.type == "message") {
+                            val convId = env.message?.conversationId ?: env.conversationId
+                            if (convId != null) {
+                                ChatNotifier.emit(ChatEvent.NewMessage(convId))
+                                env.message?.id?.let { sendDelivered(it) }
+                            }
+                        }
                     } catch (_: Exception) { }
                 }
 
@@ -55,6 +70,10 @@ class SignalingHub(
     fun disconnect() {
         ws?.close(1000, "bye")
         ws = null
+    }
+
+    fun sendDelivered(messageId: String) {
+        sendSignal("""{"type":"delivered","messageId":"$messageId"}""")
     }
 
     fun sendSignal(payload: String) {

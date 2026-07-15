@@ -7,6 +7,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
+import online.deepdesign.deep.data.ChatEvent
+import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.FcmRegisterRequest
 
 class DeepMessagingService : FirebaseMessagingService() {
@@ -22,8 +24,16 @@ class DeepMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
-        if (data["type"] == "incoming_call") {
-            DeepApp.instance.callManager.handleIncomingPush(data)
+        when (data["type"]) {
+            "incoming_call" -> DeepApp.instance.callManager.handleIncomingPush(data)
+            "message" -> {
+                val convId = data["conversationId"]
+                if (convId != null) {
+                    ChatNotifier.emit(ChatEvent.NewMessage(convId))
+                } else {
+                    ChatNotifier.emit(ChatEvent.RefreshChats)
+                }
+            }
         }
     }
 }

@@ -6,7 +6,7 @@ import { config } from '../config.js';
 import { getAuthUser } from '../lib/auth.js';
 import { userInConversation } from '../db/conversations.js';
 import { insertMessage } from '../db/messages.js';
-import { broadcastToConversation } from '../ws/hub.js';
+import { pushChatEvent } from '../lib/chatPush.js';
 
 const ALLOWED = new Set([
   'image/jpeg',
@@ -71,7 +71,7 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
       replyToId
     });
 
-    broadcastToConversation(id, { type: 'message', message });
+    await pushChatEvent(id, user.id, { type: 'message', message });
     return { message };
   });
 }

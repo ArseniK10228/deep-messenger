@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
+import online.deepdesign.deep.data.ChatEvent
+import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.ConversationDto
 import online.deepdesign.deep.data.DirectChatRequest
 import online.deepdesign.deep.data.UserDto
@@ -30,6 +32,20 @@ class ChatsViewModel : ViewModel() {
 
     init {
         refresh()
+        viewModelScope.launch {
+            ChatNotifier.events.collect { event ->
+                when (event) {
+                    is ChatEvent.NewMessage, ChatEvent.RefreshChats -> refresh()
+                }
+            }
+        }
+        viewModelScope.launch {
+            DeepApp.instance.signalingHub.events.collect { env ->
+                if (env.type == "message" || env.type == "message_deleted") {
+                    refresh()
+                }
+            }
+        }
     }
 
     fun refresh() {

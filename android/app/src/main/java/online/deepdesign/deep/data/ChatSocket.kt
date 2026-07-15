@@ -7,11 +7,13 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.util.concurrent.atomic.AtomicReference
 
 class ChatSocket(
     private val tokenProvider: () -> String?
 ) {
     private val adapter = ApiClient.moshi.adapter(WsEnvelope::class.java)
+    private val activeWs = AtomicReference<WebSocket?>(null)
 
     fun events(conversationId: String): Flow<WsEnvelope> = callbackFlow {
         val token = tokenProvider() ?: run {
@@ -24,6 +26,7 @@ class ChatSocket(
             Request.Builder().url(url).build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
+                    activeWs.set(webSocket)
                     webSocket.send("""{"type":"subscribe","conversationId":"$conversationId"}""")
                 }
 
@@ -34,19 +37,24 @@ class ChatSocket(
                 }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    activeWs.compareAndSet(webSocket, null)
                     close(t)
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    activeWs.compareAndSet(webSocket, null)
                     close()
                 }
             }
         )
 
-        awaitClose { ws.close(1000, "bye") }
+        awaitClose {
+            activeWs.compareAndSet(ws, null)
+            ws.close(1000, "bye")
+        }
     }
 
-    fun sendTyping(conversationId: String) {
-        // optional: separate lightweight socket or reuse — skip for MVP
+    fun sendDelivered(messageId: String) {
+        activeWs.get()?.send("""{"type":"delivered","messageId":"$messageId"}""")
     }
 }

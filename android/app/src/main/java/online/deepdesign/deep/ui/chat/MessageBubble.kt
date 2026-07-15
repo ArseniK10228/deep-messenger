@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
@@ -85,14 +87,22 @@ fun MessageBubble(msg: MessageDto, mine: Boolean) {
                 )
             }
             Spacer(Modifier.size(4.dp))
-            Text(
-                text = formatMessageTime(msg.createdAt),
-                color = DeepMuted,
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .padding(horizontal = 4.dp)
-            )
+            Row(
+                modifier = Modifier.align(Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    text = formatMessageTime(msg.createdAt),
+                    color = DeepMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+                if (mine) {
+                    Spacer(Modifier.width(4.dp))
+                    MessageStatusIcon(msg)
+                }
+            }
         }
     }
 }
@@ -222,4 +232,22 @@ private fun formatMessageTime(iso: String): String {
     } catch (_: Exception) {
         ""
     }
+}
+
+@Composable
+private fun MessageStatusIcon(msg: MessageDto) {
+    val read = msg.peerRead == true
+    val delivered = msg.peerDelivered == true
+    val icon = if (delivered || read) Icons.Default.DoneAll else Icons.Default.Done
+    val tint = if (read) DeepAccent else DeepMuted
+    Icon(
+        imageVector = icon,
+        contentDescription = when {
+            read -> "Прочитано"
+            delivered -> "Доставлено"
+            else -> "Отправлено"
+        },
+        tint = tint,
+        modifier = Modifier.size(14.dp)
+    )
 }

@@ -84,7 +84,9 @@ data class MessageDto(
     val mediaSize: Long? = null,
     val mediaDurationMs: Long? = null,
     val createdAt: String,
-    val replyToId: String? = null
+    val replyToId: String? = null,
+    val peerDelivered: Boolean? = null,
+    val peerRead: Boolean? = null
 )
 
 @JsonClass(generateAdapter = true)

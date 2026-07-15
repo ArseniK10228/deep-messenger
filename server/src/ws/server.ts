@@ -1,7 +1,14 @@
 import type { Server } from 'http';
 import { WebSocketServer } from 'ws';
 import type { FastifyInstance } from 'fastify';
-import { broadcastToConversation, registerClient, subscribeConversation, unregisterClient } from './hub.js';
+import {
+  broadcastToConversation,
+  registerClient,
+  sendToUser,
+  subscribeConversation,
+  unregisterClient
+} from './hub.js';
+import { markDelivered } from '../db/messages.js';
 import { handleCallMessage, isCallMessage } from './callSignaling.js';
 
 export function attachWebSocket(server: Server, app: FastifyInstance): void {
@@ -18,9 +25,13 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
       const payload = await app.jwt.verify<{ id: string }>(token);
       const client = registerClient(ws, payload.id);
 
-      ws.on('message', (raw) => {
+      ws.on('message', async (raw) => {
         try {
-          const msg = JSON.parse(String(raw)) as { type?: string; conversationId?: string };
+          const msg = JSON.parse(String(raw)) as {
+            type?: string;
+            conversationId?: string;
+            messageId?: string;
+          };
           if (isCallMessage(msg)) {
             handleCallMessage(payload.id, msg);
             return;
@@ -35,6 +46,16 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
               conversationId: msg.conversationId,
               userId: payload.id
             });
+          }
+          if (msg.type === 'delivered' && msg.messageId) {
+            const result = await markDelivered(msg.messageId, payload.id);
+            if (result) {
+              sendToUser(result.senderId, {
+                type: 'message_delivered',
+                messageId: msg.messageId,
+                conversationId: result.conversationId
+              });
+            }
           }
         } catch {
           /* ignore malformed */

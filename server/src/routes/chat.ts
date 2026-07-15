@@ -14,8 +14,9 @@ import {
 } from '../db/messages.js';
 import { getUserById } from '../db/users.js';
 import { sendPush } from '../lib/firebase.js';
+import { pushChatEvent } from '../lib/chatPush.js';
 import { query } from '../db/client.js';
-import { broadcastToConversation } from '../ws/hub.js';
+import { broadcastToConversation, sendToUser } from '../ws/hub.js';
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.get('/conversations', async (req) => {
@@ -70,15 +71,23 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       body: body.body?.trim() || null,
       replyToId: body.replyToId || null
     });
-    broadcastToConversation(id, { type: 'message', message });
+    await pushChatEvent(id, user.id, { type: 'message', message });
     await notifyPeers(id, user.id, user.displayName, previewText(message));
     return { message };
   });
 
-  app.post('/messages/:id/read', async (req, reply) => {
+  app.post('/messages/:id/read', async (req) => {
     const user = getAuthUser(req);
     const { id } = req.params as { id: string };
-    await markRead([id], user.id);
+    const notified = await markRead([id], user.id);
+    for (const n of notified) {
+      sendToUser(n.senderId, {
+        type: 'message_read',
+        messageId: n.messageId,
+        conversationId: n.conversationId,
+        userId: user.id
+      });
+    }
     return { ok: true };
   });
 
@@ -95,7 +104,11 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       );
       const conversationId = conv.rows[0]?.conversation_id;
       if (conversationId) {
-        broadcastToConversation(conversationId, { type: 'message_deleted', messageId: id, scope: 'everyone' });
+        broadcastToConversation(conversationId, {
+          type: 'message_deleted',
+          messageId: id,
+          scope: 'everyone'
+        });
       }
       return { ok: true };
     }
@@ -111,7 +124,12 @@ function previewText(message: { kind: string; body: string | null }): string {
   return 'Файл';
 }
 
-async function notifyPeers(conversationId: string, senderId: string, senderName: string, text: string) {
+async function notifyPeers(
+  conversationId: string,
+  senderId: string,
+  senderName: string,
+  text: string
+) {
   const r = await query<{ fcm_token: string | null }>(
     `SELECT u.fcm_token
      FROM conversation_members cm

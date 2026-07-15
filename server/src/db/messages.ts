@@ -14,10 +14,12 @@ export interface MessageRow {
   reply_to_id: string | null;
   created_at: string;
   deleted_for_all_at: string | null;
+  peer_delivered?: boolean;
+  peer_read?: boolean;
 }
 
-function mapMessage(row: MessageRow) {
-  return {
+function mapMessage(row: MessageRow, viewerId?: string) {
+  const base = {
     id: row.id,
     conversationId: row.conversation_id,
     senderId: row.sender_id,
@@ -31,6 +33,14 @@ function mapMessage(row: MessageRow) {
     createdAt: row.created_at,
     deletedForAllAt: row.deleted_for_all_at
   };
+  if (viewerId && row.sender_id === viewerId) {
+    return {
+      ...base,
+      peerDelivered: row.peer_delivered ?? false,
+      peerRead: row.peer_read ?? false
+    };
+  }
+  return base;
 }
 
 export async function listMessages(
@@ -46,7 +56,19 @@ export async function listMessages(
     params.push(before);
   }
   const r = await query<MessageRow>(
-    `SELECT m.*
+    `SELECT m.*,
+       CASE WHEN m.sender_id = $2 THEN EXISTS (
+         SELECT 1 FROM message_deliveries d
+         JOIN conversation_members cm
+           ON cm.conversation_id = m.conversation_id AND cm.user_id <> m.sender_id
+         WHERE d.message_id = m.id AND d.user_id = cm.user_id
+       ) ELSE false END AS peer_delivered,
+       CASE WHEN m.sender_id = $2 THEN EXISTS (
+         SELECT 1 FROM message_reads r
+         JOIN conversation_members cm
+           ON cm.conversation_id = m.conversation_id AND cm.user_id <> m.sender_id
+         WHERE r.message_id = m.id AND r.user_id = cm.user_id
+       ) ELSE false END AS peer_read
      FROM messages m
      WHERE m.conversation_id = $1
        AND m.deleted_for_all_at IS NULL
@@ -58,7 +80,7 @@ export async function listMessages(
      LIMIT $3`,
     params
   );
-  return r.rows.map(mapMessage).reverse();
+  return r.rows.map((row) => mapMessage(row, userId));
 }
 
 export async function insertMessage(input: {
@@ -90,7 +112,7 @@ export async function insertMessage(input: {
       input.replyToId ?? null
     ]
   );
-  return mapMessage(r.rows[0]);
+  return mapMessage(r.rows[0], input.senderId);
 }
 
 export async function hideMessageForUser(messageId: string, userId: string): Promise<void> {
@@ -114,14 +136,53 @@ export async function deleteForEveryone(messageId: string, userId: string): Prom
   return true;
 }
 
-export async function markRead(messageIds: string[], userId: string): Promise<void> {
-  if (!messageIds.length) return;
+export async function markDelivered(
+  messageId: string,
+  userId: string
+): Promise<{ senderId: string; conversationId: string } | null> {
+  const r = await query<{ sender_id: string; conversation_id: string }>(
+    `SELECT m.sender_id, m.conversation_id FROM messages m
+     JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = $2
+     WHERE m.id = $1 AND m.sender_id <> $2`,
+    [messageId, userId]
+  );
+  const row = r.rows[0];
+  if (!row) return null;
+
   await query(
-    `INSERT INTO message_reads (message_id, user_id)
-     SELECT unnest($1::uuid[]), $2::uuid
+    `INSERT INTO message_deliveries (message_id, user_id) VALUES ($1, $2)
      ON CONFLICT DO NOTHING`,
+    [messageId, userId]
+  );
+  return { senderId: row.sender_id, conversationId: row.conversation_id };
+}
+
+export async function markRead(
+  messageIds: string[],
+  userId: string
+): Promise<Array<{ messageId: string; senderId: string; conversationId: string }>> {
+  if (!messageIds.length) return [];
+
+  const r = await query<{ id: string; sender_id: string; conversation_id: string }>(
+    `SELECT m.id, m.sender_id, m.conversation_id FROM messages m
+     JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = $2
+     WHERE m.id = ANY($1::uuid[]) AND m.sender_id <> $2`,
     [messageIds, userId]
   );
+  const ids = r.rows.map((row) => row.id);
+  if (ids.length) {
+    await query(
+      `INSERT INTO message_reads (message_id, user_id)
+       SELECT unnest($1::uuid[]), $2::uuid
+       ON CONFLICT DO NOTHING`,
+      [ids, userId]
+    );
+  }
+  return r.rows.map((row) => ({
+    messageId: row.id,
+    senderId: row.sender_id,
+    conversationId: row.conversation_id
+  }));
 }
 
 export { mapMessage };

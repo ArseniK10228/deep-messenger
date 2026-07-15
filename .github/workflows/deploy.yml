@@ -67,25 +67,30 @@ jobs:
           FIREBASE_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           TELEGRAM_GATEWAY_TOKEN: ${{ secrets.TELEGRAM_GATEWAY_TOKEN }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           command_timeout: 30m
-          envs: FIREBASE_JSON,TELEGRAM_GATEWAY_TOKEN,RESEND_API_KEY
+          envs: FIREBASE_JSON,TELEGRAM_GATEWAY_TOKEN,RESEND_API_KEY,JWT_SECRET
           script: |
             set -euxo pipefail
             K=/root/.ssh/home_deploy
             O="-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=30"
+            ssh -i "$K" $O root@100.118.211.24 'test -f /opt/deep-messenger/.env && cp /opt/deep-messenger/.env /tmp/deep-messenger.env.bak || true'
+            ssh -i "$K" $O root@100.118.211.24 'test -d /opt/deep-messenger/secrets && cp -a /opt/deep-messenger/secrets /tmp/deep-messenger-secrets.bak || true'
             ssh -i "$K" $O root@100.118.211.24 'rm -rf /opt/deep-messenger && mkdir -p /opt/deep-messenger'
             rsync -a --delete -e "ssh -i $K $O" /tmp/deep-messenger/ root@100.118.211.24:/opt/deep-messenger/
+            ssh -i "$K" $O root@100.118.211.24 'test -f /tmp/deep-messenger.env.bak && cp /tmp/deep-messenger.env.bak /opt/deep-messenger/.env || true'
+            ssh -i "$K" $O root@100.118.211.24 'test -d /tmp/deep-messenger-secrets.bak && cp -a /tmp/deep-messenger-secrets.bak /opt/deep-messenger/secrets || true'
             if [ -n "${FIREBASE_JSON:-}" ]; then
               printf '%s' "$FIREBASE_JSON" > /tmp/firebase-sa.json
               ssh -i "$K" $O root@100.118.211.24 'mkdir -p /opt/deep-messenger/secrets'
               scp -i "$K" $O /tmp/firebase-sa.json root@100.118.211.24:/opt/deep-messenger/secrets/firebase-service-account.json
               rm -f /tmp/firebase-sa.json
             fi
-            ssh -i "$K" $O root@100.118.211.24 'bash /opt/deep-messenger/scripts/infra/apply-home.sh'
+            ssh -i "$K" $O root@100.118.211.24 "JWT_SECRET='${JWT_SECRET:-}' bash /opt/deep-messenger/scripts/infra/apply-home.sh"
             if [ -n "${TELEGRAM_GATEWAY_TOKEN:-}" ]; then
               ssh -i "$K" $O root@100.118.211.24 "touch /opt/deep-messenger/.env; grep -q '^TELEGRAM_GATEWAY_TOKEN=' /opt/deep-messenger/.env && sed -i 's|^TELEGRAM_GATEWAY_TOKEN=.*|TELEGRAM_GATEWAY_TOKEN=${TELEGRAM_GATEWAY_TOKEN}|' /opt/deep-messenger/.env || echo TELEGRAM_GATEWAY_TOKEN=${TELEGRAM_GATEWAY_TOKEN} >> /opt/deep-messenger/.env; systemctl restart deep-messenger"
             fi

@@ -15,12 +15,16 @@ cd "$REPO"
 
 if [[ ! -f .env ]]; then
   cp .env.example .env
-  JWT=$(openssl rand -hex 32)
+  JWT="${JWT_SECRET:-$(openssl rand -hex 32)}"
   sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$JWT|" .env
   sed -i 's|^PUBLIC_URL=.*|PUBLIC_URL=https://api.deepdesignpc.online|' .env
   sed -i 's|^FIREBASE_SERVICE_ACCOUNT_PATH=.*|FIREBASE_SERVICE_ACCOUNT_PATH=../secrets/firebase-service-account.json|' .env
   sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgres://deep:deep@127.0.0.1:5432/deep_messenger|' .env
   echo "Created $REPO/.env"
+elif [[ -n "${JWT_SECRET:-}" ]]; then
+  grep -q '^JWT_SECRET=' .env \
+    && sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" .env \
+    || echo "JWT_SECRET=${JWT_SECRET}" >> .env
 fi
 
 if [[ -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]]; then

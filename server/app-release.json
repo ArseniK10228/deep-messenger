@@ -1,7 +1,7 @@
 {
-  "versionCode": 3,
-  "versionName": "0.3.0",
+  "versionCode": 4,
+  "versionName": "0.3.1",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Видеозвонки 720p, фикс скролла чата с клавиатурой, анимации отправки, улучшенный UI.",
+  "changelog": "Фикс 401 после деплоя: сохранение JWT, авто-выход при истёкшей сессии.",
   "forceUpdate": false
 }

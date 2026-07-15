@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
+import online.deepdesign.deep.data.AuthEvents
 import online.deepdesign.deep.data.ChatEvent
 import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.ConversationDto
@@ -60,7 +61,15 @@ class ChatsViewModel : ViewModel() {
                 val list = api.conversations().conversations
                 _state.update { it.copy(loading = false, conversations = list) }
             } catch (e: Exception) {
-                _state.update { it.copy(loading = false, error = e.message ?: "Ошибка загрузки") }
+                val msg = when {
+                    e is HttpException && e.code() == 401 -> "Сессия истекла — войдите снова"
+                    e is HttpException -> e.readApiError()
+                    else -> e.message ?: "Ошибка загрузки"
+                }
+                if (e is HttpException && e.code() == 401) {
+                    AuthEvents.notifySessionExpired()
+                }
+                _state.update { it.copy(loading = false, error = msg) }
             }
         }
     }

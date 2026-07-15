@@ -11,6 +11,7 @@ import androidx.navigation.navArgument
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
+import online.deepdesign.deep.data.AuthEvents
 import online.deepdesign.deep.ui.auth.LoginScreen
 import online.deepdesign.deep.ui.chat.ChatScreen
 import online.deepdesign.deep.ui.chats.ChatsScreen
@@ -22,6 +23,16 @@ fun DeepNavHost(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
     val sessionStore = DeepApp.instance.sessionStore
+
+    androidx.compose.runtime.LaunchedEffect(navController) {
+        AuthEvents.sessionExpired.collect {
+            sessionStore.clear()
+            DeepApp.instance.setAuthSession(null, null)
+            navController.navigate(DeepRoutes.Login) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
 
     NavHost(
         navController = navController,

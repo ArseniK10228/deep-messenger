@@ -98,11 +98,17 @@ interface DeepApi {
 }
 
 class AuthInterceptor(private val tokenProvider: () -> String?) : Interceptor {
-    override fun intercept(chain: Interceptor.Chain) = chain.proceed(
-        chain.request().newBuilder().apply {
-            tokenProvider()?.let { header("Authorization", "Bearer $it") }
-        }.build()
-    )
+    override fun intercept(chain: Interceptor.Chain): okhttp3.Response {
+        val response = chain.proceed(
+            chain.request().newBuilder().apply {
+                tokenProvider()?.let { header("Authorization", "Bearer $it") }
+            }.build()
+        )
+        if (response.code == 401 && !chain.request().url.encodedPath.contains("/auth/")) {
+            AuthEvents.notifySessionExpired()
+        }
+        return response
+    }
 }
 
 object ApiClient {

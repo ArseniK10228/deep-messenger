@@ -8,7 +8,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.SessionBootstrap
-import online.deepdesign.deep.call.IncomingCallActivity
 import online.deepdesign.deep.data.ChatEvent
 import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.FcmRegisterRequest
@@ -35,25 +34,8 @@ class DeepMessagingService : FirebaseMessagingService() {
             SessionBootstrap.restore(app.sessionStore, app)
             when (data["type"]) {
                 "incoming_call" -> {
-                    val video = data["video"] == "true"
                     app.callManager.handleIncomingPush(data)
                     IncomingCallNotifier.show(this@DeepMessagingService, data)
-                    val callId = data["callId"] ?: return@launch
-                    val conversationId = data["conversationId"].orEmpty()
-                    val callerName = data["callerName"] ?: "Deep"
-                    try {
-                        startActivity(
-                            IncomingCallActivity.intent(
-                                this@DeepMessagingService,
-                                callId,
-                                conversationId,
-                                callerName,
-                                video
-                            )
-                        )
-                    } catch (_: Exception) {
-                        // Full-screen intent from notification is the fallback.
-                    }
                 }
                 "message" -> {
                     val convId = data["conversationId"]

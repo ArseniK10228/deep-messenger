@@ -365,6 +365,7 @@ class CallManager(
         callerName: String,
         video: Boolean = false
     ) {
+        if (_state.value is CallUiState.Incoming && activeCallId == callId) return
         if (_state.value is CallUiState.Outgoing || _state.value is CallUiState.Active) return
         _overlayExpanded.value = true
         _videoOn.value = video
@@ -381,6 +382,7 @@ class CallManager(
         when (env.type) {
             "call_invite" -> {
                 val callId = env.callId ?: return
+                if (_state.value is CallUiState.Incoming && activeCallId == callId) return
                 if (_state.value !is CallUiState.Idle) return
                 val video = env.video == "true"
                 val callerName = env.callerName ?: "Deep"

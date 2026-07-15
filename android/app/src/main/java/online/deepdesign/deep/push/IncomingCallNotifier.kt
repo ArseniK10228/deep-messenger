@@ -11,7 +11,9 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
+import online.deepdesign.deep.MainActivity
 import online.deepdesign.deep.R
+import online.deepdesign.deep.call.CallAppState
 import online.deepdesign.deep.call.CallNotificationActionActivity
 import online.deepdesign.deep.call.IncomingCallActivity
 
@@ -29,10 +31,23 @@ object IncomingCallNotifier {
         cancelLegacy(context)
 
         val notificationId = notificationId(callId)
-        val fullScreen = PendingIntent.getActivity(
+        val inForeground = CallAppState.isInForeground()
+        val incomingIntent = IncomingCallActivity.intent(context, callId, conversationId, callerName, video)
+        val contentIntent = if (inForeground) {
+            MainActivity.callIntent(context)
+        } else {
+            incomingIntent
+        }
+        val content = PendingIntent.getActivity(
             context,
             notificationId,
-            IncomingCallActivity.intent(context, callId, conversationId, callerName, video),
+            contentIntent,
+            pendingFlags()
+        )
+        val fullScreen = PendingIntent.getActivity(
+            context,
+            notificationId + 10,
+            incomingIntent,
             pendingFlags()
         )
 
@@ -59,10 +74,13 @@ object IncomingCallNotifier {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setAutoCancel(false)
-            .setFullScreenIntent(fullScreen, true)
-            .setContentIntent(fullScreen)
+            .setContentIntent(content)
             .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE))
             .setVibrate(longArrayOf(0, 800, 400, 800))
+
+        if (!inForeground) {
+            builder.setFullScreenIntent(fullScreen, true)
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val caller = Person.Builder().setName(callerName).setImportant(true).build()

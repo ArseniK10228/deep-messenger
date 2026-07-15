@@ -3,7 +3,6 @@ package online.deepdesign.deep.call
 import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -12,10 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.core.content.ContextCompat
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.MainActivity
@@ -25,7 +21,6 @@ import online.deepdesign.deep.ui.call.CallOverlay
 import online.deepdesign.deep.ui.theme.DeepTheme
 
 class IncomingCallActivity : ComponentActivity() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var isVideoCall = false
     private var callId: String = ""
 
@@ -62,10 +57,17 @@ class IncomingCallActivity : ComponentActivity() {
         val callerName = intent.getStringExtra(EXTRA_CALLER_NAME) ?: "Deep"
         isVideoCall = intent.getBooleanExtra(EXTRA_VIDEO, false)
 
-        scope.launch {
-            val app = DeepApp.instance
-            SessionBootstrap.restore(app.sessionStore, app)
-            app.callManager.prepareIncomingFromNotification(callId, conversationId, callerName, isVideoCall)
+        if (CallAppState.isInForeground()) {
+            lifecycleScope.launch {
+                bootstrapAndPrepare(callId, conversationId, callerName, isVideoCall)
+                startActivity(MainActivity.callIntent(this@IncomingCallActivity))
+                finish()
+            }
+            return
+        }
+
+        lifecycleScope.launch {
+            bootstrapAndPrepare(callId, conversationId, callerName, isVideoCall)
         }
 
         setContent {
@@ -111,6 +113,17 @@ class IncomingCallActivity : ComponentActivity() {
         }
     }
 
+    private suspend fun bootstrapAndPrepare(
+        callId: String,
+        conversationId: String,
+        callerName: String,
+        video: Boolean
+    ) {
+        val app = DeepApp.instance
+        SessionBootstrap.restore(app.sessionStore, app)
+        app.callManager.prepareIncomingFromNotification(callId, conversationId, callerName, video)
+    }
+
     private fun requestAccept() {
         if (isVideoCall) {
             val missing = CallPermissions.missingForVideo(this)
@@ -147,7 +160,7 @@ class IncomingCallActivity : ComponentActivity() {
             putExtra(EXTRA_CONVERSATION_ID, conversationId)
             putExtra(EXTRA_CALLER_NAME, callerName)
             putExtra(EXTRA_VIDEO, video)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
     }
 }

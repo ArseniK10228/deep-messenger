@@ -41,3 +41,12 @@ export function sendToUser(userId: string, payload: unknown): void {
     }
   }
 }
+
+export function isUserSubscribedToConversation(userId: string, conversationId: string): boolean {
+  for (const c of clients) {
+    if (c.userId === userId && c.conversationIds.has(conversationId)) {
+      return true;
+    }
+  }
+  return false;
+}

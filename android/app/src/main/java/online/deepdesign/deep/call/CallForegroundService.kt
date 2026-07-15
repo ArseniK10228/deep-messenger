@@ -77,6 +77,7 @@ class CallForegroundService : Service() {
             .setContentIntent(open)
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
     }
 
@@ -86,7 +87,7 @@ class CallForegroundService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Звонки Deep",
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_DEFAULT
         )
         mgr.createNotificationChannel(channel)
     }

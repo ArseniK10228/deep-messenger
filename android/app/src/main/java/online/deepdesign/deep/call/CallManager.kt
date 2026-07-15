@@ -4,11 +4,13 @@ import android.content.Context
 import android.Manifest
 import android.content.pm.PackageManager
 import android.media.AudioManager
+import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -60,6 +62,9 @@ class CallManager(
     private val _speakerOn = MutableStateFlow(false)
     val speakerOn: StateFlow<Boolean> = _speakerOn.asStateFlow()
 
+    private val _overlayExpanded = MutableStateFlow(true)
+    val overlayExpanded: StateFlow<Boolean> = _overlayExpanded.asStateFlow()
+
     private var engine: WebRtcCallEngine? = null
     private var iceServers: List<IceServerDto> = emptyList()
     private var listenJob: Job? = null
@@ -67,6 +72,8 @@ class CallManager(
     private var activePeerName: String = "Deep"
     private var pendingOffer: WsEnvelope? = null
     private val pendingIce = mutableListOf<IceCandidate>()
+    private var disconnectJob: Job? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     fun start() {
         signaling.connect()
@@ -100,6 +107,16 @@ class CallManager(
         am.isSpeakerphoneOn = next
     }
 
+    fun minimizeOverlay() {
+        if (_state.value is CallUiState.Outgoing || _state.value is CallUiState.Active) {
+            _overlayExpanded.value = false
+        }
+    }
+
+    fun expandOverlay() {
+        _overlayExpanded.value = true
+    }
+
     fun startOutgoing(conversationId: String, peerName: String) {
         if (!hasMicPermission()) {
             _error.value = "Разреши доступ к микрофону для звонка"
@@ -111,7 +128,9 @@ class CallManager(
                 activeCallId = resp.callId
                 activePeerName = peerName
                 iceServers = resp.iceServers
+                _overlayExpanded.value = true
                 _state.value = CallUiState.Outgoing(resp.callId, conversationId, peerName)
+                beginAudioSession()
                 CallForegroundService.start(context, peerName, outgoing = true)
             } catch (e: Exception) {
                 _state.value = CallUiState.Idle
@@ -133,6 +152,7 @@ class CallManager(
                 iceServers = resp.iceServers
                 activeCallId = incoming.callId
                 activePeerName = incoming.callerName
+                _overlayExpanded.value = true
                 _state.value = CallUiState.Active(incoming.callId, incoming.callerName, connected = false)
                 CallForegroundService.start(context, incoming.callerName, outgoing = false)
                 initEngine()
@@ -169,6 +189,7 @@ class CallManager(
         val conversationId = data["conversationId"] ?: return
         val callerName = data["callerName"] ?: "Deep"
         if (_state.value !is CallUiState.Idle) return
+        _overlayExpanded.value = true
         _state.value = CallUiState.Incoming(callId, conversationId, callerName)
         signaling.connect()
     }
@@ -188,6 +209,7 @@ class CallManager(
                 val callId = env.callId ?: return
                 if (_state.value is CallUiState.Outgoing) {
                     activeCallId = callId
+                    _overlayExpanded.value = true
                     _state.value = CallUiState.Active(callId, activePeerName, connected = false)
                     initEngine()
                     engine?.createOffer { sdp ->
@@ -254,6 +276,7 @@ class CallManager(
 
     private fun initEngine() {
         teardownRtc()
+        beginAudioSession()
         engine = WebRtcCallEngine(context, iceServers, object : WebRtcCallEngine.Listener {
             override fun onIceCandidate(candidate: IceCandidate) {
                 val callId = activeCallId ?: return
@@ -262,17 +285,35 @@ class CallManager(
 
             override fun onConnectionChange(state: PeerConnection.PeerConnectionState) {
                 scope.launch {
-                    if (state == PeerConnection.PeerConnectionState.CONNECTED) {
-                        _state.update { current ->
-                            if (current is CallUiState.Active) current.copy(connected = true) else current
+                    when (state) {
+                        PeerConnection.PeerConnectionState.CONNECTED -> {
+                            disconnectJob?.cancel()
+                            _state.update { current ->
+                                if (current is CallUiState.Active) current.copy(connected = true) else current
+                            }
                         }
+                        PeerConnection.PeerConnectionState.DISCONNECTED -> scheduleDisconnectHangup()
+                        PeerConnection.PeerConnectionState.FAILED -> {
+                            if (_state.value is CallUiState.Active) hangup()
+                        }
+                        else -> Unit
                     }
-                    if (state == PeerConnection.PeerConnectionState.FAILED ||
-                        state == PeerConnection.PeerConnectionState.DISCONNECTED
-                    ) {
-                        if (_state.value is CallUiState.Active) {
-                            hangup()
+                }
+            }
+
+            override fun onIceConnectionChange(state: PeerConnection.IceConnectionState) {
+                scope.launch {
+                    when (state) {
+                        PeerConnection.IceConnectionState.CONNECTED,
+                        PeerConnection.IceConnectionState.COMPLETED -> {
+                            disconnectJob?.cancel()
+                            _state.update { current ->
+                                if (current is CallUiState.Active) current.copy(connected = true) else current
+                            }
                         }
+                        PeerConnection.IceConnectionState.DISCONNECTED -> scheduleDisconnectHangup()
+                        PeerConnection.IceConnectionState.FAILED -> scheduleDisconnectHangup(graceMs = 20_000)
+                        else -> Unit
                     }
                 }
             }
@@ -281,17 +322,48 @@ class CallManager(
         pendingIce.clear()
     }
 
+    private fun scheduleDisconnectHangup(graceMs: Long = 15_000) {
+        if (_state.value !is CallUiState.Active) return
+        disconnectJob?.cancel()
+        disconnectJob = scope.launch {
+            delay(graceMs)
+            if (_state.value is CallUiState.Active) hangup()
+        }
+    }
+
+    private fun beginAudioSession() {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        am.mode = AudioManager.MODE_IN_COMMUNICATION
+        am.isSpeakerphoneOn = _speakerOn.value
+        runCatching {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock?.release()
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "deep:call").apply {
+                acquire(60 * 60 * 1000L)
+            }
+        }
+    }
+
+    private fun endAudioSession() {
+        disconnectJob?.cancel()
+        runCatching { wakeLock?.release() }
+        wakeLock = null
+        runCatching {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            am.isSpeakerphoneOn = false
+            am.mode = AudioManager.MODE_NORMAL
+        }
+    }
+
     private fun endLocal(@Suppress("UNUSED_PARAMETER") reason: String) {
+        endAudioSession()
         teardownRtc()
         activeCallId = null
         pendingOffer = null
         pendingIce.clear()
         _muted.value = false
         _speakerOn.value = false
-        runCatching {
-            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            am.isSpeakerphoneOn = false
-        }
+        _overlayExpanded.value = true
         _state.value = CallUiState.Idle
         CallForegroundService.stop(context)
     }

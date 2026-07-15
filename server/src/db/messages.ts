@@ -80,7 +80,7 @@ export async function listMessages(
      LIMIT $3`,
     params
   );
-  return r.rows.map((row) => mapMessage(row, userId));
+  return r.rows.reverse().map((row) => mapMessage(row, userId));
 }
 
 export async function insertMessage(input: {

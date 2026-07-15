@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.VolumeOff
@@ -61,7 +62,8 @@ fun CallOverlay(
     onReject: () -> Unit,
     onHangup: () -> Unit,
     onToggleMute: () -> Unit,
-    onToggleSpeaker: () -> Unit
+    onToggleSpeaker: () -> Unit,
+    onMinimize: () -> Unit
 ) {
     when (state) {
         is CallUiState.Incoming -> IncomingCallUi(state.callerName, onAccept, onReject)
@@ -73,7 +75,8 @@ fun CallOverlay(
             speakerOn = speakerOn,
             onToggleMute = onToggleMute,
             onToggleSpeaker = onToggleSpeaker,
-            onHangup = onHangup
+            onHangup = onHangup,
+            onMinimize = onMinimize
         )
         is CallUiState.Active -> OngoingCallUi(
             peerName = state.peerName,
@@ -83,7 +86,8 @@ fun CallOverlay(
             speakerOn = speakerOn,
             onToggleMute = onToggleMute,
             onToggleSpeaker = onToggleSpeaker,
-            onHangup = onHangup
+            onHangup = onHangup,
+            onMinimize = onMinimize
         )
         CallUiState.Idle -> Unit
     }
@@ -173,7 +177,8 @@ private fun OngoingCallUi(
     speakerOn: Boolean,
     onToggleMute: () -> Unit,
     onToggleSpeaker: () -> Unit,
-    onHangup: () -> Unit
+    onHangup: () -> Unit,
+    onMinimize: () -> Unit
 ) {
     val pulse by rememberInfiniteTransition(label = "callPulse").animateFloat(
         initialValue = 1f,
@@ -183,12 +188,24 @@ private fun OngoingCallUi(
     )
 
     CallBackground {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Box(Modifier.fillMaxSize()) {
+            IconButton(
+                onClick = onMinimize,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 8.dp, end = 4.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "В чат", tint = DeepText)
+                    Text("В чат", color = DeepMuted, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp, vertical = 40.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
             Spacer(Modifier.weight(0.3f))
             Box(Modifier.scale(pulse)) {
                 ChatAvatar(name = peerName, size = 128.dp, online = connected)
@@ -241,6 +258,7 @@ private fun OngoingCallUi(
             }
             Spacer(Modifier.height(16.dp))
             Text("Завершить", color = DeepMuted, style = MaterialTheme.typography.labelMedium)
+            }
         }
     }
 }

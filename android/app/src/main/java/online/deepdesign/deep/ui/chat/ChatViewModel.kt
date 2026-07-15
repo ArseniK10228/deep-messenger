@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +20,7 @@ import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.data.PickedFile
 import online.deepdesign.deep.data.SendMessageRequest
 import online.deepdesign.deep.data.VoiceRecorder
+import online.deepdesign.deep.data.WsEnvelope
 import online.deepdesign.deep.data.readPickedFile
 import java.time.Duration
 import java.time.Instant
@@ -56,7 +58,9 @@ class ChatViewModel(
             _state.update { it.copy(loading = true, error = null) }
             try {
                 val msgs = api.messages(conversationId).messages
-                _state.update { it.copy(loading = false, messages = msgs) }
+                _state.update { s ->
+                    s.copy(loading = false, messages = mergeMessages(s.messages, msgs))
+                }
                 markIncomingRead(msgs)
             } catch (e: Exception) {
                 _state.update { it.copy(loading = false, error = e.message) }
@@ -67,25 +71,36 @@ class ChatViewModel(
     private fun connectWs() {
         wsJob?.cancel()
         wsJob = viewModelScope.launch {
-            socket.events(conversationId).collect { event ->
-                when (event.type) {
-                    "message" -> event.message?.let { onIncomingMessage(it) }
-                    "message_deleted" -> event.messageId?.let { removeMessage(it) }
-                    "typing" -> {
-                        _state.update { it.copy(peerTyping = true) }
-                        typingJob?.cancel()
-                        typingJob = viewModelScope.launch {
-                            delay(3_000)
-                            _state.update { it.copy(peerTyping = false) }
-                        }
-                    }
-                    "message_delivered" -> event.messageId?.let {
-                        updateMessageStatus(it, peerDelivered = true)
-                    }
-                    "message_read" -> event.messageId?.let {
-                        updateMessageStatus(it, peerDelivered = true, peerRead = true)
-                    }
+            while (true) {
+                try {
+                    socket.events(conversationId).collect { handleWsEvent(it) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // reconnect below
                 }
+                delay(2_000)
+            }
+        }
+    }
+
+    private fun handleWsEvent(event: WsEnvelope) {
+        when (event.type) {
+            "message" -> event.message?.let { onIncomingMessage(it) }
+            "message_deleted" -> event.messageId?.let { removeMessage(it) }
+            "typing" -> {
+                _state.update { it.copy(peerTyping = true) }
+                typingJob?.cancel()
+                typingJob = viewModelScope.launch {
+                    delay(3_000)
+                    _state.update { it.copy(peerTyping = false) }
+                }
+            }
+            "message_delivered" -> event.messageId?.let {
+                updateMessageStatus(it, peerDelivered = true)
+            }
+            "message_read" -> event.messageId?.let {
+                updateMessageStatus(it, peerDelivered = true, peerRead = true)
             }
         }
     }
@@ -206,10 +221,31 @@ class ChatViewModel(
             if (s.messages.any { it.id == msg.id }) s
             else {
                 added = true
-                s.copy(messages = s.messages + msg)
+                s.copy(messages = sortMessages(s.messages + msg))
             }
         }
         return added
+    }
+
+    private fun mergeMessages(existing: List<MessageDto>, incoming: List<MessageDto>): List<MessageDto> {
+        return sortMessages(existing + incoming)
+    }
+
+    private fun sortMessages(msgs: List<MessageDto>): List<MessageDto> {
+        return msgs
+            .distinctBy { it.id }
+            .sortedWith(
+                compareBy<MessageDto> { parseCreatedAt(it.createdAt) }
+                    .thenBy { it.id }
+            )
+    }
+
+    private fun parseCreatedAt(iso: String): Instant {
+        return try {
+            Instant.parse(iso)
+        } catch (_: Exception) {
+            Instant.EPOCH
+        }
     }
 
     private fun markIncomingRead(msgs: List<MessageDto>) {

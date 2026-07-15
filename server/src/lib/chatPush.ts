@@ -1,7 +1,7 @@
 import { query } from '../db/client.js';
-import { broadcastToConversation, sendToUser } from '../ws/hub.js';
+import { broadcastToConversation, isUserSubscribedToConversation, sendToUser } from '../ws/hub.js';
 
-/** Push chat event to subscribed clients and all online conversation members. */
+/** Push chat event to subscribed clients and online members not in the chat screen. */
 export async function pushChatEvent(
   conversationId: string,
   senderId: string,
@@ -14,6 +14,8 @@ export async function pushChatEvent(
     [conversationId, senderId]
   );
   for (const row of r.rows) {
-    sendToUser(row.user_id, payload);
+    if (!isUserSubscribedToConversation(row.user_id, conversationId)) {
+      sendToUser(row.user_id, payload);
+    }
   }
 }

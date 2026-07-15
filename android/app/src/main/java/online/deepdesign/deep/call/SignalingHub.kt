@@ -1,8 +1,14 @@
 package online.deepdesign.deep.call
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -16,12 +22,18 @@ import online.deepdesign.deep.data.WsEnvelope
 class SignalingHub(
     private val tokenProvider: () -> String?
 ) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val adapter = ApiClient.moshi.adapter(WsEnvelope::class.java)
     private val _events = MutableSharedFlow<WsEnvelope>(extraBufferCapacity = 64)
     val events: SharedFlow<WsEnvelope> = _events.asSharedFlow()
 
     @Volatile
     private var ws: WebSocket? = null
+
+    @Volatile
+    private var shouldStayConnected = false
+
+    private var reconnectJob: Job? = null
 
     private val callTypes = setOf(
         "call_invite", "call_accept", "call_end",
@@ -33,6 +45,7 @@ class SignalingHub(
     )
 
     fun connect() {
+        shouldStayConnected = true
         if (ws != null) return
         val token = tokenProvider() ?: return
         val url = "${ApiConfig.WS_URL}?token=${java.net.URLEncoder.encode(token, "UTF-8")}"
@@ -58,18 +71,31 @@ class SignalingHub(
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     ws = null
+                    scheduleReconnect()
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                     ws = null
+                    scheduleReconnect()
                 }
             }
         )
     }
 
     fun disconnect() {
+        shouldStayConnected = false
+        reconnectJob?.cancel()
         ws?.close(1000, "bye")
         ws = null
+    }
+
+    private fun scheduleReconnect() {
+        if (!shouldStayConnected) return
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch {
+            delay(2_000)
+            if (shouldStayConnected && ws == null) connect()
+        }
     }
 
     fun sendDelivered(messageId: String) {

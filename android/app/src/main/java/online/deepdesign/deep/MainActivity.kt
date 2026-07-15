@@ -18,10 +18,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import online.deepdesign.deep.call.CallUiState
 import online.deepdesign.deep.navigation.DeepNavHost
+import online.deepdesign.deep.ui.call.CallMinimizedBar
 import online.deepdesign.deep.ui.call.CallOverlay
 import online.deepdesign.deep.ui.theme.DeepTheme
 
@@ -36,6 +38,7 @@ class MainActivity : ComponentActivity() {
                 val callError by callManager.error.collectAsState()
                 val muted by callManager.muted.collectAsState()
                 val speakerOn by callManager.speakerOn.collectAsState()
+                val overlayExpanded by callManager.overlayExpanded.collectAsState()
                 val snackbar = remember { SnackbarHostState() }
 
                 val micPermission = rememberLauncherForActivityResult(
@@ -69,17 +72,31 @@ class MainActivity : ComponentActivity() {
                             .padding(padding)
                     ) {
                         DeepNavHost()
+
                         if (callState !is CallUiState.Idle) {
-                            CallOverlay(
-                                state = callState,
-                                muted = muted,
-                                speakerOn = speakerOn,
-                                onAccept = { acceptCall() },
-                                onReject = { callManager.rejectIncoming() },
-                                onHangup = { callManager.hangup() },
-                                onToggleMute = { callManager.toggleMute() },
-                                onToggleSpeaker = { callManager.toggleSpeaker() }
-                            )
+                            val showFullOverlay = callState is CallUiState.Incoming || overlayExpanded
+                            if (showFullOverlay) {
+                                CallOverlay(
+                                    state = callState,
+                                    muted = muted,
+                                    speakerOn = speakerOn,
+                                    onAccept = { acceptCall() },
+                                    onReject = { callManager.rejectIncoming() },
+                                    onHangup = { callManager.hangup() },
+                                    onToggleMute = { callManager.toggleMute() },
+                                    onToggleSpeaker = { callManager.toggleSpeaker() },
+                                    onMinimize = { callManager.minimizeOverlay() }
+                                )
+                            } else {
+                                CallMinimizedBar(
+                                    state = callState,
+                                    muted = muted,
+                                    onExpand = { callManager.expandOverlay() },
+                                    onToggleMute = { callManager.toggleMute() },
+                                    onHangup = { callManager.hangup() },
+                                    modifier = Modifier.align(Alignment.BottomCenter)
+                                )
+                            }
                         }
                     }
                 }

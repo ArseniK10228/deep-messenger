@@ -17,6 +17,7 @@ class WebRtcCallEngine(
     interface Listener {
         fun onIceCandidate(candidate: IceCandidate)
         fun onConnectionChange(state: PeerConnection.PeerConnectionState)
+        fun onIceConnectionChange(state: PeerConnection.IceConnectionState)
     }
 
     private val factory = WebRtcFactoryHolder.getOrCreate(context)
@@ -38,6 +39,11 @@ class WebRtcCallEngine(
         }
         val rtcConfig = PeerConnection.RTCConfiguration(servers).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+            iceTransportsType = PeerConnection.IceTransportsType.ALL
+            continualGatheringOnIceRestart = true
+            iceCandidatePoolSize = 2
+            bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE
+            rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE
         }
         peerConnection = factory.createPeerConnection(rtcConfig, object : PeerConnection.Observer {
             override fun onIceCandidate(candidate: IceCandidate) {
@@ -49,7 +55,9 @@ class WebRtcCallEngine(
             }
 
             override fun onSignalingChange(state: PeerConnection.SignalingState?) {}
-            override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {}
+            override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
+                state?.let { listener.onIceConnectionChange(it) }
+            }
             override fun onIceConnectionReceivingChange(receiving: Boolean) {}
             override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
             override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}

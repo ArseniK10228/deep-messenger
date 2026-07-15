@@ -26,7 +26,7 @@ if [[ ! -f .env ]]; then
   JWT=$(openssl rand -hex 32)
   sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$JWT|" .env
   sed -i 's|^PUBLIC_URL=.*|PUBLIC_URL=https://api.deepdesignpc.online|' .env
-  sed -i 's|^FIREBASE_SERVICE_ACCOUNT_PATH=.*|FIREBASE_SERVICE_ACCOUNT_PATH=./secrets/firebase-service-account.json|' .env
+  sed -i 's|^FIREBASE_SERVICE_ACCOUNT_PATH=.*|FIREBASE_SERVICE_ACCOUNT_PATH=../secrets/firebase-service-account.json|' .env
   echo "Created .env — check secrets/firebase-service-account.json exists"
 fi
 

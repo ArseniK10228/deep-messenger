@@ -18,7 +18,7 @@ if [[ ! -f .env ]]; then
   JWT=$(openssl rand -hex 32)
   sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$JWT|" .env
   sed -i 's|^PUBLIC_URL=.*|PUBLIC_URL=https://api.deepdesignpc.online|' .env
-  sed -i 's|^FIREBASE_SERVICE_ACCOUNT_PATH=.*|FIREBASE_SERVICE_ACCOUNT_PATH=./secrets/firebase-service-account.json|' .env
+  sed -i 's|^FIREBASE_SERVICE_ACCOUNT_PATH=.*|FIREBASE_SERVICE_ACCOUNT_PATH=../secrets/firebase-service-account.json|' .env
   sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgres://deep:deep@127.0.0.1:5432/deep_messenger|' .env
   echo "Created $REPO/.env"
 fi
@@ -85,7 +85,25 @@ echo "==> nginx (не трогаем 8443/7777 — только проверка
 nginx -t
 systemctl reload nginx
 
-sleep 2
+echo "==> wait for API on :3002"
+ok=0
+for i in $(seq 1 30); do
+  if curl -fsS --max-time 3 http://127.0.0.1:3002/health >/dev/null 2>&1; then
+    ok=1
+    break
+  fi
+  if ! systemctl is-active --quiet deep-messenger; then
+    echo "WARN: deep-messenger inactive (attempt $i/30)"
+    journalctl -u deep-messenger -n 20 --no-pager || true
+  fi
+  sleep 2
+done
+if [ "$ok" -ne 1 ]; then
+  echo "ERROR: deep-messenger health check failed"
+  systemctl status deep-messenger --no-pager || true
+  journalctl -u deep-messenger -n 60 --no-pager || true
+  exit 1
+fi
 curl -fsS http://127.0.0.1:3002/health
 echo ""
 systemctl is-active deep-messenger

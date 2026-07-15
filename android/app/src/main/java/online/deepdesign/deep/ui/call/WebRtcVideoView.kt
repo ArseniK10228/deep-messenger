@@ -9,7 +9,7 @@ import org.webrtc.RendererCommon
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoTrack
 
-private const val TRACK_TAG_KEY = 0xDEE70001
+private const val TRACK_TAG_KEY = 0x7dee0001
 
 @Composable
 fun WebRtcVideoView(

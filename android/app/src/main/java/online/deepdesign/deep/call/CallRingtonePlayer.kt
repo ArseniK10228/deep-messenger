@@ -57,8 +57,9 @@ class CallRingtonePlayer(context: Context) {
         override fun run() {
             if (!ringbackActive) return
             val tg = toneGenerator ?: return
-            tg.startTone(ToneGenerator.TONE_SUP_RINGTONE, 1200)
-            ringbackHandler?.postDelayed(this, 4000)
+            // Long monotone beeps — "звонок идёт", not incoming melody.
+            tg.startTone(ToneGenerator.TONE_CDMA_NETWORK_USA_RINGBACK, 2000)
+            ringbackHandler?.postDelayed(this, 5000)
         }
     }
 

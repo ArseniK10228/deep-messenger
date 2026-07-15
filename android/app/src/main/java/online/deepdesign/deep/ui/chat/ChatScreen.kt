@@ -60,6 +60,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.ui.components.deepAppear
 import online.deepdesign.deep.ui.theme.DeepAccent
 import online.deepdesign.deep.ui.theme.DeepBg
@@ -82,7 +83,9 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val context = LocalContext.current
     var showAttach by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<MessageDto?>(null) }
     val attachSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val deleteSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -244,7 +247,11 @@ fun ChatScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(state.messages, key = { it.id }) { msg ->
-                            MessageBubble(msg = msg, mine = vm.isMine(msg))
+                            MessageBubble(
+                                msg = msg,
+                                mine = vm.isMine(msg),
+                                onLongClick = { deleteTarget = msg }
+                            )
                         }
                     }
                 }
@@ -306,6 +313,49 @@ fun ChatScreen(
                 ) {
                     Icon(Icons.Default.AttachFile, contentDescription = null, tint = DeepAccent)
                     Text("  Файл", color = DeepText, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+
+    deleteTarget?.let { msg ->
+        ModalBottomSheet(
+            onDismissRequest = { deleteTarget = null },
+            sheetState = deleteSheet,
+            containerColor = DeepSurface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Text("Удалить сообщение?", color = DeepText, style = MaterialTheme.typography.titleLarge)
+                TextButton(
+                    onClick = {
+                        vm.deleteMessage(msg, "me")
+                        deleteTarget = null
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Удалить у меня", color = DeepError, modifier = Modifier.weight(1f))
+                }
+                if (vm.canDeleteForEveryone(msg)) {
+                    TextButton(
+                        onClick = {
+                            vm.deleteMessage(msg, "everyone")
+                            deleteTarget = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Удалить у всех", color = DeepError, modifier = Modifier.weight(1f))
+                    }
+                }
+                TextButton(
+                    onClick = { deleteTarget = null },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Отмена", color = DeepMuted, modifier = Modifier.weight(1f))
                 }
             }
         }

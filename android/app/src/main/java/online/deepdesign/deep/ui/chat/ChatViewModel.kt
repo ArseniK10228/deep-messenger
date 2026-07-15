@@ -12,12 +12,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.data.ChatSocket
+import online.deepdesign.deep.data.DeleteMessageRequest
 import online.deepdesign.deep.data.MediaUploader
 import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.data.PickedFile
 import online.deepdesign.deep.data.SendMessageRequest
 import online.deepdesign.deep.data.VoiceRecorder
 import online.deepdesign.deep.data.readPickedFile
+import java.time.Duration
+import java.time.Instant
 
 data class ChatUiState(
     val loading: Boolean = true,
@@ -95,6 +98,7 @@ class ChatViewModel(
                     }
                     "message" -> event.message?.takeIf { it.conversationId == conversationId }
                         ?.let { onIncomingMessage(it) }
+                    "message_deleted" -> event.messageId?.let { removeMessage(it) }
                 }
             }
         }
@@ -243,6 +247,27 @@ class ChatViewModel(
 
     fun isMine(msg: MessageDto): Boolean = msg.senderId == DeepApp.instance.currentUserId
 
+    fun canDeleteForEveryone(msg: MessageDto): Boolean {
+        if (!isMine(msg)) return false
+        return try {
+            val created = Instant.parse(msg.createdAt)
+            Duration.between(created, Instant.now()).toHours() < DELETE_FOR_EVERYONE_HOURS
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun deleteMessage(msg: MessageDto, scope: String) {
+        viewModelScope.launch {
+            try {
+                api.deleteMessage(msg.id, DeleteMessageRequest(scope))
+                removeMessage(msg.id)
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message ?: "Не удалось удалить") }
+            }
+        }
+    }
+
     override fun onCleared() {
         voiceRecorder.cancel()
         wsJob?.cancel()
@@ -251,6 +276,8 @@ class ChatViewModel(
     }
 
     companion object {
+        private const val DELETE_FOR_EVERYONE_HOURS = 48L
+
         fun factory(conversationId: String): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")

@@ -63,6 +63,12 @@ interface DeepApi {
     @POST("api/v1/messages/{id}/read")
     suspend fun markRead(@Path("id") messageId: String): Map<String, Boolean>
 
+    @POST("api/v1/messages/{id}/delete")
+    suspend fun deleteMessage(
+        @Path("id") messageId: String,
+        @Body body: DeleteMessageRequest
+    ): Map<String, Boolean>
+
     @GET("api/v1/users/search")
     suspend fun searchUsers(@Query("q") query: String): UsersSearchResponse
 

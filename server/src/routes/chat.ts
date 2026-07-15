@@ -16,7 +16,7 @@ import { getUserById } from '../db/users.js';
 import { sendPush } from '../lib/firebase.js';
 import { pushChatEvent } from '../lib/chatPush.js';
 import { query } from '../db/client.js';
-import { broadcastToConversation, sendToUser } from '../ws/hub.js';
+import { sendToUser } from '../ws/hub.js';
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.get('/conversations', async (req) => {
@@ -104,9 +104,10 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       );
       const conversationId = conv.rows[0]?.conversation_id;
       if (conversationId) {
-        broadcastToConversation(conversationId, {
+        await pushChatEvent(conversationId, user.id, {
           type: 'message_deleted',
           messageId: id,
+          conversationId,
           scope: 'everyone'
         });
       }

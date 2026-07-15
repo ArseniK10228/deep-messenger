@@ -4,6 +4,7 @@ import android.content.Intent
 import android.media.MediaPlayer
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,7 +57,7 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
 @Composable
-fun MessageBubble(msg: MessageDto, mine: Boolean) {
+fun MessageBubble(msg: MessageDto, mine: Boolean, onLongClick: (() -> Unit)? = null) {
     val bg = if (mine) DeepBubbleOut else DeepBubbleIn
     val align = if (mine) Alignment.CenterEnd else Alignment.CenterStart
     val shape = RoundedCornerShape(
@@ -72,6 +73,14 @@ fun MessageBubble(msg: MessageDto, mine: Boolean) {
                 .widthIn(max = 300.dp)
                 .clip(shape)
                 .background(bg)
+                .then(
+                    if (onLongClick != null) {
+                        Modifier.combinedClickable(
+                            onClick = {},
+                            onLongClick = onLongClick
+                        )
+                    } else Modifier
+                )
                 .padding(horizontal = 10.dp, vertical = 8.dp)
                 .deepAppear(durationMillis = 260)
         ) {

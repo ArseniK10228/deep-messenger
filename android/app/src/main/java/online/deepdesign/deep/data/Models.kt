@@ -90,6 +90,9 @@ data class MessageDto(
 )
 
 @JsonClass(generateAdapter = true)
+data class DeleteMessageRequest(val scope: String)
+
+@JsonClass(generateAdapter = true)
 data class SendMessageRequest(
     val kind: String,
     val body: String?,

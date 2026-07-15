@@ -89,6 +89,44 @@ class CallManager(
     private var disconnectJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
+    init {
+        DeepAppCallBridgeHolder.manager = this
+    }
+
+    fun isInCall(): Boolean = _state.value !is CallUiState.Idle
+
+    fun onAppBackgrounded() {
+        if (!isInCall()) return
+        signaling.setUrgentReconnect(true)
+        signaling.connect()
+        beginAudioSession()
+        refreshForegroundService()
+    }
+
+    fun onAppForegrounded() {
+        signaling.setUrgentReconnect(isInCall())
+        if (isInCall()) {
+            beginAudioSession()
+            refreshForegroundService()
+        }
+    }
+
+    private fun refreshForegroundService() {
+        val peer = activePeerName
+        val video = when (val s = _state.value) {
+            is CallUiState.Outgoing -> s.video
+            is CallUiState.Incoming -> s.video
+            is CallUiState.Active -> s.video
+            else -> false
+        }
+        val outgoing = _state.value is CallUiState.Outgoing
+        CallForegroundService.refresh(context, peer, outgoing, video)
+    }
+
+    private fun setCallSignalingPriority(active: Boolean) {
+        signaling.setUrgentReconnect(active)
+    }
+
     fun start() {
         signaling.connect()
         listenJob?.cancel()
@@ -99,6 +137,7 @@ class CallManager(
 
     fun stop() {
         listenJob?.cancel()
+        setCallSignalingPriority(false)
         signaling.disconnect()
         teardownRtc()
         _state.value = CallUiState.Idle
@@ -149,8 +188,9 @@ class CallManager(
                 _videoOn.value = video
                 _overlayExpanded.value = true
                 _state.value = CallUiState.Outgoing(resp.callId, conversationId, peerName, video)
+                setCallSignalingPriority(true)
                 beginAudioSession()
-                CallForegroundService.start(context, peerName, outgoing = true)
+                CallForegroundService.start(context, peerName, outgoing = true, video = video)
             } catch (e: Exception) {
                 _state.value = CallUiState.Idle
                 _error.value = e.message?.takeIf { it.isNotBlank() } ?: "Не удалось начать звонок"
@@ -178,7 +218,8 @@ class CallManager(
                     incoming.video,
                     connected = false
                 )
-                CallForegroundService.start(context, incoming.callerName, outgoing = false)
+                setCallSignalingPriority(true)
+                CallForegroundService.start(context, incoming.callerName, outgoing = false, video = incoming.video)
                 initEngine()
                 pendingOffer?.let {
                     pendingOffer = null
@@ -236,6 +277,7 @@ class CallManager(
         _overlayExpanded.value = true
         _videoOn.value = video
         _state.value = CallUiState.Incoming(callId, conversationId, callerName, video)
+        setCallSignalingPriority(true)
         signaling.connect()
     }
 
@@ -252,6 +294,7 @@ class CallManager(
                     env.callerName ?: "Deep",
                     video
                 )
+                setCallSignalingPriority(true)
             }
             "call_accept" -> {
                 val callId = env.callId ?: return
@@ -265,6 +308,7 @@ class CallManager(
                         outgoing.video,
                         connected = false
                     )
+                    setCallSignalingPriority(true)
                     initEngine()
                     engine?.createOffer { sdp ->
                         signaling.sendSdp(callId, sdp.description, sdp.type.canonicalForm())
@@ -359,9 +403,8 @@ class CallManager(
                             }
                             engine?.localVideoTrackFlow?.value?.let { _localVideoTrack.value = it }
                         }
-                        PeerConnection.PeerConnectionState.DISCONNECTED -> scheduleDisconnectHangup()
                         PeerConnection.PeerConnectionState.FAILED -> {
-                            if (_state.value is CallUiState.Active) hangup()
+                            if (_state.value is CallUiState.Active) scheduleDisconnectHangup(graceMs = 25_000)
                         }
                         else -> Unit
                     }
@@ -381,8 +424,8 @@ class CallManager(
                             }
                             engine?.localVideoTrackFlow?.value?.let { _localVideoTrack.value = it }
                         }
-                        PeerConnection.IceConnectionState.DISCONNECTED -> scheduleDisconnectHangup()
-                        PeerConnection.IceConnectionState.FAILED -> scheduleDisconnectHangup(graceMs = 20_000)
+                        PeerConnection.IceConnectionState.DISCONNECTED -> scheduleDisconnectHangup(graceMs = 45_000)
+                        PeerConnection.IceConnectionState.FAILED -> scheduleDisconnectHangup(graceMs = 25_000)
                         else -> Unit
                     }
                 }
@@ -393,7 +436,7 @@ class CallManager(
         pendingIce.clear()
     }
 
-    private fun scheduleDisconnectHangup(graceMs: Long = 15_000) {
+    private fun scheduleDisconnectHangup(graceMs: Long = 45_000) {
         if (_state.value !is CallUiState.Active) return
         disconnectJob?.cancel()
         disconnectJob = scope.launch {
@@ -438,6 +481,7 @@ class CallManager(
         _localVideoTrack.value = null
         _remoteVideoTrack.value = null
         _overlayExpanded.value = true
+        setCallSignalingPriority(false)
         _state.value = CallUiState.Idle
         IncomingCallNotifier.dismiss(context)
         CallForegroundService.stop(context)

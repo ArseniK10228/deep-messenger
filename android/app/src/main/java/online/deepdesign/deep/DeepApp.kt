@@ -1,6 +1,9 @@
 package online.deepdesign.deep
 
 import android.app.Application
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -48,6 +51,16 @@ class DeepApp : Application() {
         signalingHub = signaling
         callManager = CallManager(this, signaling)
         voicePlayer = VoicePlayer()
+
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                callManager.onAppForegrounded()
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                callManager.onAppBackgrounded()
+            }
+        })
     }
 
     fun setAuthSession(token: String?, userId: String?) {

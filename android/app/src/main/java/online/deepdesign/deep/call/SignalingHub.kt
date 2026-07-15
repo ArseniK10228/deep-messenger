@@ -33,7 +33,11 @@ class SignalingHub(
     @Volatile
     private var shouldStayConnected = false
 
+    @Volatile
     private var reconnectJob: Job? = null
+
+    @Volatile
+    private var urgentReconnect = false
 
     private val callTypes = setOf(
         "call_invite", "call_accept", "call_end",
@@ -46,6 +50,17 @@ class SignalingHub(
 
     fun connect() {
         shouldStayConnected = true
+        openSocket()
+    }
+
+    fun setUrgentReconnect(enabled: Boolean) {
+        urgentReconnect = enabled
+        if (enabled && shouldStayConnected && ws == null) {
+            openSocket()
+        }
+    }
+
+    private fun openSocket() {
         if (ws != null) return
         val token = tokenProvider() ?: return
         val url = "${ApiConfig.WS_URL}?token=${java.net.URLEncoder.encode(token, "UTF-8")}"
@@ -93,8 +108,8 @@ class SignalingHub(
         if (!shouldStayConnected) return
         reconnectJob?.cancel()
         reconnectJob = scope.launch {
-            delay(2_000)
-            if (shouldStayConnected && ws == null) connect()
+            delay(if (urgentReconnect) 500 else 2_000)
+            if (shouldStayConnected && ws == null) openSocket()
         }
     }
 

@@ -1,7 +1,7 @@
 {
-  "versionCode": 5,
-  "versionName": "0.3.2",
+  "versionCode": 6,
+  "versionName": "0.3.3",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Фикс звонков: RECORD_AUDIO в манифесте, запрос разрешений, видеозвонок.",
+  "changelog": "Звонок в фоне: FGS с микрофоном/камерой, wake lock, удержание WS, мягкий ICE.",
   "forceUpdate": false
 }

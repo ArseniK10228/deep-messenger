@@ -3,14 +3,10 @@ package online.deepdesign.deep.call
 import android.content.Context
 import android.Manifest
 import android.content.pm.PackageManager
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
-import android.media.AudioManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
-import android.os.Build
 import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
@@ -71,8 +67,8 @@ class CallManager(
     private val _muted = MutableStateFlow(false)
     val muted: StateFlow<Boolean> = _muted.asStateFlow()
 
-    private val _speakerOn = MutableStateFlow(false)
-    val speakerOn: StateFlow<Boolean> = _speakerOn.asStateFlow()
+    private val audioRouter = CallAudioRouter(context)
+    val callAudio: StateFlow<CallAudioUiState> = audioRouter.state
 
     private val _overlayExpanded = MutableStateFlow(true)
     val overlayExpanded: StateFlow<Boolean> = _overlayExpanded.asStateFlow()
@@ -98,7 +94,6 @@ class CallManager(
     private val pendingIce = mutableListOf<IceCandidate>()
     private var disconnectJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
-    private var audioFocusRequest: AudioFocusRequest? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val ringtonePlayer = CallRingtonePlayer(context)
 
@@ -163,6 +158,7 @@ class CallManager(
         activePeerName = peerName
         acquireWakeLock()
         startNetworkMonitor()
+        audioRouter.startSession()
         CallForegroundService.start(
             context,
             peerName,
@@ -205,12 +201,24 @@ class CallManager(
 
     fun toggleSpeaker() {
         if (!isInCall()) return
-        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        am.mode = AudioManager.MODE_IN_COMMUNICATION
-        val next = !_speakerOn.value
-        _speakerOn.value = next
-        am.isSpeakerphoneOn = next
-        ringtonePlayer.applySpeakerRoute(next)
+        audioRouter.cycleOutputRoute()
+        ringtonePlayer.onAudioRouteChanged()
+    }
+
+    fun setCallOutputRoute(route: CallOutputRoute) {
+        if (!isInCall()) return
+        audioRouter.setOutputRoute(route)
+        ringtonePlayer.onAudioRouteChanged()
+    }
+
+    fun setCallInputRoute(route: CallInputRoute) {
+        if (!isInCall()) return
+        audioRouter.setInputRoute(route)
+    }
+
+    fun refreshCallAudioDevices() {
+        if (!isInCall()) return
+        audioRouter.refreshDevicesNow()
     }
 
     fun minimizeOverlay() {
@@ -571,36 +579,7 @@ class CallManager(
     }
 
     private fun beginAudioSession() {
-        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        am.mode = AudioManager.MODE_IN_COMMUNICATION
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val attrs = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build()
-            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setAudioAttributes(attrs)
-                .setOnAudioFocusChangeListener { focus ->
-                    if (focus == AudioManager.AUDIOFOCUS_GAIN) {
-                        am.mode = AudioManager.MODE_IN_COMMUNICATION
-                    }
-                }
-                .build()
-            audioFocusRequest = request
-            am.requestAudioFocus(request)
-        } else {
-            @Suppress("DEPRECATION")
-            am.requestAudioFocus(
-                { focus ->
-                    if (focus == AudioManager.AUDIOFOCUS_GAIN) {
-                        am.mode = AudioManager.MODE_IN_COMMUNICATION
-                    }
-                },
-                AudioManager.STREAM_VOICE_CALL,
-                AudioManager.AUDIOFOCUS_GAIN
-            )
-        }
-        am.isSpeakerphoneOn = _speakerOn.value
+        audioRouter.startSession()
         acquireWakeLock()
     }
 
@@ -618,18 +597,7 @@ class CallManager(
         disconnectJob?.cancel()
         runCatching { wakeLock?.release() }
         wakeLock = null
-        runCatching {
-            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                audioFocusRequest?.let { am.abandonAudioFocusRequest(it) }
-            } else {
-                @Suppress("DEPRECATION")
-                am.abandonAudioFocus(null)
-            }
-            audioFocusRequest = null
-            am.isSpeakerphoneOn = false
-            am.mode = AudioManager.MODE_NORMAL
-        }
+        audioRouter.stopSession()
     }
 
     private fun startNetworkMonitor() {
@@ -683,7 +651,6 @@ class CallManager(
         pendingOffer = null
         pendingIce.clear()
         _muted.value = false
-        _speakerOn.value = false
         _videoOn.value = true
         _localVideoTrack.value = null
         _localVideoMirror.value = false

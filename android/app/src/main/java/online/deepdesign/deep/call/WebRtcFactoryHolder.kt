@@ -27,7 +27,10 @@ object WebRtcFactoryHolder {
                 initialized = true
             }
             factory?.let { return it }
-            val audioModule = JavaAudioDeviceModule.builder(appContext).createAudioDeviceModule()
+            val audioModule = JavaAudioDeviceModule.builder(appContext)
+                .setUseHardwareAcousticEchoCanceler(true)
+                .setUseHardwareNoiseSuppressor(true)
+                .createAudioDeviceModule()
             val encoderFactory = DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true)
             val decoderFactory = DefaultVideoDecoderFactory(eglBase.eglBaseContext)
             factory = PeerConnectionFactory.builder()

@@ -19,7 +19,6 @@ class CallRingtonePlayer(context: Context) {
     private var toneGenerator: ToneGenerator? = null
     private var ringbackHandler: Handler? = null
     private var ringbackActive = false
-    private var speakerOn = false
 
     fun playIncoming() {
         stop()
@@ -45,7 +44,7 @@ class CallRingtonePlayer(context: Context) {
     fun playOutgoingRingback() {
         stop()
         ringbackActive = true
-        configureCallAudioRoute(speakerOn)
+        ensureCallAudioMode()
         try {
             toneGenerator = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 85)
             ringbackHandler = Handler(Looper.getMainLooper())
@@ -55,36 +54,20 @@ class CallRingtonePlayer(context: Context) {
         }
     }
 
-    /** Re-route ringback when user toggles speaker during outgoing dial tone. */
-    fun applySpeakerRoute(speakerOn: Boolean) {
-        this.speakerOn = speakerOn
-        configureCallAudioRoute(speakerOn)
+    fun onAudioRouteChanged() {
         if (!ringbackActive) return
         refreshRingbackGenerator()
     }
 
-    private fun configureCallAudioRoute(speakerOn: Boolean) {
+    private fun ensureCallAudioMode() {
         val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         am.mode = AudioManager.MODE_IN_COMMUNICATION
-        am.isSpeakerphoneOn = speakerOn
-    }
-
-    private fun refreshRingbackGenerator() {
-        runCatching { toneGenerator?.stopTone() }
-        runCatching { toneGenerator?.release() }
-        toneGenerator = null
-        try {
-            toneGenerator = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 85)
-        } catch (e: Exception) {
-            Log.w(TAG, "refreshRingbackGenerator failed", e)
-        }
     }
 
     private val ringbackRunnable = object : Runnable {
         override fun run() {
             if (!ringbackActive) return
             val tg = toneGenerator ?: return
-            // Long monotone beeps — "звонок идёт", not incoming melody.
             tg.startTone(ToneGenerator.TONE_CDMA_NETWORK_USA_RINGBACK, 2000)
             ringbackHandler?.postDelayed(this, 5000)
         }
@@ -102,6 +85,18 @@ class CallRingtonePlayer(context: Context) {
             isLooping = true
             prepare()
             start()
+        }
+    }
+
+    private fun refreshRingbackGenerator() {
+        runCatching { toneGenerator?.stopTone() }
+        runCatching { toneGenerator?.release() }
+        toneGenerator = null
+        try {
+            ensureCallAudioMode()
+            toneGenerator = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 85)
+        } catch (e: Exception) {
+            Log.w(TAG, "refreshRingbackGenerator failed", e)
         }
     }
 

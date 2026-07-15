@@ -25,9 +25,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -53,6 +55,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import online.deepdesign.deep.call.CallAudioUiState
+import online.deepdesign.deep.call.CallInputRoute
+import online.deepdesign.deep.call.CallOutputRoute
 import online.deepdesign.deep.call.CallUiState
 import online.deepdesign.deep.ui.components.ChatAvatar
 import online.deepdesign.deep.ui.components.deepAppear
@@ -68,7 +73,7 @@ import org.webrtc.VideoTrack
 fun CallOverlay(
     state: CallUiState,
     muted: Boolean,
-    speakerOn: Boolean,
+    callAudio: CallAudioUiState,
     videoOn: Boolean,
     localVideo: VideoTrack?,
     localVideoMirror: Boolean,
@@ -77,7 +82,7 @@ fun CallOverlay(
     onReject: () -> Unit,
     onHangup: () -> Unit,
     onToggleMute: () -> Unit,
-    onToggleSpeaker: () -> Unit,
+    onOpenAudioSettings: () -> Unit,
     onToggleVideo: () -> Unit,
     onSwitchCamera: () -> Unit,
     onMinimize: () -> Unit,
@@ -92,6 +97,7 @@ fun CallOverlay(
                 status = "Вызов…",
                 connected = false,
                 muted = muted,
+                callAudio = callAudio,
                 videoOn = videoOn,
                 localVideo = localVideo,
                 localVideoMirror = localVideoMirror,
@@ -99,6 +105,7 @@ fun CallOverlay(
                 onToggleMute = onToggleMute,
                 onToggleVideo = onToggleVideo,
                 onSwitchCamera = onSwitchCamera,
+                onOpenAudioSettings = onOpenAudioSettings,
                 onHangup = onHangup,
                 onMinimize = onMinimize
             )
@@ -108,9 +115,9 @@ fun CallOverlay(
                 status = "Вызов…",
                 connected = false,
                 muted = muted,
-                speakerOn = speakerOn,
+                callAudio = callAudio,
                 onToggleMute = onToggleMute,
-                onToggleSpeaker = onToggleSpeaker,
+                onOpenAudioSettings = onOpenAudioSettings,
                 onHangup = onHangup,
                 onMinimize = onMinimize
             )
@@ -121,6 +128,7 @@ fun CallOverlay(
                 status = if (state.connected) "На линии" else "Соединяем…",
                 connected = state.connected,
                 muted = muted,
+                callAudio = callAudio,
                 videoOn = videoOn,
                 localVideo = localVideo,
                 localVideoMirror = localVideoMirror,
@@ -128,6 +136,7 @@ fun CallOverlay(
                 onToggleMute = onToggleMute,
                 onToggleVideo = onToggleVideo,
                 onSwitchCamera = onSwitchCamera,
+                onOpenAudioSettings = onOpenAudioSettings,
                 onHangup = onHangup,
                 onMinimize = onMinimize
             )
@@ -137,9 +146,9 @@ fun CallOverlay(
                 status = if (state.connected) "На линии" else "Соединяем…",
                 connected = state.connected,
                 muted = muted,
-                speakerOn = speakerOn,
+                callAudio = callAudio,
                 onToggleMute = onToggleMute,
-                onToggleSpeaker = onToggleSpeaker,
+                onOpenAudioSettings = onOpenAudioSettings,
                 onHangup = onHangup,
                 onMinimize = onMinimize
             )
@@ -250,9 +259,9 @@ private fun OngoingCallUi(
     status: String,
     connected: Boolean,
     muted: Boolean,
-    speakerOn: Boolean,
+    callAudio: CallAudioUiState,
     onToggleMute: () -> Unit,
-    onToggleSpeaker: () -> Unit,
+    onOpenAudioSettings: () -> Unit,
     onHangup: () -> Unit,
     onMinimize: () -> Unit
 ) {
@@ -293,15 +302,22 @@ private fun OngoingCallUi(
                 CallControlsDock {
                     CallControlChip(
                         icon = if (muted) Icons.Default.MicOff else Icons.Default.Mic,
-                        label = if (muted) "Вкл." else "Микрофон",
+                        label = if (muted) {
+                            "Вкл."
+                        } else if (callAudio.inputRoute == CallInputRoute.Headset) {
+                            "BT мик"
+                        } else {
+                            "Мик"
+                        },
                         active = muted,
                         onClick = onToggleMute
                     )
                     CallControlChip(
-                        icon = if (speakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.VolumeOff,
-                        label = "Динамик",
-                        active = speakerOn,
-                        onClick = onToggleSpeaker
+                        icon = audioOutputIcon(callAudio.outputRoute),
+                        label = callAudio.outputLabel,
+                        active = callAudio.outputRoute == CallOutputRoute.Speaker ||
+                            callAudio.outputRoute == CallOutputRoute.Bluetooth,
+                        onClick = onOpenAudioSettings
                     )
                     HangupChip(onClick = onHangup)
                 }
@@ -323,11 +339,13 @@ private fun VideoCallUi(
     status: String,
     connected: Boolean,
     muted: Boolean,
+    callAudio: CallAudioUiState,
     videoOn: Boolean,
     localVideo: VideoTrack?,
     localVideoMirror: Boolean,
     remoteVideo: VideoTrack?,
     onToggleMute: () -> Unit,
+    onOpenAudioSettings: () -> Unit,
     onToggleVideo: () -> Unit,
     onSwitchCamera: () -> Unit,
     onHangup: () -> Unit,
@@ -429,9 +447,16 @@ private fun VideoCallUi(
         ) {
             CallControlChip(
                 icon = if (muted) Icons.Default.MicOff else Icons.Default.Mic,
-                label = "Микрофон",
+                label = if (muted) "Вкл." else "Мик",
                 active = muted,
                 onClick = onToggleMute,
+                light = true
+            )
+            CallControlChip(
+                icon = audioOutputIcon(callAudio.outputRoute),
+                label = callAudio.outputLabel,
+                active = callAudio.outputRoute != CallOutputRoute.Earpiece,
+                onClick = onOpenAudioSettings,
                 light = true
             )
             CallControlChip(
@@ -575,6 +600,13 @@ private fun HangupChip(onClick: () -> Unit) {
         Spacer(Modifier.height(6.dp))
         Text("Сброс", color = DeepMuted, style = MaterialTheme.typography.labelSmall)
     }
+}
+
+private fun audioOutputIcon(route: CallOutputRoute): ImageVector = when (route) {
+    CallOutputRoute.Bluetooth -> Icons.Default.Bluetooth
+    CallOutputRoute.Wired -> Icons.Default.Headphones
+    CallOutputRoute.Speaker -> Icons.AutoMirrored.Filled.VolumeUp
+    CallOutputRoute.Earpiece -> Icons.Default.VolumeOff
 }
 
 @Composable

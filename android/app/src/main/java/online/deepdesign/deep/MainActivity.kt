@@ -20,7 +20,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
@@ -29,6 +31,7 @@ import online.deepdesign.deep.call.CallPermissions
 import online.deepdesign.deep.call.CallUiState
 import online.deepdesign.deep.navigation.DeepNavHost
 import online.deepdesign.deep.ui.call.CallMinimizedBar
+import online.deepdesign.deep.ui.call.CallAudioSettingsSheet
 import online.deepdesign.deep.ui.call.CallOverlay
 import online.deepdesign.deep.ui.theme.DeepTheme
 
@@ -43,13 +46,48 @@ class MainActivity : ComponentActivity() {
                 val callState by callManager.state.collectAsState()
                 val callError by callManager.error.collectAsState()
                 val muted by callManager.muted.collectAsState()
-                val speakerOn by callManager.speakerOn.collectAsState()
+                val callAudio by callManager.callAudio.collectAsState()
                 val overlayExpanded by callManager.overlayExpanded.collectAsState()
                 val videoOn by callManager.videoOn.collectAsState()
                 val localVideo by callManager.localVideoTrack.collectAsState()
                 val localVideoMirror by callManager.localVideoMirror.collectAsState()
                 val remoteVideo by callManager.remoteVideoTrack.collectAsState()
                 val snackbar = remember { SnackbarHostState() }
+                var showAudioSettings by remember { mutableStateOf(false) }
+
+                val bluetoothPermission = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { granted ->
+                    if (granted) {
+                        callManager.refreshCallAudioDevices()
+                        showAudioSettings = true
+                    }
+                }
+
+                val bluetoothCallPermission = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { granted ->
+                    if (granted) callManager.refreshCallAudioDevices()
+                }
+
+                LaunchedEffect(callState) {
+                    if (callState is CallUiState.Idle) return@LaunchedEffect
+                    if (CallPermissions.needsBluetoothConnect() &&
+                        !CallPermissions.hasBluetoothConnect(this@MainActivity)
+                    ) {
+                        bluetoothCallPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                    }
+                }
+
+                fun openCallAudioSettings() {
+                    if (CallPermissions.needsBluetoothConnect() &&
+                        !CallPermissions.hasBluetoothConnect(this@MainActivity)
+                    ) {
+                        bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                    } else {
+                        showAudioSettings = true
+                    }
+                }
 
                 val micPermission = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
@@ -106,7 +144,7 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize(),
                                     state = callState,
                                     muted = muted,
-                                    speakerOn = speakerOn,
+                                    callAudio = callAudio,
                                     videoOn = videoOn,
                                     localVideo = localVideo,
                                     localVideoMirror = localVideoMirror,
@@ -115,7 +153,7 @@ class MainActivity : ComponentActivity() {
                                     onReject = { callManager.rejectIncoming() },
                                     onHangup = { callManager.hangup() },
                                     onToggleMute = { callManager.toggleMute() },
-                                    onToggleSpeaker = { callManager.toggleSpeaker() },
+                                    onOpenAudioSettings = { openCallAudioSettings() },
                                     onToggleVideo = { callManager.toggleVideo() },
                                     onSwitchCamera = { callManager.switchCamera() },
                                     onMinimize = { callManager.minimizeOverlay() }
@@ -133,6 +171,15 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                }
+
+                if (showAudioSettings && callState !is CallUiState.Idle) {
+                    CallAudioSettingsSheet(
+                        audio = callAudio,
+                        onDismiss = { showAudioSettings = false },
+                        onOutputSelected = { callManager.setCallOutputRoute(it) },
+                        onInputSelected = { callManager.setCallInputRoute(it) }
+                    )
                 }
             }
         }

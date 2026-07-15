@@ -3,6 +3,7 @@ package online.deepdesign.deep.call
 import android.content.Context
 import android.Manifest
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,6 +54,12 @@ class CallManager(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _muted = MutableStateFlow(false)
+    val muted: StateFlow<Boolean> = _muted.asStateFlow()
+
+    private val _speakerOn = MutableStateFlow(false)
+    val speakerOn: StateFlow<Boolean> = _speakerOn.asStateFlow()
+
     private var engine: WebRtcCallEngine? = null
     private var iceServers: List<IceServerDto> = emptyList()
     private var listenJob: Job? = null
@@ -78,6 +85,19 @@ class CallManager(
 
     fun clearError() {
         _error.value = null
+    }
+
+    fun toggleMute() {
+        val next = !_muted.value
+        _muted.value = next
+        engine?.setMicrophoneMuted(next)
+    }
+
+    fun toggleSpeaker() {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val next = !_speakerOn.value
+        _speakerOn.value = next
+        am.isSpeakerphoneOn = next
     }
 
     fun startOutgoing(conversationId: String, peerName: String) {
@@ -266,6 +286,12 @@ class CallManager(
         activeCallId = null
         pendingOffer = null
         pendingIce.clear()
+        _muted.value = false
+        _speakerOn.value = false
+        runCatching {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            am.isSpeakerphoneOn = false
+        }
         _state.value = CallUiState.Idle
         CallForegroundService.stop(context)
     }

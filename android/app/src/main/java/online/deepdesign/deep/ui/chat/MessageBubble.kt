@@ -2,7 +2,6 @@ package online.deepdesign.deep.ui.chat
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.media.MediaPlayer
 import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -20,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
@@ -28,16 +28,11 @@ import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,8 +40,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.data.resolveMediaUrl
+import online.deepdesign.deep.ui.components.VoiceWaveform
 import online.deepdesign.deep.ui.components.deepAppear
 import online.deepdesign.deep.ui.theme.DeepAccent
 import online.deepdesign.deep.ui.theme.DeepBubbleIn
@@ -71,9 +68,10 @@ fun MessageBubble(msg: MessageDto, mine: Boolean, onLongClick: (() -> Unit)? = n
     )
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = align) {
+        val isVoice = msg.kind == "voice"
         Column(
             modifier = Modifier
-                .widthIn(max = 300.dp)
+                .widthIn(min = if (isVoice) 240.dp else 0.dp, max = if (isVoice) 300.dp else 300.dp)
                 .clip(shape)
                 .background(bg)
                 .then(
@@ -179,56 +177,62 @@ private fun FileMessage(msg: MessageDto) {
 private fun VoiceMessage(msg: MessageDto) {
     val url = resolveMediaUrl(msg.mediaUrl) ?: return
     val durationSec = ((msg.mediaDurationMs ?: 0L) / 1000f).roundToInt().coerceAtLeast(1)
-    var playing by remember(msg.id) { mutableStateOf(false) }
-    val player = remember(msg.id) { MediaPlayer() }
-
-    DisposableEffect(msg.id) {
-        onDispose {
-            if (player.isPlaying) player.stop()
-            player.release()
-        }
+    val player = DeepApp.instance.voicePlayer
+    val playState by player.state.collectAsState()
+    val isThis = playState.messageId == msg.id
+    val playing = isThis && playState.playing
+    val progress = if (isThis) playState.progress else 0f
+    val elapsedSec = if (isThis && playing) {
+        (durationSec * progress).roundToInt().coerceIn(0, durationSec)
+    } else {
+        0
     }
 
     Row(
-        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier
+            .padding(horizontal = 2.dp, vertical = 4.dp)
+            .heightIn(min = 44.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        IconButton(
-            onClick = {
-                if (playing) {
-                    player.pause()
-                    playing = false
-                } else {
-                    try {
-                        if (!player.isPlaying) {
-                            player.reset()
-                            player.setDataSource(url)
-                            player.prepare()
-                            player.start()
-                            player.setOnCompletionListener {
-                                playing = false
-                            }
-                        }
-                        playing = true
-                    } catch (_: Exception) {
-                        playing = false
-                    }
-                }
-            },
-            modifier = Modifier.size(36.dp)
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(DeepAccent.copy(alpha = 0.22f))
+                .clickable { player.toggle(msg.id, url) },
+            contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
                 contentDescription = if (playing) "Пауза" else "Слушать",
-                tint = DeepAccent
+                tint = DeepAccent,
+                modifier = Modifier.size(26.dp)
             )
         }
-        Text(
-            text = "${durationSec}с",
-            color = DeepText,
-            style = MaterialTheme.typography.bodyMedium
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            VoiceWaveform(
+                seed = msg.id,
+                progress = progress,
+                playing = playing,
+                activeColor = DeepAccent,
+                inactiveColor = DeepMuted.copy(alpha = 0.35f),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = if (playing) formatVoiceTime(elapsedSec) else formatVoiceTime(durationSec),
+                color = DeepMuted,
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
     }
+}
+
+private fun formatVoiceTime(seconds: Int): String {
+    val m = seconds / 60
+    val s = seconds % 60
+    return if (m > 0) "%d:%02d".format(m, s) else "0:%02d".format(s)
 }
 
 private fun formatFileSize(bytes: Long): String {

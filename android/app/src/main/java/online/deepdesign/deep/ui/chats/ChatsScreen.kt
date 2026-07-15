@@ -22,9 +22,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -42,6 +44,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import online.deepdesign.deep.data.ConversationDto
 import online.deepdesign.deep.data.UserDto
+import online.deepdesign.deep.ui.components.ChatAvatar
 import online.deepdesign.deep.ui.components.deepAppear
 import online.deepdesign.deep.ui.theme.DeepAccent
 import online.deepdesign.deep.ui.theme.DeepBg
@@ -71,6 +77,7 @@ fun ChatsScreen(
     vm: ChatsViewModel = viewModel()
 ) {
     val state by vm.state.collectAsState()
+    var listFilter by remember { mutableStateOf("") }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -100,6 +107,16 @@ fun ChatsScreen(
             }
         }
     ) { padding ->
+        val filtered = remember(state.conversations, listFilter) {
+            val q = listFilter.trim().lowercase()
+            if (q.isBlank()) state.conversations
+            else state.conversations.filter { conv ->
+                val title = vm.peerTitle(conv).lowercase()
+                val preview = vm.previewText(conv).lowercase()
+                title.contains(q) || preview.contains(q)
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -135,18 +152,53 @@ fun ChatsScreen(
                     }
                 }
                 else -> {
-                    LazyColumn(
-                        contentPadding = PaddingValues(vertical = 8.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        itemsIndexed(state.conversations, key = { _, c -> c.id }) { index, conv ->
-                            ConversationRow(
-                                modifier = Modifier.deepAppear(delayMillis = index * 40),
-                                title = vm.peerTitle(conv),
-                                preview = vm.previewText(conv),
-                                time = formatTime(conv.lastMessage?.createdAt),
-                                onClick = { onOpenChat(conv.id, vm.peerTitle(conv)) }
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        OutlinedTextField(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            value = listFilter,
+                            onValueChange = { listFilter = it },
+                            placeholder = { Text("Поиск по чатам", color = DeepMuted) },
+                            leadingIcon = {
+                                Icon(Icons.Default.Search, contentDescription = null, tint = DeepMuted)
+                            },
+                            trailingIcon = {
+                                if (listFilter.isNotBlank()) {
+                                    IconButton(onClick = { listFilter = "" }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Очистить", tint = DeepMuted)
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(20.dp),
+                            colors = outlinedFieldColors()
+                        )
+                        if (filtered.isEmpty()) {
+                            Text(
+                                "Ничего не нашли",
+                                color = DeepMuted,
+                                modifier = Modifier.padding(24.dp)
                             )
+                        } else {
+                            LazyColumn(
+                                contentPadding = PaddingValues(bottom = 88.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                itemsIndexed(filtered, key = { _, c -> c.id }) { index, conv ->
+                                    ConversationRow(
+                                        modifier = Modifier.deepAppear(delayMillis = index * 30),
+                                        title = vm.peerTitle(conv),
+                                        preview = vm.previewText(conv),
+                                        time = formatTime(conv.lastMessage?.createdAt),
+                                        onClick = { onOpenChat(conv.id, vm.peerTitle(conv)) }
+                                    )
+                                    HorizontalDivider(
+                                        color = DeepSurfaceHigh.copy(alpha = 0.5f),
+                                        modifier = Modifier.padding(start = 78.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -221,44 +273,45 @@ private fun ConversationRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(52.dp)
-                .clip(CircleShape)
-                .background(DeepSurfaceHigh),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = title.firstOrNull()?.uppercase() ?: "?",
-                color = DeepAccent,
-                style = MaterialTheme.typography.titleMedium
-            )
-        }
+        ChatAvatar(name = title, size = 52.dp)
         Column(
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 14.dp)
         ) {
-            Text(
-                text = title,
-                color = DeepText,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    color = DeepText,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                time?.let {
+                    Text(
+                        text = it,
+                        color = DeepMuted,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+            }
             Text(
                 text = preview,
                 color = DeepMuted,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp)
             )
-        }
-        time?.let {
-            Text(text = it, color = DeepMuted, style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -331,7 +384,12 @@ private fun NewChatSheet(
                     .padding(vertical = 12.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                ChatAvatar(name = userTitle(user), size = 44.dp)
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 12.dp)
+                ) {
                     Text(
                         text = userTitle(user),
                         color = DeepText,

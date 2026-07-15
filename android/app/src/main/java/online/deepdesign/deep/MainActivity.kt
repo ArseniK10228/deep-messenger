@@ -31,10 +31,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             DeepTheme {
-                val callState by DeepApp.instance.callManager.state.collectAsState()
-                val callError by DeepApp.instance.callManager.error.collectAsState()
-                val snackbar = remember { SnackbarHostState() }
                 val callManager = DeepApp.instance.callManager
+                val callState by callManager.state.collectAsState()
+                val callError by callManager.error.collectAsState()
+                val muted by callManager.muted.collectAsState()
+                val speakerOn by callManager.speakerOn.collectAsState()
+                val snackbar = remember { SnackbarHostState() }
 
                 val micPermission = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
@@ -70,9 +72,13 @@ class MainActivity : ComponentActivity() {
                         if (callState !is CallUiState.Idle) {
                             CallOverlay(
                                 state = callState,
+                                muted = muted,
+                                speakerOn = speakerOn,
                                 onAccept = { acceptCall() },
                                 onReject = { callManager.rejectIncoming() },
-                                onHangup = { callManager.hangup() }
+                                onHangup = { callManager.hangup() },
+                                onToggleMute = { callManager.toggleMute() },
+                                onToggleSpeaker = { callManager.toggleSpeaker() }
                             )
                         }
                     }

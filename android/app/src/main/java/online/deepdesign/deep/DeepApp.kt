@@ -11,6 +11,7 @@ import online.deepdesign.deep.data.ApiClient
 import online.deepdesign.deep.data.DeepApi
 import online.deepdesign.deep.data.SessionStore
 import online.deepdesign.deep.data.DeepAppToken
+import online.deepdesign.deep.data.VoicePlayer
 import online.deepdesign.deep.push.FcmRegistrar
 
 class DeepApp : Application() {
@@ -24,6 +25,9 @@ class DeepApp : Application() {
         private set
 
     lateinit var signalingHub: SignalingHub
+        private set
+
+    lateinit var voicePlayer: VoicePlayer
         private set
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -43,6 +47,7 @@ class DeepApp : Application() {
         val signaling = SignalingHub { cachedToken }
         signalingHub = signaling
         callManager = CallManager(this, signaling)
+        voicePlayer = VoicePlayer()
     }
 
     fun setAuthSession(token: String?, userId: String?) {

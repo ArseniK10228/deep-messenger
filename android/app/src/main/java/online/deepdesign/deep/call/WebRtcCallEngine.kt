@@ -96,6 +96,10 @@ class WebRtcCallEngine(
         peerConnection?.addIceCandidate(candidate)
     }
 
+    fun setMicrophoneMuted(muted: Boolean) {
+        localAudioTrack.setEnabled(!muted)
+    }
+
     fun close() {
         try {
             localAudioTrack.dispose()

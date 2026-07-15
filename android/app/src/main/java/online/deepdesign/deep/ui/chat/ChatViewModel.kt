@@ -110,6 +110,10 @@ class ChatViewModel(
         _state.update { it.copy(input = v) }
     }
 
+    fun showError(message: String) {
+        _state.update { it.copy(error = message) }
+    }
+
     fun send() {
         val text = _state.value.input.trim()
         if (text.isEmpty() || _state.value.sending || _state.value.uploading) return

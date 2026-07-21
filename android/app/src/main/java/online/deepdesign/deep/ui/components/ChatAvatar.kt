@@ -1,5 +1,13 @@
 package online.deepdesign.deep.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +36,8 @@ fun ChatAvatar(
 ) {
     val initial = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
     val gradient = Brush.linearGradient(listOf(DeepAccent, DeepAccentDim))
+    val dotSize = (size * 0.28f).coerceAtLeast(10.dp)
+
     Box(modifier = modifier.size(size)) {
         Box(
             modifier = Modifier
@@ -43,14 +53,36 @@ fun ChatAvatar(
                 fontWeight = FontWeight.Bold
             )
         }
-        if (online) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .size((size * 0.28f).coerceAtLeast(10.dp))
-                    .clip(CircleShape)
-                    .background(Color(0xFF34C759))
-            )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .size(dotSize)
+        ) {
+            AnimatedContent(
+                targetState = online,
+                transitionSpec = {
+                    (scaleIn(
+                        initialScale = 0.4f,
+                        animationSpec = tween(260, easing = FastOutSlowInEasing)
+                    ) + fadeIn(tween(220))) togetherWith
+                        (scaleOut(targetScale = 0.5f, animationSpec = tween(180)) + fadeOut(tween(160)))
+                },
+                label = "onlineDot"
+            ) { isOnline ->
+                if (isOnline) {
+                    OnlineDot(size = dotSize)
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun OnlineDot(size: Dp) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Color(0xFF34C759))
+    )
 }

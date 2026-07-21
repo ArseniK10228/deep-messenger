@@ -1,10 +1,13 @@
 package online.deepdesign.deep.ui.chats
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -78,6 +81,7 @@ import online.deepdesign.deep.update.ApkInstaller
 import online.deepdesign.deep.update.AppUpdateDialog
 import online.deepdesign.deep.update.UpdateChecker
 import online.deepdesign.deep.ui.components.ChatAvatar
+import online.deepdesign.deep.ui.components.TypingBubbleIndicator
 import online.deepdesign.deep.ui.components.deepAppear
 import online.deepdesign.deep.ui.theme.DeepAccent
 import online.deepdesign.deep.ui.theme.DeepBg
@@ -86,7 +90,6 @@ import online.deepdesign.deep.ui.theme.DeepMuted
 import online.deepdesign.deep.ui.theme.DeepSurface
 import online.deepdesign.deep.ui.theme.DeepSurfaceHigh
 import online.deepdesign.deep.ui.theme.DeepText
-import online.deepdesign.deep.ui.util.PresenceFormatter
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -260,12 +263,11 @@ fun ChatsScreen(
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 itemsIndexed(filtered, key = { _, c -> c.id }) { index, conv ->
-                                    val (online, lastSeen) = vm.peerPresence(conv)
+                                    val (online, _) = vm.peerPresence(conv)
                                     val peerTyping = vm.isPeerTyping(conv.id)
                                     ConversationRow(
                                         modifier = Modifier.deepAppear(delayMillis = index * 30),
                                         title = vm.peerTitle(conv),
-                                        lastSeenSubtitle = PresenceFormatter.listLastSeen(online, lastSeen),
                                         preview = vm.previewText(conv),
                                         peerTyping = peerTyping,
                                         time = formatTime(conv.lastMessage?.createdAt),
@@ -343,7 +345,6 @@ fun ChatsScreen(
 @Composable
 private fun ConversationRow(
     title: String,
-    lastSeenSubtitle: String?,
     preview: String,
     peerTyping: Boolean,
     time: String?,
@@ -386,73 +387,28 @@ private fun ConversationRow(
                     )
                 }
             }
-            if (lastSeenSubtitle != null) {
-                Text(
-                    text = lastSeenSubtitle,
-                    color = DeepMuted,
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (peerTyping) {
-                TypingPreview(modifier = Modifier.padding(top = if (lastSeenSubtitle != null) 2.dp else 0.dp))
-            } else {
-                Text(
-                    text = preview,
-                    color = DeepMuted,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = if (lastSeenSubtitle != null) 2.dp else 0.dp)
-                )
+            AnimatedContent(
+                targetState = peerTyping,
+                transitionSpec = {
+                    (fadeIn(tween(240, easing = FastOutSlowInEasing)) +
+                        scaleIn(initialScale = 0.82f, easing = FastOutSlowInEasing)) togetherWith
+                        (fadeOut(tween(180)) + scaleOut(targetScale = 0.94f))
+                },
+                label = "preview"
+            ) { typing ->
+                if (typing) {
+                    TypingBubbleIndicator(compact = true)
+                } else {
+                    Text(
+                        text = preview,
+                        color = DeepMuted,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun TypingPreview(modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "typing")
-    val dot1 by transition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(500), RepeatMode.Reverse),
-        label = "dot1"
-    )
-    val dot2 by transition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(500, delayMillis = 160), RepeatMode.Reverse),
-        label = "dot2"
-    )
-    val dot3 by transition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(500, delayMillis = 320), RepeatMode.Reverse),
-        label = "dot3"
-    )
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = "печатает",
-            color = DeepAccent,
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Text(
-            text = "•",
-            color = DeepAccent.copy(alpha = dot1),
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Text(
-            text = "•",
-            color = DeepAccent.copy(alpha = dot2),
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Text(
-            text = "•",
-            color = DeepAccent.copy(alpha = dot3),
-            style = MaterialTheme.typography.bodyMedium
-        )
     }
 }
 

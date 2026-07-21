@@ -5,6 +5,13 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -75,7 +82,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import online.deepdesign.deep.data.MessageDto
+import online.deepdesign.deep.ui.components.AnimatedChatStatus
 import online.deepdesign.deep.ui.components.ChatAvatar
+import online.deepdesign.deep.ui.components.TypingBubbleIndicator
 import online.deepdesign.deep.ui.components.VoiceWaveform
 import online.deepdesign.deep.ui.components.deepAppear
 import online.deepdesign.deep.ui.theme.DeepAccent
@@ -85,7 +94,6 @@ import online.deepdesign.deep.ui.theme.DeepMuted
 import online.deepdesign.deep.ui.theme.DeepSurface
 import online.deepdesign.deep.ui.theme.DeepSurfaceHigh
 import online.deepdesign.deep.ui.theme.DeepText
-import online.deepdesign.deep.ui.util.PresenceFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -212,12 +220,6 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    val status = PresenceFormatter.chatStatus(
-                        online = state.peerOnline,
-                        lastSeenAt = state.peerLastSeenAt,
-                        typing = state.peerTyping
-                    )
-                    val statusAccent = PresenceFormatter.isOnlineAccent(state.peerOnline, state.peerTyping)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         ChatAvatar(name = title, size = 40.dp, online = state.peerOnline)
                         Spacer(Modifier.width(12.dp))
@@ -228,10 +230,10 @@ fun ChatScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            Text(
-                                status,
-                                color = if (statusAccent) DeepAccent else DeepMuted,
-                                style = MaterialTheme.typography.labelSmall
+                            AnimatedChatStatus(
+                                online = state.peerOnline,
+                                lastSeenAt = state.peerLastSeenAt,
+                                typing = state.peerTyping
                             )
                         }
                     }
@@ -405,15 +407,17 @@ fun ChatScreen(
                 )
             }
 
-            if (state.peerTyping) {
-                Text(
-                    text = "печатает…",
-                    color = DeepMuted,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(16.dp)
-                )
+            AnimatedVisibility(
+                visible = state.peerTyping,
+                enter = fadeIn(tween(240, easing = FastOutSlowInEasing)) +
+                    slideInVertically(tween(240, easing = FastOutSlowInEasing)) { it / 2 },
+                exit = fadeOut(tween(180)) +
+                    slideOutVertically(tween(180)) { it / 2 },
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp)
+            ) {
+                TypingBubbleIndicator()
             }
 
             state.error?.let {

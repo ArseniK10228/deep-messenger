@@ -5,6 +5,13 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
@@ -64,7 +70,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -104,6 +109,7 @@ fun ChatScreen(
     val context = LocalContext.current
     val density = LocalDensity.current
     val imeBottomPx = WindowInsets.ime.getBottom(density)
+    val keyboardVisible = imeBottomPx > 0
     var showAttach by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<MessageDto?>(null) }
     val attachSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -205,10 +211,7 @@ fun ChatScreen(
 
     LaunchedEffect(state.peerTyping) {
         if (!state.peerTyping || state.messages.isEmpty()) return@LaunchedEffect
-        val idx = state.messages.lastIndex + 1
-        listState.scrollToItem(idx)
-        withFrameNanos { }
-        listState.scrollToItem(idx)
+        listState.animateScrollToItem(state.messages.lastIndex + 1)
     }
 
     LaunchedEffect(imeBottomPx) {
@@ -269,7 +272,6 @@ fun ChatScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .imePadding()
         ) {
             Box(
                 modifier = Modifier
@@ -324,11 +326,23 @@ fun ChatScreen(
                                 )
                             }
                             item(key = "peer_typing") {
-                                if (state.peerTyping) {
-                                    TypingBubbleIndicator(
-                                        asMessageBubble = true,
-                                        modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
-                                    )
+                                Column {
+                                    AnimatedVisibility(
+                                        visible = state.peerTyping,
+                                        enter = expandVertically(
+                                            animationSpec = tween(260, easing = FastOutSlowInEasing),
+                                            expandFrom = Alignment.Top
+                                        ) + fadeIn(tween(220, easing = FastOutSlowInEasing)),
+                                        exit = shrinkVertically(
+                                            animationSpec = tween(220, easing = FastOutSlowInEasing),
+                                            shrinkTowards = Alignment.Top
+                                        ) + fadeOut(tween(160))
+                                    ) {
+                                        TypingBubbleIndicator(
+                                            asMessageBubble = true,
+                                            modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -365,7 +379,10 @@ fun ChatScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .navigationBarsPadding()
+                            .then(
+                                if (keyboardVisible) Modifier
+                                else Modifier.navigationBarsPadding()
+                            )
                             .padding(horizontal = 6.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

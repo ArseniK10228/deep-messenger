@@ -134,6 +134,7 @@ class SignalingHub(
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     ws = null
                     _wsConnected.value = false
+                    PresenceStore.onSignalingDisconnected()
                     scheduleReconnect()
                 }
 
@@ -143,9 +144,11 @@ class SignalingHub(
                     if (code == 4401) {
                         shouldStayConnected = false
                         _wsReconnecting.value = false
+                        PresenceStore.clear()
                         AuthEvents.notifySessionExpired()
                         return
                     }
+                    PresenceStore.onSignalingDisconnected()
                     scheduleReconnect()
                 }
             }
@@ -160,6 +163,7 @@ class SignalingHub(
         ws?.close(1000, "bye")
         ws = null
         pendingSignals.clear()
+        PresenceStore.clear()
     }
 
     private fun scheduleReconnect() {

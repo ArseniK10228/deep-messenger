@@ -50,6 +50,8 @@ class ChatViewModel(
     private val socket = ChatSocket { DeepApp.instance.currentToken() }
     private val voiceRecorder = VoiceRecorder(DeepApp.instance)
     private var peerUserId: String? = null
+    private var peerApiOnline: Boolean = false
+    private var peerApiLastSeen: String? = null
     private var wsJob: Job? = null
     private var typingJob: Job? = null
     private var lastTypingSentAt = 0L
@@ -71,22 +73,19 @@ class ChatViewModel(
             runCatching {
                 val peer = api.conversationPeer(conversationId).peer
                 peerUserId = peer.id
-                _state.update {
-                    it.copy(peerOnline = peer.online == true, peerLastSeenAt = peer.lastSeenAt)
-                }
-                PresenceStore.seed(peer.id, peer.online, peer.lastSeenAt)
+                peerApiOnline = peer.online == true
+                peerApiLastSeen = peer.lastSeenAt
+                PresenceStore.setFromApi(peer.id, peer.online, peer.lastSeenAt)
+                applyPeerPresence()
             }
         }
     }
 
     private fun applyPeerPresence() {
         val peerId = peerUserId ?: return
-        val live = PresenceStore.users.value[peerId]
+        val (online, lastSeen) = PresenceStore.peerOnline(peerId, peerApiOnline, peerApiLastSeen)
         _state.update {
-            it.copy(
-                peerOnline = live?.online == true,
-                peerLastSeenAt = live?.lastSeenAt
-            )
+            it.copy(peerOnline = online, peerLastSeenAt = lastSeen)
         }
     }
 

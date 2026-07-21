@@ -139,6 +139,9 @@ class CallManager(
 
     fun onAppForegrounded() {
         signaling.setUrgentReconnect(isInCall())
+        if (!signaling.isConnected()) {
+            signaling.forceReconnect()
+        }
         if (isInCall()) {
             if (engine != null) beginAudioSession()
             refreshForegroundService()

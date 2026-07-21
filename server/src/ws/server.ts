@@ -33,7 +33,6 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
       const wasOnline = isUserOnline(payload.id);
       const client = registerClient(ws, payload.id);
       if (!wasOnline) {
-        await touchLastSeen(payload.id);
         await notifyPresence(payload.id, true);
       }
       ws.send(

@@ -63,6 +63,11 @@ class ChatsViewModel : ViewModel() {
         viewModelScope.launch {
             PresenceStore.users.collectLatest { users -> refreshPresenceLabels(users) }
         }
+        viewModelScope.launch {
+            DeepApp.instance.signalingHub.wsConnected.collectLatest { connected ->
+                if (connected) refresh()
+            }
+        }
     }
 
     private fun onPeerTyping(conversationId: String) {
@@ -75,15 +80,13 @@ class ChatsViewModel : ViewModel() {
         }
     }
 
-    private fun refreshPresenceLabels(users: Map<String, PresenceInfo>) {
+    private fun refreshPresenceLabels(@Suppress("UNUSED_PARAMETER") users: Map<String, PresenceInfo>) {
         _state.update { current ->
             current.copy(conversations = current.conversations.map { conv ->
                 val peer = conv.peers?.firstOrNull() ?: return@map conv
-                val live = users[peer.id] ?: return@map conv
+                val (online, lastSeen) = PresenceStore.peerOnline(peer.id, peer.online, peer.lastSeenAt)
                 conv.copy(
-                    peers = listOf(
-                        peer.copy(online = live.online, lastSeenAt = live.lastSeenAt)
-                    )
+                    peers = listOf(peer.copy(online = online, lastSeenAt = lastSeen))
                 )
             })
         }
@@ -96,7 +99,7 @@ class ChatsViewModel : ViewModel() {
                 val list = api.conversations().conversations
                 list.forEach { conv ->
                     conv.peers?.firstOrNull()?.let { peer ->
-                        PresenceStore.seed(peer.id, peer.online, peer.lastSeenAt)
+                        PresenceStore.setFromApi(peer.id, peer.online, peer.lastSeenAt)
                     }
                 }
                 _state.update { it.copy(loading = false, conversations = list) }
@@ -263,10 +266,7 @@ class ChatsViewModel : ViewModel() {
 
     fun peerPresence(conv: ConversationDto): Pair<Boolean, String?> {
         val peer = conv.peers?.firstOrNull() ?: return false to null
-        val live = PresenceStore.users.value[peer.id]
-        val online = live?.online ?: peer.online == true
-        val lastSeen = live?.lastSeenAt ?: peer.lastSeenAt
-        return online to lastSeen
+        return PresenceStore.peerOnline(peer.id, peer.online, peer.lastSeenAt)
     }
 
     fun isPeerTyping(conversationId: String): Boolean =

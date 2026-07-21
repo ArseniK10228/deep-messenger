@@ -11,11 +11,15 @@ data class PresenceInfo(
 )
 
 object PresenceStore {
+    private val _signalingLive = MutableStateFlow(false)
+    val signalingLive: StateFlow<Boolean> = _signalingLive.asStateFlow()
+
     private val _users = MutableStateFlow<Map<String, PresenceInfo>>(emptyMap())
     val users: StateFlow<Map<String, PresenceInfo>> = _users.asStateFlow()
 
     fun applySnapshot(entries: List<PresenceSnapshotEntry>) {
         if (entries.isEmpty()) return
+        _signalingLive.value = true
         _users.update { current ->
             val next = current.toMutableMap()
             entries.forEach { entry ->
@@ -26,16 +30,39 @@ object PresenceStore {
     }
 
     fun update(userId: String, online: Boolean, lastSeenAt: String?) {
+        if (!_signalingLive.value) return
         _users.update { current ->
             current + (userId to PresenceInfo(online, lastSeenAt))
         }
     }
 
-    fun seed(userId: String, online: Boolean?, lastSeenAt: String?) {
+    /** Authoritative when WS is down; also refreshes cache from REST. */
+    fun setFromApi(userId: String, online: Boolean?, lastSeenAt: String?) {
         _users.update { current ->
-            if (current.containsKey(userId)) current
-            else current + (userId to PresenceInfo(online == true, lastSeenAt))
+            current + (userId to PresenceInfo(online == true, lastSeenAt))
         }
+    }
+
+    fun onSignalingDisconnected() {
+        _signalingLive.value = false
+        _users.update { map -> map.mapValues { (_, info) -> info.copy(online = false) } }
+    }
+
+    fun clear() {
+        _signalingLive.value = false
+        _users.value = emptyMap()
+    }
+
+    fun peerOnline(
+        userId: String,
+        apiOnline: Boolean?,
+        apiLastSeen: String?
+    ): Pair<Boolean, String?> {
+        if (!_signalingLive.value) {
+            return (apiOnline == true) to apiLastSeen
+        }
+        val live = _users.value[userId]
+        return (live?.online == true) to (live?.lastSeenAt ?: apiLastSeen)
     }
 }
 

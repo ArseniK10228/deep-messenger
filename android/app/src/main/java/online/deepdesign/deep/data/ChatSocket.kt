@@ -3,6 +3,7 @@ package online.deepdesign.deep.data
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import online.deepdesign.deep.DeepApp
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -56,11 +57,17 @@ class ChatSocket(
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     activeWs.compareAndSet(webSocket, null)
+                    if (!DeepApp.instance.signalingHub.isConnected()) {
+                        PresenceStore.onSignalingDisconnected()
+                    }
                     close(t)
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                     activeWs.compareAndSet(webSocket, null)
+                    if (!DeepApp.instance.signalingHub.isConnected()) {
+                        PresenceStore.onSignalingDisconnected()
+                    }
                     close()
                 }
             }

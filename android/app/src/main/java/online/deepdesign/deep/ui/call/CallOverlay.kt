@@ -637,10 +637,11 @@ private fun CallControlChip(
     light: Boolean = false,
     micLevel: Float? = null
 ) {
-    val speaking = micLevel != null && micLevel > 0.02f
+    val isMic = micLevel != null
+    val speaking = isMic && micLevel > 0.04f
     val activeBg = if (light) Color.White.copy(alpha = 0.22f) else DeepAccent.copy(alpha = 0.35f)
     val iconTint = when {
-        speaking -> Color(0xFF5CE696)
+        isMic -> Color.Unspecified
         active -> DeepAccent
         light -> Color.White
         else -> DeepText
@@ -652,22 +653,22 @@ private fun CallControlChip(
             onClick = onClick,
             modifier = Modifier.size(56.dp),
             color = when {
-                speaking -> Color(0xFF5CE696).copy(alpha = if (light) 0.28f else 0.18f)
+                speaking -> Color(0xFF5CE696).copy(alpha = if (light) 0.16f else 0.12f)
                 active -> activeBg
                 else -> Color.Transparent
             },
             shape = CircleShape
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                Icon(icon, contentDescription = label, tint = iconTint, modifier = Modifier.size(24.dp))
-                if (speaking) {
-                    MicLevelBars(
+                if (isMic) {
+                    MicLevelIcon(
+                        icon = icon,
                         level = micLevel,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 8.dp),
+                        muted = active && icon == Icons.Default.MicOff,
                         light = light
                     )
+                } else {
+                    Icon(icon, contentDescription = label, tint = iconTint, modifier = Modifier.size(24.dp))
                 }
             }
         }

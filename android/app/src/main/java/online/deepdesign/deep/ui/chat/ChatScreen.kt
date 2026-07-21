@@ -404,7 +404,7 @@ fun ChatScreen(
                                 ) + fadeOut(tween(160))
                             ) {
                                 TypingBubbleIndicator(
-                                    compact = true,
+                                    asMessageBubble = true,
                                     modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
                                 )
                             }

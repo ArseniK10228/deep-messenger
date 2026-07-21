@@ -13,6 +13,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 
+/** Появление исходящего сообщения: снизу вверх + fade (без remount при pending→server). */
+fun Modifier.messageSendEnter(mine: Boolean): Modifier = composed {
+    if (!mine) return@composed this
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+    val progress by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
+        label = "messageSendEnter"
+    )
+    graphicsLayer {
+        alpha = progress
+        translationY = (1f - progress) * 18f
+        scaleX = 0.94f + 0.06f * progress
+        scaleY = 0.94f + 0.06f * progress
+    }
+}
+
 /** Лёгкая fade+scale анимация, friendly для 120Hz (GPU layer, без layout). */
 fun Modifier.deepAppear(
     delayMillis: Int = 0,

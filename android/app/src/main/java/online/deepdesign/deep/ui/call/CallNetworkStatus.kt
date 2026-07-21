@@ -1,20 +1,31 @@
 package online.deepdesign.deep.ui.call
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import online.deepdesign.deep.call.CallNetworkUiState
 import online.deepdesign.deep.ui.theme.DeepAccent
@@ -81,31 +92,52 @@ private fun SignalBars(bars: Int, color: Color) {
 }
 
 @Composable
-fun MicLevelBars(
+fun MicLevelIcon(
+    icon: ImageVector,
     level: Float,
     modifier: Modifier = Modifier,
-    active: Boolean = true,
-    light: Boolean = false
+    muted: Boolean = false,
+    light: Boolean = false,
+    iconSize: androidx.compose.ui.unit.Dp = 24.dp
 ) {
-    if (!active) return
-    val normalized = (level * 12f).coerceIn(0f, 1f)
-    val color = if (light) Color(0xFF5CE696) else DeepAccent
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        val heights = listOf(4.dp, 7.dp, 10.dp, 13.dp)
-        heights.forEachIndexed { index, maxH ->
-            val threshold = (index + 1) / 4f
-            val barH = if (normalized >= threshold) maxH else maxH * (normalized / threshold).coerceIn(0.15f, 1f)
-            Surface(
+    val normalized = if (muted) 0f else (level * 14f).coerceIn(0f, 1f)
+    val fillFraction by animateFloatAsState(
+        targetValue = normalized,
+        animationSpec = tween(70),
+        label = "micFill"
+    )
+    val baseTint = when {
+        muted -> if (light) Color.White.copy(alpha = 0.55f) else DeepMuted
+        light -> Color.White.copy(alpha = 0.45f)
+        else -> DeepMuted.copy(alpha = 0.55f)
+    }
+    val fillTint = Color(0xFF5CE696)
+
+    Box(modifier = modifier.size(iconSize), contentAlignment = Alignment.Center) {
+        Icon(icon, contentDescription = null, tint = baseTint, modifier = Modifier.size(iconSize))
+        if (!muted) {
+            Box(
                 modifier = Modifier
-                    .width(3.dp)
-                    .height(barH),
-                color = color.copy(alpha = 0.85f),
-                shape = RoundedCornerShape(1.dp)
-            ) {}
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(3.dp))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(fillFraction)
+                        .align(Alignment.BottomCenter)
+                        .clip(RoundedCornerShape(3.dp))
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = fillTint,
+                        modifier = Modifier
+                            .size(iconSize)
+                            .align(Alignment.BottomCenter)
+                    )
+                }
+            }
         }
     }
 }

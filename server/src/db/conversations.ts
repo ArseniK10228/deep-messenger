@@ -1,4 +1,5 @@
 import { query } from './client.js';
+import type { UserRow } from './users.js';
 
 export interface ConversationRow {
   id: string;
@@ -41,17 +42,12 @@ export async function userInConversation(userId: string, conversationId: string)
   return r.rowCount !== null && r.rowCount > 0;
 }
 
-export async function getConversationPeer(userId: string, conversationId: string) {
-  const r = await query<{
-    id: string;
-    email: string | null;
-    phone: string | null;
-    username: string | null;
-    display_name: string;
-    avatar_path: string | null;
-    last_seen_at: string | null;
-  }>(
-    `SELECT u.id, u.email, u.phone, u.username, u.display_name, u.avatar_path, u.last_seen_at
+export async function getConversationPeer(
+  userId: string,
+  conversationId: string
+): Promise<(UserRow & { last_seen_at: string | null }) | null> {
+  const r = await query<UserRow & { last_seen_at: string | null }>(
+    `SELECT u.id, u.email, u.phone, u.username, u.display_name, u.avatar_path, u.fcm_token, u.last_seen_at
      FROM conversation_members cm
      JOIN users u ON u.id = cm.user_id
      WHERE cm.conversation_id = $1 AND cm.user_id <> $2

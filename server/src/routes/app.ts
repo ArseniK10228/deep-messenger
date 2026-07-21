@@ -17,7 +17,17 @@ export interface AppRelease {
 
 function readRelease(): AppRelease {
   const raw = fs.readFileSync(releasePath, 'utf8');
-  return JSON.parse(raw) as AppRelease;
+  const data = JSON.parse(raw) as Partial<AppRelease>;
+  if (!data.versionCode || !data.versionName?.trim()) {
+    throw new Error('invalid app-release.json: versionCode/versionName required');
+  }
+  return {
+    versionCode: data.versionCode,
+    versionName: data.versionName.trim(),
+    apkUrl: data.apkUrl || 'https://deepdesignpc.online/deep.apk',
+    changelog: data.changelog,
+    forceUpdate: data.forceUpdate
+  };
 }
 
 export async function registerAppRoutes(app: FastifyInstance): Promise<void> {

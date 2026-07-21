@@ -72,7 +72,14 @@ ensure_postgres
 
 echo "==> server build"
 cd "$REPO/server"
-npm ci
+LOCK_HASH_FILE="$REPO/server/.package-lock.hash"
+CURRENT_HASH=$(sha256sum package-lock.json | awk '{print $1}')
+if [[ -f "$LOCK_HASH_FILE" && -d node_modules && "$(cat "$LOCK_HASH_FILE")" == "$CURRENT_HASH" ]]; then
+  echo "npm ci skipped (package-lock unchanged)"
+else
+  npm ci
+  echo "$CURRENT_HASH" > "$LOCK_HASH_FILE"
+fi
 npm run build
 npm run migrate
 

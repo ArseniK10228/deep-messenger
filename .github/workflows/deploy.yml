@@ -4,13 +4,34 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - "server/**"
+      - "infra/**"
+      - "scripts/**"
+      - "docker-compose.yml"
+      - ".github/workflows/deploy.yml"
 
 concurrency:
   group: deploy-deep-messenger
   cancel-in-progress: false
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            infra:
+              - 'infra/**'
+              - 'scripts/infra/**'
+
   deploy:
+    needs: changes
     runs-on: ubuntu-latest
     env:
       SSH_KEY_FILE: /home/runner/.ssh/vps_deploy_key
@@ -51,15 +72,23 @@ jobs:
             "${VPS_USER}@${VPS_HOST}" \
             'ssh -i /root/.ssh/home_deploy -o BatchMode=yes -o ConnectTimeout=20 root@100.118.211.24 echo HOME_OK'
 
-      - name: Upload repo to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "."
-          target: "/tmp/deep-messenger"
-          rm: true
+      - name: Create deploy bundle
+        run: |
+          tar czf /tmp/deep-deploy.tgz \
+            --exclude='./android' \
+            --exclude='./.git' \
+            server infra scripts docker-compose.yml .env.example
+
+      - name: Upload deploy bundle to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          scp -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
+            /tmp/deep-deploy.tgz "${VPS_USER}@${VPS_HOST}:/tmp/deep-deploy.tgz"
+          ssh -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
+            "${VPS_USER}@${VPS_HOST}" \
+            'rm -rf /tmp/deep-messenger && mkdir -p /tmp/deep-messenger && tar xzf /tmp/deep-deploy.tgz -C /tmp/deep-messenger'
 
       - name: Deploy to home (VPS → Tailscale)
         uses: appleboy/ssh-action@v1.2.0
@@ -103,6 +132,7 @@ jobs:
             fi
 
       - name: Apply VPS nginx
+        if: needs.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -124,13 +154,13 @@ jobs:
         run: |
           set -eu
           ok=0
-          for i in $(seq 1 15); do
-            if curl -fsS --max-time 15 https://api.deepdesignpc.online/health | grep -q '"ok":true'; then
+          for i in $(seq 1 8); do
+            if curl -fsS --max-time 10 https://api.deepdesignpc.online/health | grep -q '"ok":true'; then
               ok=1
               break
             fi
-            echo "waiting api health ($i/15)..."
-            sleep 10
+            echo "waiting api health ($i/8)..."
+            sleep 5
           done
           if [ "$ok" -ne 1 ]; then
             echo "::error::api health failed"

@@ -17,8 +17,8 @@ if [[ ! -f "$RELEASE_JSON" ]]; then
   exit 1
 fi
 
-VERSION_CODE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$RELEASE_JSON','utf8')).versionCode)")
-VERSION_NAME=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$RELEASE_JSON','utf8')).versionName)")
+VERSION_CODE=$(node -e "const j=JSON.parse(require('fs').readFileSync('$RELEASE_JSON','utf8')); if(!j.versionCode||!j.versionName){process.exit(1)}; console.log(j.versionCode)")
+VERSION_NAME=$(node -e "const j=JSON.parse(require('fs').readFileSync('$RELEASE_JSON','utf8')); if(!j.versionCode||!j.versionName){process.exit(1)}; console.log(j.versionName)")
 
 echo "==> Verify APK is downloadable: $APK_URL"
 apk_ok=0

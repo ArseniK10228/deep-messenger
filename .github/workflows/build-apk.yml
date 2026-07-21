@@ -2,6 +2,11 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_only:
+        description: "Only publish release metadata (APK already on VPS)"
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
@@ -51,9 +56,11 @@ jobs:
           printf '%s' "$GOOGLE_SERVICES" > android/app/google-services.json
 
       - name: Sync app-release.json from Gradle
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.publish_only }}
         run: |
           VC=$(grep -E 'versionCode\s*=' android/app/build.gradle.kts | head -1 | grep -oE '[0-9]+')
           VN=$(grep -E 'versionName\s*=' android/app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          export VC VN
           node -e "
             const fs = require('fs');
             const p = 'server/app-release.json';
@@ -61,15 +68,32 @@ jobs:
             const note = (j.changelog || '').trim().replace(/\s+/g, ' ');
             j.versionCode = Number(process.env.VC);
             j.versionName = process.env.VN;
+            if (!j.versionCode || !j.versionName) {
+              console.error('Invalid version from Gradle:', process.env.VC, process.env.VN);
+              process.exit(1);
+            }
             j.changelog = note
               ? 'Выпущена версия ' + j.versionName + '. ' + note + ' Рекомендуется установить обновление для обеспечения стабильной работы сервиса.'
               : 'Выпущена версия ' + j.versionName + '. Обновление содержит улучшения стабильности и исправления ошибок. Рекомендуется установить актуальную версию приложения.';
             fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
-          " 
+          "
           echo "Release metadata: versionCode=$VC versionName=$VN"
           cat server/app-release.json
 
+      - name: Cache Gradle
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.publish_only }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Ensure Gradle wrapper
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.publish_only }}
         run: |
           cd android
           if [ ! -f gradlew ]; then
@@ -80,6 +104,7 @@ jobs:
           chmod +x gradlew
 
       - name: Assemble debug APK
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.publish_only }}
         env:
           ANDROID_KEYSTORE_PASSWORD: android
           ANDROID_KEY_ALIAS: androiddebugkey
@@ -90,6 +115,7 @@ jobs:
           ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK artifact
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.publish_only }}
         uses: actions/upload-artifact@v4
         with:
           name: deep-apk
@@ -111,6 +137,7 @@ jobs:
           chmod 600 "$SSH_KEY_FILE"
 
       - name: Publish APK to VPS
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.publish_only }}
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -125,6 +152,7 @@ jobs:
             "${VPS_USER}@${VPS_HOST}" 'chmod 644 /var/www/deep-messenger/deep.apk && ls -lh /var/www/deep-messenger/deep.apk'
 
       - name: Smoke test OTA endpoints
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.publish_only }}
         run: |
           curl -fsS --max-time 20 https://deepdesignpc.online/deep.apk -o /tmp/deep.apk
           test -s /tmp/deep.apk

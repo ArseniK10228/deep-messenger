@@ -19,8 +19,8 @@ object UpdateChecker {
 
     suspend fun fetchRelease(): AppReleaseDto? = withContext(Dispatchers.IO) {
         runCatching {
-            val api = ApiClient.create()
-            val release = api.appRelease()
+            val release = ApiClient.create().appRelease()
+            if (release.versionCode <= 0 || release.versionName.isBlank()) return@runCatching null
             if (!isApkAvailable(release.apkUrl)) return@runCatching null
             release
         }.getOrNull()
@@ -31,12 +31,19 @@ object UpdateChecker {
     }
 
     private fun isApkAvailable(url: String): Boolean {
-        val request = Request.Builder().url(url).head().build()
+        val head = Request.Builder().url(url).head().build()
+        runCatching {
+            http.newCall(head).execute().use { response ->
+                if (!response.isSuccessful) return@use
+                val size = response.header("Content-Length")?.toLongOrNull()
+                if (size != null && size >= 500_000L) return true
+                if (size == null) return true
+            }
+        }
+        val probe = Request.Builder().url(url).header("Range", "bytes=0-0").get().build()
         return runCatching {
-            http.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return false
-                val size = response.header("Content-Length")?.toLongOrNull() ?: 0L
-                size >= 500_000L
+            http.newCall(probe).execute().use { response ->
+                response.isSuccessful && (response.code == 206 || response.code == 200)
             }
         }.getOrDefault(false)
     }

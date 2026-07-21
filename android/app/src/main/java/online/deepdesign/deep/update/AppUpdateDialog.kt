@@ -27,14 +27,9 @@ fun AppUpdateDialog(
     val force = release.forceUpdate == true
     AlertDialog(
         onDismissRequest = { if (!force && !downloading) onDismiss() },
-        title = { Text("Обновление приложения") },
+        title = { Text("Доступно обновление v${release.versionName}") },
         text = {
             Column {
-                Text(
-                    "Версия ${release.versionName}",
-                    color = DeepText,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
                 Text(
                     release.changelog
                         ?: "Выпущена новая версия Deep Messenger. Рекомендуется установить обновление для обеспечения стабильной работы сервиса.",

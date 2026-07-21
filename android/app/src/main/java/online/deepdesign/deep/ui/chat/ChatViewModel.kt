@@ -39,8 +39,7 @@ data class ChatUiState(
     val peerTyping: Boolean = false,
     val peerOnline: Boolean = false,
     val peerLastSeenAt: String? = null,
-    val highlightMessageId: String? = null,
-    val justSentIds: Set<String> = emptySet()
+    val messageKeys: Map<String, String> = emptyMap()
 )
 
 class ChatViewModel(
@@ -168,7 +167,8 @@ class ChatViewModel(
         if (text.isEmpty() || _state.value.uploading) return
         val userId = DeepApp.instance.currentUserId ?: return
 
-        val clientId = "pending:${UUID.randomUUID()}"
+        val stableKey = UUID.randomUUID().toString()
+        val clientId = "pending:$stableKey"
         val optimistic = MessageDto(
             id = clientId,
             conversationId = conversationId,
@@ -180,35 +180,26 @@ class ChatViewModel(
         )
 
         viewModelScope.launch {
-            appendMessage(optimistic)
             _state.update {
                 it.copy(
                     input = "",
-                    justSentIds = it.justSentIds + clientId
+                    messageKeys = it.messageKeys + (clientId to stableKey)
                 )
             }
-            launch {
-                delay(650)
-                _state.update { it.copy(justSentIds = it.justSentIds - clientId) }
-            }
+            appendMessage(optimistic)
             try {
                 val msg = api.sendMessage(
                     conversationId,
                     SendMessageRequest(kind = "text", body = text)
                 ).message
-                replacePendingMessage(clientId, msg)
-                _state.update { it.copy(justSentIds = it.justSentIds - clientId + msg.id) }
-                launch {
-                    delay(500)
-                    _state.update { it.copy(justSentIds = it.justSentIds - msg.id) }
-                }
+                replacePendingMessage(clientId, msg, stableKey)
             } catch (e: Exception) {
                 removeMessage(clientId)
                 _state.update {
                     it.copy(
                         input = text,
                         error = e.message,
-                        justSentIds = it.justSentIds - clientId
+                        messageKeys = it.messageKeys - clientId
                     )
                 }
             }
@@ -295,6 +286,16 @@ class ChatViewModel(
 
     private fun onIncomingMessage(msg: MessageDto) {
         if (msg.conversationId != conversationId) return
+        if (isMine(msg)) {
+            val pending = _state.value.messages.findLast {
+                it.id.startsWith("pending:") && it.body == msg.body
+            }
+            if (pending != null) {
+                val stableKey = _state.value.messageKeys[pending.id]
+                replacePendingMessage(pending.id, msg, stableKey)
+                return
+            }
+        }
         val added = appendMessage(msg)
         if (added && !isMine(msg)) {
             socket.sendDelivered(msg.id)
@@ -302,12 +303,16 @@ class ChatViewModel(
         }
     }
 
-    private fun replacePendingMessage(clientId: String, msg: MessageDto) {
+    private fun replacePendingMessage(clientId: String, msg: MessageDto, stableKey: String?) {
         _state.update { s ->
+            val keys = s.messageKeys.toMutableMap()
+            keys.remove(clientId)
+            if (stableKey != null) keys[msg.id] = stableKey
             s.copy(
                 messages = sortMessages(
                     s.messages.filterNot { it.id == clientId || it.id == msg.id } + msg
-                )
+                ),
+                messageKeys = keys
             )
         }
     }
@@ -366,7 +371,12 @@ class ChatViewModel(
     }
 
     private fun removeMessage(id: String) {
-        _state.update { s -> s.copy(messages = s.messages.filterNot { it.id == id }) }
+        _state.update { s ->
+            s.copy(
+                messages = s.messages.filterNot { it.id == id },
+                messageKeys = s.messageKeys - id
+            )
+        }
     }
 
     fun isMine(msg: MessageDto): Boolean = msg.senderId == DeepApp.instance.currentUserId

@@ -8,10 +8,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.animateItem
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -199,19 +200,20 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(state.messages.lastOrNull()?.id, state.highlightMessageId) {
+    LaunchedEffect(state.messages.lastOrNull()?.id, state.peerTyping) {
         if (state.messages.isEmpty()) return@LaunchedEffect
-        val lastIndex = state.messages.lastIndex
+        val lastContentIndex = state.messages.lastIndex + if (state.peerTyping) 1 else 0
         val nearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-            ?.let { it >= lastIndex - 2 } != false
-        if (nearBottom || state.highlightMessageId != null) {
-            listState.animateScrollToItem(lastIndex)
+            ?.let { it >= lastContentIndex - 1 } != false
+        if (nearBottom) {
+            listState.animateScrollToItem(lastContentIndex)
         }
     }
 
-    LaunchedEffect(imeBottomPx) {
+    LaunchedEffect(imeBottomPx, state.peerTyping) {
         if (imeBottomPx > 0 && state.messages.isNotEmpty()) {
-            listState.animateScrollToItem(state.messages.lastIndex)
+            val lastContentIndex = state.messages.lastIndex + if (state.peerTyping) 1 else 0
+            listState.animateScrollToItem(lastContentIndex)
         }
     }
 
@@ -376,17 +378,47 @@ fun ChatScreen(
                             start = 12.dp,
                             top = 8.dp,
                             end = 12.dp,
-                            bottom = if (state.peerTyping) 36.dp else 8.dp
+                            bottom = 8.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(state.messages, key = { it.id }) { msg ->
+                        items(
+                            items = state.messages,
+                            key = { msg -> state.messageKeys[msg.id] ?: msg.id }
+                        ) { msg ->
                             MessageBubble(
                                 msg = msg,
                                 mine = vm.isMine(msg),
-                                animateSend = state.justSentIds.contains(msg.id),
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(160, easing = FastOutSlowInEasing),
+                                    fadeOutSpec = tween(120),
+                                    placementSpec = tween(280, easing = FastOutSlowInEasing)
+                                ),
                                 onLongClick = { deleteTarget = msg }
                             )
+                        }
+                        item(key = "peer_typing") {
+                            AnimatedVisibility(
+                                visible = state.peerTyping,
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(200),
+                                    fadeOutSpec = tween(160),
+                                    placementSpec = tween(280, easing = FastOutSlowInEasing)
+                                ),
+                                enter = expandVertically(
+                                    animationSpec = tween(260, easing = FastOutSlowInEasing),
+                                    expandFrom = Alignment.Top
+                                ) + fadeIn(tween(220, easing = FastOutSlowInEasing)),
+                                exit = shrinkVertically(
+                                    animationSpec = tween(220, easing = FastOutSlowInEasing),
+                                    shrinkTowards = Alignment.Top
+                                ) + fadeOut(tween(160))
+                            ) {
+                                TypingBubbleIndicator(
+                                    compact = true,
+                                    modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -397,19 +429,6 @@ fun ChatScreen(
                     onCancel = vm::cancelRecording,
                     onSend = vm::stopRecordingAndSend
                 )
-            }
-
-            AnimatedVisibility(
-                visible = state.peerTyping,
-                enter = fadeIn(tween(240, easing = FastOutSlowInEasing)) +
-                    slideInVertically(tween(240, easing = FastOutSlowInEasing)) { it / 2 },
-                exit = fadeOut(tween(180)) +
-                    slideOutVertically(tween(180)) { it / 2 },
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(16.dp)
-            ) {
-                TypingBubbleIndicator()
             }
 
             state.error?.let {

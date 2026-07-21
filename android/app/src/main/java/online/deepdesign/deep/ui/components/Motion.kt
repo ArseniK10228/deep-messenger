@@ -34,30 +34,3 @@ fun Modifier.deepAppear(
         scaleY = 0.96f + 0.04f * progress
     }
 }
-
-/** Telegram-style: исходящие всплывают снизу, входящие — лёгкий slide. Один раз на id. */
-fun Modifier.messageSendEnter(outgoing: Boolean): Modifier = composed {
-    var started by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { started = true }
-    val offsetY by animateFloatAsState(
-        targetValue = if (started) 0f else if (outgoing) 28f else 14f,
-        animationSpec = tween(300, easing = FastOutSlowInEasing),
-        label = "msgOffset"
-    )
-    val alpha by animateFloatAsState(
-        targetValue = if (started) 1f else 0f,
-        animationSpec = tween(240, easing = FastOutSlowInEasing),
-        label = "msgAlpha"
-    )
-    val scale by animateFloatAsState(
-        targetValue = if (started) 1f else if (outgoing) 0.92f else 0.96f,
-        animationSpec = tween(300, easing = FastOutSlowInEasing),
-        label = "msgScale"
-    )
-    graphicsLayer {
-        translationY = offsetY
-        this.alpha = alpha
-        scaleX = scale
-        scaleY = scale
-    }
-}

@@ -44,7 +44,6 @@ import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.data.resolveMediaUrl
 import online.deepdesign.deep.ui.components.VoiceWaveform
-import online.deepdesign.deep.ui.components.messageSendEnter
 import online.deepdesign.deep.ui.theme.DeepAccent
 import online.deepdesign.deep.ui.theme.DeepBubbleIn
 import online.deepdesign.deep.ui.theme.DeepBubbleOut
@@ -60,7 +59,7 @@ import kotlin.math.roundToInt
 fun MessageBubble(
     msg: MessageDto,
     mine: Boolean,
-    animateSend: Boolean = false,
+    modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null
 ) {
     val bg = if (mine) DeepBubbleOut else DeepBubbleIn
@@ -72,12 +71,10 @@ fun MessageBubble(
         bottomEnd = if (mine) 4.dp else 18.dp
     )
 
-    val enterModifier = if (animateSend) Modifier.messageSendEnter(mine) else Modifier
-
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = align) {
+    Box(modifier = modifier.fillMaxWidth(), contentAlignment = align) {
         val isVoice = msg.kind == "voice"
         Column(
-            modifier = enterModifier
+            modifier = Modifier
                 .widthIn(min = if (isVoice) 240.dp else 0.dp, max = if (isVoice) 300.dp else 300.dp)
                 .clip(shape)
                 .background(bg)

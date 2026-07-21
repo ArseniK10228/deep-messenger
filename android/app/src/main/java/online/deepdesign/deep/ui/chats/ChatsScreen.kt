@@ -80,6 +80,7 @@ import online.deepdesign.deep.ui.theme.DeepMuted
 import online.deepdesign.deep.ui.theme.DeepSurface
 import online.deepdesign.deep.ui.theme.DeepSurfaceHigh
 import online.deepdesign.deep.ui.theme.DeepText
+import online.deepdesign.deep.ui.util.PresenceFormatter
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -253,11 +254,15 @@ fun ChatsScreen(
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 itemsIndexed(filtered, key = { _, c -> c.id }) { index, conv ->
+                                    val (online, lastSeen) = vm.peerPresence(conv)
                                     ConversationRow(
                                         modifier = Modifier.deepAppear(delayMillis = index * 30),
                                         title = vm.peerTitle(conv),
+                                        subtitle = PresenceFormatter.status(online, lastSeen),
+                                        subtitleAccent = PresenceFormatter.isOnlineAccent(online, typing = false),
                                         preview = vm.previewText(conv),
                                         time = formatTime(conv.lastMessage?.createdAt),
+                                        online = online,
                                         onClick = { onOpenChat(conv.id, vm.peerTitle(conv)) }
                                     )
                                     HorizontalDivider(
@@ -331,8 +336,11 @@ fun ChatsScreen(
 @Composable
 private fun ConversationRow(
     title: String,
+    subtitle: String,
+    subtitleAccent: Boolean,
     preview: String,
     time: String?,
+    online: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -343,7 +351,7 @@ private fun ConversationRow(
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ChatAvatar(name = title, size = 52.dp)
+        ChatAvatar(name = title, size = 52.dp, online = online)
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -371,6 +379,13 @@ private fun ConversationRow(
                     )
                 }
             }
+            Text(
+                text = subtitle,
+                color = if (subtitleAccent) DeepAccent else DeepMuted,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Text(
                 text = preview,
                 color = DeepMuted,

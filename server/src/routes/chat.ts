@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { getAuthUser } from '../lib/auth.js';
 import {
   createDirectConversation,
+  getConversationPeer,
   listConversationsForUser,
   userInConversation
 } from '../db/conversations.js';
@@ -15,6 +16,8 @@ import {
 import { getUserById } from '../db/users.js';
 import { sendPush } from '../lib/firebase.js';
 import { pushChatEvent } from '../lib/chatPush.js';
+import { enrichPeerPresence } from '../lib/presence.js';
+import { mapUserDto } from '../db/users.js';
 import { query } from '../db/client.js';
 import { sendToUser } from '../ws/hub.js';
 
@@ -22,7 +25,29 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.get('/conversations', async (req) => {
     const user = getAuthUser(req);
     const rows = await listConversationsForUser(user.id);
-    return { conversations: rows };
+    const conversations = rows.map((row) => ({
+      ...row,
+      peers: row.peers?.map((peer: { id: string; lastSeenAt?: string | null }) =>
+        enrichPeerPresence(peer)
+      )
+    }));
+    return { conversations };
+  });
+
+  app.get('/conversations/:id/peer', async (req, reply) => {
+    const user = getAuthUser(req);
+    const { id } = req.params as { id: string };
+    if (!(await userInConversation(user.id, id))) {
+      return reply.code(403).send({ error: 'forbidden' });
+    }
+    const peer = await getConversationPeer(user.id, id);
+    if (!peer) return reply.code(404).send({ error: 'peer not found' });
+    return {
+      peer: enrichPeerPresence({
+        ...mapUserDto(peer),
+        lastSeenAt: peer.last_seen_at
+      })
+    };
   });
 
   app.post('/conversations/direct', async (req, reply) => {

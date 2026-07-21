@@ -22,6 +22,7 @@ class WebRtcCallEngine(
     context: Context,
     iceServers: List<IceServerDto>,
     private val videoEnabled: Boolean,
+    private val relayOnly: Boolean = false,
     private val listener: Listener
 ) {
     interface Listener {
@@ -61,11 +62,16 @@ class WebRtcCallEngine(
         }
         val rtcConfig = PeerConnection.RTCConfiguration(servers).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
-            iceTransportsType = PeerConnection.IceTransportsType.ALL
+            iceTransportsType = if (relayOnly) {
+                PeerConnection.IceTransportsType.RELAY
+            } else {
+                PeerConnection.IceTransportsType.ALL
+            }
             continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
-            iceCandidatePoolSize = 2
+            iceCandidatePoolSize = 4
             bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE
             rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE
+            tcpCandidatePolicy = PeerConnection.TcpCandidatePolicy.ENABLED
         }
         peerConnection = factory.createPeerConnection(rtcConfig, object : PeerConnection.Observer {
             override fun onIceCandidate(candidate: IceCandidate) {

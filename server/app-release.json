@@ -1,7 +1,7 @@
 {
-  "versionCode": 21,
-  "versionName": "0.3.18",
+  "versionCode": 22,
+  "versionName": "0.3.19",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Улучшена стабильность входящих звонков, устранены сбои при приёме вызова из фонового режима.",
+  "changelog": "Звонки работают через VPN, добавлен статус «в сети» и время последней активности.",
   "forceUpdate": false
 }

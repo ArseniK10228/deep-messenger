@@ -1,0 +1,63 @@
+import { query } from '../db/client.js';
+import { isUserOnline, sendToUser } from '../ws/hub.js';
+
+export async function touchLastSeen(userId: string): Promise<string> {
+  const r = await query<{ last_seen_at: string }>(
+    `UPDATE users SET last_seen_at = now() WHERE id = $1 RETURNING last_seen_at`,
+    [userId]
+  );
+  return r.rows[0]?.last_seen_at || new Date().toISOString();
+}
+
+export async function getPeerUserIds(userId: string): Promise<string[]> {
+  const r = await query<{ user_id: string }>(
+    `SELECT DISTINCT cm2.user_id
+     FROM conversation_members cm1
+     JOIN conversation_members cm2 ON cm2.conversation_id = cm1.conversation_id
+     WHERE cm1.user_id = $1 AND cm2.user_id <> $1`,
+    [userId]
+  );
+  return r.rows.map((row) => row.user_id);
+}
+
+export async function getLastSeenAt(userId: string): Promise<string | null> {
+  const r = await query<{ last_seen_at: string | null }>(
+    'SELECT last_seen_at FROM users WHERE id = $1',
+    [userId]
+  );
+  return r.rows[0]?.last_seen_at || null;
+}
+
+export async function buildPresenceSnapshot(userId: string): Promise<
+  Array<{ userId: string; online: boolean; lastSeenAt: string | null }>
+> {
+  const peers = await getPeerUserIds(userId);
+  const snapshot: Array<{ userId: string; online: boolean; lastSeenAt: string | null }> = [];
+  for (const peerId of peers) {
+    snapshot.push({
+      userId: peerId,
+      online: isUserOnline(peerId),
+      lastSeenAt: isUserOnline(peerId) ? null : await getLastSeenAt(peerId)
+    });
+  }
+  return snapshot;
+}
+
+export async function notifyPresence(userId: string, online: boolean): Promise<void> {
+  const peers = await getPeerUserIds(userId);
+  const lastSeenAt = online ? null : await touchLastSeen(userId);
+  for (const peerId of peers) {
+    sendToUser(peerId, { type: 'presence', userId, online, lastSeenAt });
+  }
+}
+
+export function enrichPeerPresence<T extends { id: string; lastSeenAt?: string | null }>(
+  peer: T
+): T & { online: boolean } {
+  const online = isUserOnline(peer.id);
+  return {
+    ...peer,
+    online,
+    lastSeenAt: online ? null : peer.lastSeenAt ?? null
+  };
+}

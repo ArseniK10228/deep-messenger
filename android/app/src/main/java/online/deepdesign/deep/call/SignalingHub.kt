@@ -21,6 +21,8 @@ import online.deepdesign.deep.data.ApiConfig
 import online.deepdesign.deep.data.AuthEvents
 import online.deepdesign.deep.data.ChatEvent
 import online.deepdesign.deep.data.ChatNotifier
+import online.deepdesign.deep.data.PresenceSnapshotEntry
+import online.deepdesign.deep.data.PresenceStore
 import online.deepdesign.deep.data.WsEnvelope
 import java.util.ArrayDeque
 import java.util.concurrent.TimeUnit
@@ -107,6 +109,14 @@ class SignalingHub(
                             scope.launch { _events.emit(env) }
                         } else if (env.type in chatTypes) {
                             _events.tryEmit(env)
+                        } else if (env.type == "presence") {
+                            val userId = env.userId ?: return
+                            PresenceStore.update(userId, env.online == true, env.lastSeenAt)
+                        } else if (env.type == "presence_snapshot") {
+                            val entries = env.users?.map {
+                                PresenceSnapshotEntry(it.userId, it.online, it.lastSeenAt)
+                            }.orEmpty()
+                            PresenceStore.applySnapshot(entries)
                         }
                         if (env.type == "message") {
                             val convId = env.message?.conversationId ?: env.conversationId

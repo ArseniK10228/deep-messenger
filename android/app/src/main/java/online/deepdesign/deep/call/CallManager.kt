@@ -515,7 +515,7 @@ class CallManager(
             try {
                 if (engine == null) {
                     if (iceServers.isEmpty()) {
-                        iceServers = runCatching { api.callIce().iceServers }.getOrDefault(emptyList())
+                        refreshIceServers()
                     }
                     initEngine()
                 }
@@ -552,6 +552,10 @@ class CallManager(
         }
     }
 
+    private suspend fun refreshIceServers() {
+        iceServers = runCatching { api.callIce().iceServers }.getOrDefault(iceServers)
+    }
+
     private fun initEngine() {
         val video = when (val s = _state.value) {
             is CallUiState.Outgoing -> s.video
@@ -559,9 +563,10 @@ class CallManager(
             is CallUiState.Active -> s.video
             else -> false
         }
+        val relayOnly = NetworkUtils.isVpnActive(context)
         teardownRtc()
         beginAudioSession()
-        engine = WebRtcCallEngine(context, iceServers, video, object : WebRtcCallEngine.Listener {
+        engine = WebRtcCallEngine(context, iceServers, video, relayOnly, object : WebRtcCallEngine.Listener {
             override fun onIceCandidate(candidate: IceCandidate) {
                 val callId = activeCallId ?: return
                 signaling.sendIce(callId, candidate.sdp, candidate.sdpMid, candidate.sdpMLineIndex)
@@ -674,7 +679,7 @@ class CallManager(
     ) {
         when (call) {
             is CallUiState.Outgoing -> {
-                val reconnecting = wsReconnecting || !wsConnected
+                val reconnecting = wsReconnecting
                 _callNetwork.value = CallNetworkUiState(
                     bars = if (wsConnected) 3 else 1,
                     pingMs = lastRttMs,
@@ -683,11 +688,12 @@ class CallManager(
                 )
             }
             is CallUiState.Active -> {
-                val reconnecting = wsReconnecting || iceDegraded || !call.connected
+                val reconnecting = wsReconnecting || iceDegraded
                 val ping = lastRttMs
                 val bars = when {
                     reconnecting -> 1
-                    ping == null -> if (call.connected) 3 else 2
+                    !call.connected -> 2
+                    ping == null -> 3
                     ping < 120 -> 4
                     ping < 250 -> 3
                     ping < 500 -> 2
@@ -742,6 +748,7 @@ class CallManager(
             override fun onAvailable(network: Network) {
                 if (!isInCall()) return
                 scope.launch {
+                    refreshIceServers()
                     signaling.forceReconnect()
                     engine?.restartIce()
                 }
@@ -751,6 +758,7 @@ class CallManager(
                 if (!isInCall()) return
                 if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
                     scope.launch {
+                        refreshIceServers()
                         engine?.restartIce()
                     }
                 }

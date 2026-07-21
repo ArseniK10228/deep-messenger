@@ -32,7 +32,21 @@ class ChatSocket(
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     try {
-                        adapter.fromJson(text)?.let { trySend(it) }
+                        adapter.fromJson(text)?.let { env ->
+                            when (env.type) {
+                                "presence" -> {
+                                    val userId = env.userId ?: return@let
+                                    PresenceStore.update(userId, env.online == true, env.lastSeenAt)
+                                }
+                                "presence_snapshot" -> {
+                                    val entries = env.users?.map {
+                                        PresenceSnapshotEntry(it.userId, it.online, it.lastSeenAt)
+                                    }.orEmpty()
+                                    PresenceStore.applySnapshot(entries)
+                                }
+                                else -> trySend(env)
+                            }
+                        }
                     } catch (_: Exception) { }
                 }
 

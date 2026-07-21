@@ -85,6 +85,7 @@ import online.deepdesign.deep.ui.theme.DeepMuted
 import online.deepdesign.deep.ui.theme.DeepSurface
 import online.deepdesign.deep.ui.theme.DeepSurfaceHigh
 import online.deepdesign.deep.ui.theme.DeepText
+import online.deepdesign.deep.ui.util.PresenceFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -211,8 +212,14 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
+                    val status = PresenceFormatter.status(
+                        online = state.peerOnline,
+                        lastSeenAt = state.peerLastSeenAt,
+                        typing = state.peerTyping
+                    )
+                    val statusAccent = PresenceFormatter.isOnlineAccent(state.peerOnline, state.peerTyping)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        ChatAvatar(name = title, size = 40.dp)
+                        ChatAvatar(name = title, size = 40.dp, online = state.peerOnline)
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text(
@@ -222,8 +229,8 @@ fun ChatScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                if (state.peerTyping) "печатает…" else "личный чат",
-                                color = if (state.peerTyping) DeepAccent else DeepMuted,
+                                status,
+                                color = if (statusAccent) DeepAccent else DeepMuted,
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }

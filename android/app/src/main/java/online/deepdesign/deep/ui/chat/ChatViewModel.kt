@@ -10,6 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
@@ -18,6 +19,7 @@ import online.deepdesign.deep.data.DeleteMessageRequest
 import online.deepdesign.deep.data.MediaUploader
 import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.data.PickedFile
+import online.deepdesign.deep.data.PresenceStore
 import online.deepdesign.deep.data.SendMessageRequest
 import online.deepdesign.deep.data.VoiceRecorder
 import online.deepdesign.deep.data.WsEnvelope
@@ -34,6 +36,8 @@ data class ChatUiState(
     val recording: Boolean = false,
     val error: String? = null,
     val peerTyping: Boolean = false,
+    val peerOnline: Boolean = false,
+    val peerLastSeenAt: String? = null,
     val highlightMessageId: String? = null
 )
 
@@ -43,6 +47,7 @@ class ChatViewModel(
     private val api = DeepApp.instance.api
     private val socket = ChatSocket { DeepApp.instance.currentToken() }
     private val voiceRecorder = VoiceRecorder(DeepApp.instance)
+    private var peerUserId: String? = null
     private var wsJob: Job? = null
     private var typingJob: Job? = null
 
@@ -51,7 +56,35 @@ class ChatViewModel(
 
     init {
         loadMessages()
+        loadPeer()
         connectWs()
+        viewModelScope.launch {
+            PresenceStore.users.collectLatest { applyPeerPresence() }
+        }
+    }
+
+    private fun loadPeer() {
+        viewModelScope.launch {
+            runCatching {
+                val peer = api.conversationPeer(conversationId).peer
+                peerUserId = peer.id
+                _state.update {
+                    it.copy(peerOnline = peer.online == true, peerLastSeenAt = peer.lastSeenAt)
+                }
+                PresenceStore.seed(peer.id, peer.online, peer.lastSeenAt)
+            }
+        }
+    }
+
+    private fun applyPeerPresence() {
+        val peerId = peerUserId ?: return
+        val live = PresenceStore.users.value[peerId]
+        _state.update {
+            it.copy(
+                peerOnline = live?.online == true,
+                peerLastSeenAt = live?.lastSeenAt
+            )
+        }
     }
 
     private fun loadMessages() {
@@ -95,6 +128,13 @@ class ChatViewModel(
                 typingJob = viewModelScope.launch {
                     delay(3_000)
                     _state.update { it.copy(peerTyping = false) }
+                }
+            }
+            "presence" -> {
+                val userId = event.userId ?: return
+                if (userId == peerUserId) {
+                    PresenceStore.update(userId, event.online == true, event.lastSeenAt)
+                    applyPeerPresence()
                 }
             }
             "message_delivered" -> event.messageId?.let {

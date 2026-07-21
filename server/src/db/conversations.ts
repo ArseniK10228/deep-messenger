@@ -41,6 +41,26 @@ export async function userInConversation(userId: string, conversationId: string)
   return r.rowCount !== null && r.rowCount > 0;
 }
 
+export async function getConversationPeer(userId: string, conversationId: string) {
+  const r = await query<{
+    id: string;
+    email: string | null;
+    phone: string | null;
+    username: string | null;
+    display_name: string;
+    avatar_path: string | null;
+    last_seen_at: string | null;
+  }>(
+    `SELECT u.id, u.email, u.phone, u.username, u.display_name, u.avatar_path, u.last_seen_at
+     FROM conversation_members cm
+     JOIN users u ON u.id = cm.user_id
+     WHERE cm.conversation_id = $1 AND cm.user_id <> $2
+     LIMIT 1`,
+    [conversationId, userId]
+  );
+  return r.rows[0] || null;
+}
+
 export async function listConversationsForUser(userId: string) {
   const r = await query(
     `SELECT c.id,
@@ -66,7 +86,8 @@ export async function listConversationsForUser(userId: string) {
                 'phone', COALESCE(u.phone, ''),
                 'username', u.username,
                 'displayName', u.display_name,
-                'avatarUrl', CASE WHEN u.avatar_path IS NOT NULL THEN '/media/' || u.avatar_path END
+                'avatarUrl', CASE WHEN u.avatar_path IS NOT NULL THEN '/media/' || u.avatar_path END,
+                'lastSeenAt', u.last_seen_at
               ))
               FROM conversation_members cm
               JOIN users u ON u.id = cm.user_id

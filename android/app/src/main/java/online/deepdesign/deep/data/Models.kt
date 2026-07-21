@@ -48,7 +48,9 @@ data class UserDto(
     val phone: String,
     val username: String? = null,
     val displayName: String,
-    val avatarUrl: String?
+    val avatarUrl: String?,
+    val online: Boolean? = null,
+    @Json(name = "lastSeenAt") val lastSeenAt: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -161,6 +163,16 @@ data class AppReleaseDto(
 )
 
 @JsonClass(generateAdapter = true)
+data class PeerResponse(val peer: UserDto)
+
+@JsonClass(generateAdapter = true)
+data class PresenceUserDto(
+    val userId: String,
+    val online: Boolean,
+    @Json(name = "lastSeenAt") val lastSeenAt: String? = null
+)
+
+@JsonClass(generateAdapter = true)
 data class WsEnvelope(
     val type: String,
     val message: MessageDto? = null,
@@ -177,5 +189,8 @@ data class WsEnvelope(
     val sdpMLineIndex: Int? = null,
     val fromUserId: String? = null,
     val reason: String? = null,
-    val video: String? = null
+    val video: String? = null,
+    val online: Boolean? = null,
+    @Json(name = "lastSeenAt") val lastSeenAt: String? = null,
+    val users: List<PresenceUserDto>? = null
 )

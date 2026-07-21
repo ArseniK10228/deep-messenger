@@ -51,6 +51,9 @@ interface DeepApi {
     @GET("api/v1/conversations")
     suspend fun conversations(): ConversationsResponse
 
+    @GET("api/v1/conversations/{id}/peer")
+    suspend fun conversationPeer(@Path("id") conversationId: String): PeerResponse
+
     @POST("api/v1/conversations/direct")
     suspend fun createDirect(@Body body: DirectChatRequest): DirectChatResponse
 

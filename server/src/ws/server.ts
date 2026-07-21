@@ -3,6 +3,7 @@ import { WebSocketServer } from 'ws';
 import type { FastifyInstance } from 'fastify';
 import {
   broadcastToConversation,
+  isUserOnline,
   registerClient,
   sendToUser,
   subscribeConversation,
@@ -10,6 +11,11 @@ import {
 } from './hub.js';
 import { markDelivered } from '../db/messages.js';
 import { handleCallMessage, isCallMessage } from './callSignaling.js';
+import {
+  buildPresenceSnapshot,
+  notifyPresence,
+  touchLastSeen
+} from '../lib/presence.js';
 
 export function attachWebSocket(server: Server, app: FastifyInstance): void {
   const wss = new WebSocketServer({ server, path: '/ws' });
@@ -23,7 +29,18 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
         return;
       }
       const payload = await app.jwt.verify<{ id: string }>(token);
+      const wasOnline = isUserOnline(payload.id);
       const client = registerClient(ws, payload.id);
+      if (!wasOnline) {
+        await touchLastSeen(payload.id);
+        await notifyPresence(payload.id, true);
+      }
+      ws.send(
+        JSON.stringify({
+          type: 'presence_snapshot',
+          users: await buildPresenceSnapshot(payload.id)
+        })
+      );
 
       ws.on('message', async (raw) => {
         try {
@@ -62,7 +79,12 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
         }
       });
 
-      ws.on('close', () => unregisterClient(client));
+      ws.on('close', async () => {
+        unregisterClient(client);
+        if (!isUserOnline(payload.id)) {
+          await notifyPresence(payload.id, false);
+        }
+      });
     } catch {
       ws.close(4401, 'unauthorized');
     }

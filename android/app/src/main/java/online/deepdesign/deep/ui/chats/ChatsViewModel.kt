@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
@@ -13,6 +14,8 @@ import online.deepdesign.deep.data.ChatEvent
 import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.ConversationDto
 import online.deepdesign.deep.data.DirectChatRequest
+import online.deepdesign.deep.data.PresenceInfo
+import online.deepdesign.deep.data.PresenceStore
 import online.deepdesign.deep.data.UpdateProfileRequest
 import online.deepdesign.deep.data.UserDto
 import online.deepdesign.deep.data.readApiError
@@ -52,6 +55,23 @@ class ChatsViewModel : ViewModel() {
                 }
             }
         }
+        viewModelScope.launch {
+            PresenceStore.users.collectLatest { users -> refreshPresenceLabels(users) }
+        }
+    }
+
+    private fun refreshPresenceLabels(users: Map<String, PresenceInfo>) {
+        _state.update { current ->
+            current.copy(conversations = current.conversations.map { conv ->
+                val peer = conv.peers?.firstOrNull() ?: return@map conv
+                val live = users[peer.id] ?: return@map conv
+                conv.copy(
+                    peers = listOf(
+                        peer.copy(online = live.online, lastSeenAt = live.lastSeenAt)
+                    )
+                )
+            })
+        }
     }
 
     fun refresh() {
@@ -59,6 +79,11 @@ class ChatsViewModel : ViewModel() {
             _state.update { it.copy(loading = true, error = null) }
             try {
                 val list = api.conversations().conversations
+                list.forEach { conv ->
+                    conv.peers?.firstOrNull()?.let { peer ->
+                        PresenceStore.seed(peer.id, peer.online, peer.lastSeenAt)
+                    }
+                }
                 _state.update { it.copy(loading = false, conversations = list) }
             } catch (e: Exception) {
                 val msg = when {
@@ -219,6 +244,14 @@ class ChatsViewModel : ViewModel() {
     fun userSubtitle(user: UserDto): String {
         user.username?.let { return "@$it" }
         return user.email.orEmpty().ifBlank { user.phone }
+    }
+
+    fun peerPresence(conv: ConversationDto): Pair<Boolean, String?> {
+        val peer = conv.peers?.firstOrNull() ?: return false to null
+        val live = PresenceStore.users.value[peer.id]
+        val online = live?.online ?: peer.online == true
+        val lastSeen = live?.lastSeenAt ?: peer.lastSeenAt
+        return online to lastSeen
     }
 
     fun previewText(conv: ConversationDto): String {

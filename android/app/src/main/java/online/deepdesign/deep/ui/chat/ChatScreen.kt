@@ -5,11 +5,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -329,11 +324,7 @@ fun ChatScreen(
                                 )
                             }
                             item(key = "peer_typing") {
-                                AnimatedVisibility(
-                                    visible = state.peerTyping,
-                                    enter = fadeIn(tween(180, easing = FastOutSlowInEasing)),
-                                    exit = fadeOut(tween(140))
-                                ) {
+                                if (state.peerTyping) {
                                     TypingBubbleIndicator(
                                         asMessageBubble = true,
                                         modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)

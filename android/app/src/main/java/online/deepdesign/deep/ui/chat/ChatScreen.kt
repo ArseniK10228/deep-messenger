@@ -212,7 +212,7 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    val status = PresenceFormatter.status(
+                    val status = PresenceFormatter.chatStatus(
                         online = state.peerOnline,
                         lastSeenAt = state.peerLastSeenAt,
                         typing = state.peerTyping

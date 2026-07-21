@@ -50,6 +50,7 @@ class ChatViewModel(
     private var peerUserId: String? = null
     private var wsJob: Job? = null
     private var typingJob: Job? = null
+    private var lastTypingSentAt = 0L
 
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
@@ -148,6 +149,13 @@ class ChatViewModel(
 
     fun onInputChange(v: String) {
         _state.update { it.copy(input = v) }
+        if (v.isNotBlank()) {
+            val now = System.currentTimeMillis()
+            if (now - lastTypingSentAt >= 2_000) {
+                lastTypingSentAt = now
+                socket.sendTyping(conversationId)
+            }
+        }
     }
 
     fun showError(message: String) {

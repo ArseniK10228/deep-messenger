@@ -109,6 +109,9 @@ class SignalingHub(
                             scope.launch { _events.emit(env) }
                         } else if (env.type in chatTypes) {
                             _events.tryEmit(env)
+                        } else if (env.type == "typing") {
+                            val convId = env.conversationId ?: return
+                            ChatNotifier.emit(ChatEvent.PeerTyping(convId))
                         } else if (env.type == "presence") {
                             val userId = env.userId ?: return
                             PresenceStore.update(userId, env.online == true, env.lastSeenAt)

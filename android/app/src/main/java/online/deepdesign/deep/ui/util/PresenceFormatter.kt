@@ -12,12 +12,19 @@ object PresenceFormatter {
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm", Locale("ru"))
     private val dateFmt = DateTimeFormatter.ofPattern("d MMM", Locale("ru"))
 
-    fun status(online: Boolean, lastSeenAt: String?, typing: Boolean = false): String {
+    /** Subtitle on chats list: only when offline — never "в сети", never "давно". */
+    fun listLastSeen(online: Boolean, lastSeenAt: String?): String? {
+        if (online) return null
+        val instant = parseInstant(lastSeenAt) ?: return "был(а) недавно"
+        return formatLastSeen(instant)
+    }
+
+    /** Status line inside an open chat. */
+    fun chatStatus(online: Boolean, lastSeenAt: String?, typing: Boolean = false): String {
         if (typing) return "печатает…"
         if (online) return "в сети"
-        val instant = parseInstant(lastSeenAt) ?: return "был(а) давно"
-        val now = Instant.now()
-        val minutes = Duration.between(instant, now).toMinutes()
+        val instant = parseInstant(lastSeenAt) ?: return "был(а) недавно"
+        val minutes = Duration.between(instant, Instant.now()).toMinutes()
         return when {
             minutes < 1 -> "был(а) только что"
             minutes < 60 -> "был(а) ${minutes} мин. назад"

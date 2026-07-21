@@ -2,6 +2,8 @@ package online.deepdesign.deep.ui.chats
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,11 +38,13 @@ data class ChatsUiState(
     val profileError: String? = null,
     val profileDisplayName: String = "",
     val profileUsername: String = "",
-    val currentUser: UserDto? = null
+    val currentUser: UserDto? = null,
+    val typingConversations: Set<String> = emptySet()
 )
 
 class ChatsViewModel : ViewModel() {
     private val api = DeepApp.instance.api
+    private val typingJobs = mutableMapOf<String, Job>()
 
     private val _state = MutableStateFlow(ChatsUiState())
     val state: StateFlow<ChatsUiState> = _state.asStateFlow()
@@ -52,11 +56,22 @@ class ChatsViewModel : ViewModel() {
             ChatNotifier.events.collect { event ->
                 when (event) {
                     is ChatEvent.NewMessage, ChatEvent.RefreshChats -> refresh()
+                    is ChatEvent.PeerTyping -> onPeerTyping(event.conversationId)
                 }
             }
         }
         viewModelScope.launch {
             PresenceStore.users.collectLatest { users -> refreshPresenceLabels(users) }
+        }
+    }
+
+    private fun onPeerTyping(conversationId: String) {
+        typingJobs[conversationId]?.cancel()
+        _state.update { it.copy(typingConversations = it.typingConversations + conversationId) }
+        typingJobs[conversationId] = viewModelScope.launch {
+            delay(3_000)
+            _state.update { it.copy(typingConversations = it.typingConversations - conversationId) }
+            typingJobs.remove(conversationId)
         }
     }
 
@@ -253,6 +268,9 @@ class ChatsViewModel : ViewModel() {
         val lastSeen = live?.lastSeenAt ?: peer.lastSeenAt
         return online to lastSeen
     }
+
+    fun isPeerTyping(conversationId: String): Boolean =
+        conversationId in _state.value.typingConversations
 
     fun previewText(conv: ConversationDto): String {
         val m = conv.lastMessage ?: return "Нет сообщений"

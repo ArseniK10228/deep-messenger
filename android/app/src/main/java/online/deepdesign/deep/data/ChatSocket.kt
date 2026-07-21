@@ -44,6 +44,10 @@ class ChatSocket(
                                     }.orEmpty()
                                     PresenceStore.applySnapshot(entries)
                                 }
+                                "typing" -> {
+                                    env.conversationId?.let { ChatNotifier.emit(ChatEvent.PeerTyping(it)) }
+                                    trySend(env)
+                                }
                                 else -> trySend(env)
                             }
                         }
@@ -70,5 +74,9 @@ class ChatSocket(
 
     fun sendDelivered(messageId: String) {
         activeWs.get()?.send("""{"type":"delivered","messageId":"$messageId"}""")
+    }
+
+    fun sendTyping(conversationId: String) {
+        activeWs.get()?.send("""{"type":"typing","conversationId":"$conversationId"}""")
     }
 }

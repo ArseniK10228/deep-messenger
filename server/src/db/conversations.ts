@@ -57,6 +57,14 @@ export async function getConversationPeer(
   return r.rows[0] || null;
 }
 
+export async function listConversationMemberIds(conversationId: string): Promise<string[]> {
+  const r = await query<{ user_id: string }>(
+    `SELECT user_id FROM conversation_members WHERE conversation_id = $1`,
+    [conversationId]
+  );
+  return r.rows.map((row) => row.user_id);
+}
+
 export async function listConversationsForUser(userId: string) {
   const r = await query(
     `SELECT c.id,

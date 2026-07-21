@@ -1,5 +1,10 @@
 package online.deepdesign.deep.ui.chats
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +51,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -255,12 +261,13 @@ fun ChatsScreen(
                             ) {
                                 itemsIndexed(filtered, key = { _, c -> c.id }) { index, conv ->
                                     val (online, lastSeen) = vm.peerPresence(conv)
+                                    val peerTyping = vm.isPeerTyping(conv.id)
                                     ConversationRow(
                                         modifier = Modifier.deepAppear(delayMillis = index * 30),
                                         title = vm.peerTitle(conv),
-                                        subtitle = PresenceFormatter.status(online, lastSeen),
-                                        subtitleAccent = PresenceFormatter.isOnlineAccent(online, typing = false),
+                                        lastSeenSubtitle = PresenceFormatter.listLastSeen(online, lastSeen),
                                         preview = vm.previewText(conv),
+                                        peerTyping = peerTyping,
                                         time = formatTime(conv.lastMessage?.createdAt),
                                         online = online,
                                         onClick = { onOpenChat(conv.id, vm.peerTitle(conv)) }
@@ -336,9 +343,9 @@ fun ChatsScreen(
 @Composable
 private fun ConversationRow(
     title: String,
-    subtitle: String,
-    subtitleAccent: Boolean,
+    lastSeenSubtitle: String?,
     preview: String,
+    peerTyping: Boolean,
     time: String?,
     online: Boolean,
     onClick: () -> Unit,
@@ -379,22 +386,73 @@ private fun ConversationRow(
                     )
                 }
             }
-            Text(
-                text = subtitle,
-                color = if (subtitleAccent) DeepAccent else DeepMuted,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = preview,
-                color = DeepMuted,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp)
-            )
+            if (lastSeenSubtitle != null) {
+                Text(
+                    text = lastSeenSubtitle,
+                    color = DeepMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (peerTyping) {
+                TypingPreview(modifier = Modifier.padding(top = if (lastSeenSubtitle != null) 2.dp else 0.dp))
+            } else {
+                Text(
+                    text = preview,
+                    color = DeepMuted,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = if (lastSeenSubtitle != null) 2.dp else 0.dp)
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun TypingPreview(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "typing")
+    val dot1 by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(500), RepeatMode.Reverse),
+        label = "dot1"
+    )
+    val dot2 by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(500, delayMillis = 160), RepeatMode.Reverse),
+        label = "dot2"
+    )
+    val dot3 by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(500, delayMillis = 320), RepeatMode.Reverse),
+        label = "dot3"
+    )
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = "печатает",
+            color = DeepAccent,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = "•",
+            color = DeepAccent.copy(alpha = dot1),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = "•",
+            color = DeepAccent.copy(alpha = dot2),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = "•",
+            color = DeepAccent.copy(alpha = dot3),
+            style = MaterialTheme.typography.bodyMedium
+        )
     }
 }
 

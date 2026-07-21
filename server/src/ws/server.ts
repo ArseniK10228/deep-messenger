@@ -10,6 +10,7 @@ import {
   unregisterClient
 } from './hub.js';
 import { markDelivered } from '../db/messages.js';
+import { listConversationMemberIds } from '../db/conversations.js';
 import { handleCallMessage, isCallMessage } from './callSignaling.js';
 import {
   buildPresenceSnapshot,
@@ -58,11 +59,15 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
             ws.send(JSON.stringify({ type: 'subscribed', conversationId: msg.conversationId }));
           }
           if (msg.type === 'typing' && msg.conversationId) {
-            broadcastToConversation(msg.conversationId, {
-              type: 'typing',
-              conversationId: msg.conversationId,
-              userId: payload.id
-            });
+            const members = await listConversationMemberIds(msg.conversationId);
+            for (const memberId of members) {
+              if (memberId === payload.id) continue;
+              sendToUser(memberId, {
+                type: 'typing',
+                conversationId: msg.conversationId,
+                userId: payload.id
+              });
+            }
           }
           if (msg.type === 'delivered' && msg.messageId) {
             const result = await markDelivered(msg.messageId, payload.id);

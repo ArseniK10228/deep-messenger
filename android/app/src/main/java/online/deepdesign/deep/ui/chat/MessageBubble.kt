@@ -59,7 +59,6 @@ import kotlin.math.roundToInt
 fun MessageBubble(
     msg: MessageDto,
     mine: Boolean,
-    modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null
 ) {
     val bg = if (mine) DeepBubbleOut else DeepBubbleIn
@@ -71,7 +70,7 @@ fun MessageBubble(
         bottomEnd = if (mine) 4.dp else 18.dp
     )
 
-    Box(modifier = modifier.fillMaxWidth(), contentAlignment = align) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = align) {
         val isVoice = msg.kind == "voice"
         Column(
             modifier = Modifier

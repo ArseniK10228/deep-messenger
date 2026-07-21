@@ -33,7 +33,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.animateItem
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -389,22 +388,12 @@ fun ChatScreen(
                             MessageBubble(
                                 msg = msg,
                                 mine = vm.isMine(msg),
-                                modifier = Modifier.animateItem(
-                                    fadeInSpec = tween(160, easing = FastOutSlowInEasing),
-                                    fadeOutSpec = tween(120),
-                                    placementSpec = tween(280, easing = FastOutSlowInEasing)
-                                ),
                                 onLongClick = { deleteTarget = msg }
                             )
                         }
                         item(key = "peer_typing") {
                             AnimatedVisibility(
                                 visible = state.peerTyping,
-                                modifier = Modifier.animateItem(
-                                    fadeInSpec = tween(200),
-                                    fadeOutSpec = tween(160),
-                                    placementSpec = tween(280, easing = FastOutSlowInEasing)
-                                ),
                                 enter = expandVertically(
                                     animationSpec = tween(260, easing = FastOutSlowInEasing),
                                     expandFrom = Alignment.Top

@@ -58,8 +58,12 @@ jobs:
             const fs = require('fs');
             const p = 'server/app-release.json';
             const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            const note = (j.changelog || '').trim().replace(/\s+/g, ' ');
             j.versionCode = Number(process.env.VC);
             j.versionName = process.env.VN;
+            j.changelog = note
+              ? 'Выпущена версия ' + j.versionName + '. ' + note + ' Рекомендуется установить обновление для обеспечения стабильной работы сервиса.'
+              : 'Выпущена версия ' + j.versionName + '. Обновление содержит улучшения стабильности и исправления ошибок. Рекомендуется установить актуальную версию приложения.';
             fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
           " 
           echo "Release metadata: versionCode=$VC versionName=$VN"
@@ -126,3 +130,11 @@ jobs:
           test -s /tmp/deep.apk
           ls -lh /tmp/deep.apk
           echo "APK download OK"
+
+      - name: Publish release metadata to API
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          chmod +x scripts/infra/publish-app-release.sh
+          bash scripts/infra/publish-app-release.sh

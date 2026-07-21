@@ -391,7 +391,10 @@ private fun ConversationRow(
                 targetState = peerTyping,
                 transitionSpec = {
                     (fadeIn(tween(240, easing = FastOutSlowInEasing)) +
-                        scaleIn(initialScale = 0.82f, easing = FastOutSlowInEasing)) togetherWith
+                        scaleIn(
+                            initialScale = 0.82f,
+                            animationSpec = tween(240, easing = FastOutSlowInEasing)
+                        )) togetherWith
                         (fadeOut(tween(180)) + scaleOut(targetScale = 0.94f))
                 },
                 label = "preview"

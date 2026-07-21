@@ -1,5 +1,10 @@
 package online.deepdesign.deep.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -79,7 +84,19 @@ fun DeepNavHost(modifier: Modifier = Modifier) {
                     type = NavType.StringType
                     defaultValue = "Чат"
                 }
-            )
+            ),
+            enterTransition = {
+                slideInHorizontally(tween(280)) { it } + fadeIn(tween(220))
+            },
+            exitTransition = {
+                slideOutHorizontally(tween(220)) { -it / 3 } + fadeOut(tween(180))
+            },
+            popEnterTransition = {
+                slideInHorizontally(tween(280)) { -it } + fadeIn(tween(220))
+            },
+            popExitTransition = {
+                slideOutHorizontally(tween(220)) { it } + fadeOut(tween(180))
+            }
         ) { entry ->
             val conversationId = entry.arguments?.getString("conversationId").orEmpty()
             val title = URLDecoder.decode(

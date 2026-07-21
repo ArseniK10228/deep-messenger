@@ -23,16 +23,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import online.deepdesign.deep.call.CallPermissions
 import online.deepdesign.deep.call.CallUiState
 import online.deepdesign.deep.navigation.DeepNavHost
-import online.deepdesign.deep.ui.call.CallMinimizedBar
 import online.deepdesign.deep.ui.call.CallAudioSettingsSheet
-import online.deepdesign.deep.ui.call.CallOverlay
+import online.deepdesign.deep.ui.call.CallUiLayer
 import online.deepdesign.deep.ui.theme.DeepTheme
 
 class MainActivity : ComponentActivity() {
@@ -45,15 +42,6 @@ class MainActivity : ComponentActivity() {
                 val callManager = DeepApp.instance.callManager
                 val callState by callManager.state.collectAsState()
                 val callError by callManager.error.collectAsState()
-                val muted by callManager.muted.collectAsState()
-                val callAudio by callManager.callAudio.collectAsState()
-                val callNetwork by callManager.callNetwork.collectAsState()
-                val micLevel by callManager.micLevel.collectAsState()
-                val overlayExpanded by callManager.overlayExpanded.collectAsState()
-                val videoOn by callManager.videoOn.collectAsState()
-                val localVideo by callManager.localVideoTrack.collectAsState()
-                val localVideoMirror by callManager.localVideoMirror.collectAsState()
-                val remoteVideo by callManager.remoteVideoTrack.collectAsState()
                 val snackbar = remember { SnackbarHostState() }
                 var showAudioSettings by remember { mutableStateOf(false) }
 
@@ -134,46 +122,11 @@ class MainActivity : ComponentActivity() {
                     Box(Modifier.fillMaxSize()) {
                         DeepNavHost()
 
-                        if (callState !is CallUiState.Idle) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .zIndex(1f)
-                            ) {
-                            val showFullOverlay = callState is CallUiState.Incoming || overlayExpanded
-                            if (showFullOverlay) {
-                                CallOverlay(
-                                    modifier = Modifier.fillMaxSize(),
-                                    state = callState,
-                                    muted = muted,
-                                    callAudio = callAudio,
-                                    callNetwork = callNetwork,
-                                    micLevel = micLevel,
-                                    videoOn = videoOn,
-                                    localVideo = localVideo,
-                                    localVideoMirror = localVideoMirror,
-                                    remoteVideo = remoteVideo,
-                                    onAccept = { acceptCall() },
-                                    onReject = { callManager.rejectIncoming() },
-                                    onHangup = { callManager.hangup() },
-                                    onToggleMute = { callManager.toggleMute() },
-                                    onOpenAudioSettings = { openCallAudioSettings() },
-                                    onToggleVideo = { callManager.toggleVideo() },
-                                    onSwitchCamera = { callManager.switchCamera() },
-                                    onMinimize = { callManager.minimizeOverlay() }
-                                )
-                            } else {
-                                CallMinimizedBar(
-                                    state = callState,
-                                    muted = muted,
-                                    onExpand = { callManager.expandOverlay() },
-                                    onToggleMute = { callManager.toggleMute() },
-                                    onHangup = { callManager.hangup() },
-                                    modifier = Modifier.align(Alignment.BottomCenter)
-                                )
-                            }
-                            }
-                        }
+                        CallUiLayer(
+                            callManager = callManager,
+                            onAccept = { acceptCall() },
+                            onOpenAudioSettings = { openCallAudioSettings() }
+                        )
                     }
                 }
 

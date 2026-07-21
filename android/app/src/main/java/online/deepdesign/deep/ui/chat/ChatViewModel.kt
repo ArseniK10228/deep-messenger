@@ -26,6 +26,7 @@ import online.deepdesign.deep.data.WsEnvelope
 import online.deepdesign.deep.data.readPickedFile
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 
 data class ChatUiState(
     val loading: Boolean = true,
@@ -38,7 +39,8 @@ data class ChatUiState(
     val peerTyping: Boolean = false,
     val peerOnline: Boolean = false,
     val peerLastSeenAt: String? = null,
-    val highlightMessageId: String? = null
+    val highlightMessageId: String? = null,
+    val justSentIds: Set<String> = emptySet()
 )
 
 class ChatViewModel(
@@ -164,22 +166,52 @@ class ChatViewModel(
 
     fun send() {
         val text = _state.value.input.trim()
-        if (text.isEmpty() || _state.value.sending || _state.value.uploading) return
+        if (text.isEmpty() || _state.value.uploading) return
+        val userId = DeepApp.instance.currentUserId ?: return
+
+        val clientId = "pending:${UUID.randomUUID()}"
+        val optimistic = MessageDto(
+            id = clientId,
+            conversationId = conversationId,
+            senderId = userId,
+            kind = "text",
+            body = text,
+            mediaUrl = null,
+            createdAt = Instant.now().toString()
+        )
+
         viewModelScope.launch {
-            _state.update { it.copy(sending = true, input = "") }
+            appendMessage(optimistic)
+            _state.update {
+                it.copy(
+                    input = "",
+                    justSentIds = it.justSentIds + clientId
+                )
+            }
+            launch {
+                delay(650)
+                _state.update { it.copy(justSentIds = it.justSentIds - clientId) }
+            }
             try {
                 val msg = api.sendMessage(
                     conversationId,
                     SendMessageRequest(kind = "text", body = text)
                 ).message
-                appendMessage(msg)
-                _state.update { it.copy(highlightMessageId = msg.id) }
-                delay(700)
-                _state.update { it.copy(highlightMessageId = null) }
+                replacePendingMessage(clientId, msg)
+                _state.update { it.copy(justSentIds = it.justSentIds - clientId + msg.id) }
+                launch {
+                    delay(500)
+                    _state.update { it.copy(justSentIds = it.justSentIds - msg.id) }
+                }
             } catch (e: Exception) {
-                _state.update { it.copy(sending = false, input = text, error = e.message) }
-            } finally {
-                _state.update { it.copy(sending = false) }
+                removeMessage(clientId)
+                _state.update {
+                    it.copy(
+                        input = text,
+                        error = e.message,
+                        justSentIds = it.justSentIds - clientId
+                    )
+                }
             }
         }
     }
@@ -268,6 +300,16 @@ class ChatViewModel(
         if (added && !isMine(msg)) {
             socket.sendDelivered(msg.id)
             viewModelScope.launch { runCatching { api.markRead(msg.id) } }
+        }
+    }
+
+    private fun replacePendingMessage(clientId: String, msg: MessageDto) {
+        _state.update { s ->
+            s.copy(
+                messages = sortMessages(
+                    s.messages.filterNot { it.id == clientId || it.id == msg.id } + msg
+                )
+            )
         }
     }
 

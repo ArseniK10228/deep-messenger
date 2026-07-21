@@ -30,15 +30,12 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -47,7 +44,7 @@ import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.data.resolveMediaUrl
 import online.deepdesign.deep.ui.components.VoiceWaveform
-import online.deepdesign.deep.ui.components.deepAppear
+import online.deepdesign.deep.ui.components.messageSendEnter
 import online.deepdesign.deep.ui.theme.DeepAccent
 import online.deepdesign.deep.ui.theme.DeepBubbleIn
 import online.deepdesign.deep.ui.theme.DeepBubbleOut
@@ -63,7 +60,7 @@ import kotlin.math.roundToInt
 fun MessageBubble(
     msg: MessageDto,
     mine: Boolean,
-    highlight: Boolean = false,
+    animateSend: Boolean = false,
     onLongClick: (() -> Unit)? = null
 ) {
     val bg = if (mine) DeepBubbleOut else DeepBubbleIn
@@ -75,21 +72,13 @@ fun MessageBubble(
         bottomEnd = if (mine) 4.dp else 18.dp
     )
 
-    val highlightScale by animateFloatAsState(
-        targetValue = if (highlight) 1.03f else 1f,
-        animationSpec = tween(220),
-        label = "sendPulse"
-    )
+    val enterModifier = if (animateSend) Modifier.messageSendEnter(mine) else Modifier
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = align) {
         val isVoice = msg.kind == "voice"
         Column(
-            modifier = Modifier
+            modifier = enterModifier
                 .widthIn(min = if (isVoice) 240.dp else 0.dp, max = if (isVoice) 300.dp else 300.dp)
-                .graphicsLayer {
-                    scaleX = highlightScale
-                    scaleY = highlightScale
-                }
                 .clip(shape)
                 .background(bg)
                 .then(
@@ -101,7 +90,6 @@ fun MessageBubble(
                     } else Modifier
                 )
                 .padding(horizontal = 10.dp, vertical = 8.dp)
-                .deepAppear(durationMillis = 260)
         ) {
             when (msg.kind) {
                 "image" -> ImageMessage(msg)

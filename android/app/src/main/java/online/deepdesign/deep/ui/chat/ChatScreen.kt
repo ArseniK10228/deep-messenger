@@ -308,28 +308,20 @@ fun ChatScreen(
                                 if (granted) vm.startRecording()
                                 else voiceMicPermission.launch(Manifest.permission.RECORD_AUDIO)
                             },
-                            enabled = !state.uploading && !state.sending
+                            enabled = !state.uploading
                         ) {
                             Icon(Icons.Default.Mic, contentDescription = "Голосовое", tint = DeepAccent)
                         }
                     } else {
                         IconButton(
                             onClick = vm::send,
-                            enabled = !state.sending && !state.uploading
+                            enabled = !state.uploading
                         ) {
-                            if (state.sending) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(22.dp),
-                                    strokeWidth = 2.dp,
-                                    color = DeepAccent
-                                )
-                            } else {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = "Отправить",
-                                    tint = DeepAccent
-                                )
-                            }
+                            Icon(
+                                Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Отправить",
+                                tint = DeepAccent
+                            )
                         }
                     }
                     if (state.uploading) {
@@ -392,7 +384,7 @@ fun ChatScreen(
                             MessageBubble(
                                 msg = msg,
                                 mine = vm.isMine(msg),
-                                highlight = state.highlightMessageId == msg.id,
+                                animateSend = state.justSentIds.contains(msg.id),
                                 onLongClick = { deleteTarget = msg }
                             )
                         }

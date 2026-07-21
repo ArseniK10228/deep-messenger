@@ -61,7 +61,6 @@ import online.deepdesign.deep.call.CallNetworkUiState
 import online.deepdesign.deep.call.CallOutputRoute
 import online.deepdesign.deep.call.CallUiState
 import online.deepdesign.deep.ui.components.ChatAvatar
-import online.deepdesign.deep.ui.components.deepAppear
 import online.deepdesign.deep.ui.theme.DeepAccent
 import online.deepdesign.deep.ui.theme.DeepBg
 import online.deepdesign.deep.ui.theme.DeepError
@@ -218,8 +217,7 @@ private fun IncomingCallUi(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 28.dp, vertical = 32.dp)
-                .deepAppear(),
+                .padding(horizontal = 28.dp, vertical = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.weight(0.3f))

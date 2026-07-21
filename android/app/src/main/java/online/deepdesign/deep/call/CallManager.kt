@@ -254,6 +254,8 @@ class CallManager(
         _overlayExpanded.value = true
     }
 
+    private var outgoingJob: Job? = null
+
     fun startOutgoing(conversationId: String, peerName: String, video: Boolean = false) {
         if (!hasMicPermission()) {
             _error.value = "Разреши доступ к микрофону для звонка"
@@ -263,24 +265,32 @@ class CallManager(
             _error.value = "Разреши доступ к камере для видеозвонка"
             return
         }
-        scope.launch {
+        if (isInCall()) return
+
+        val pendingId = "pending:${System.currentTimeMillis()}"
+        activePeerName = peerName
+        _videoOn.value = video
+        _overlayExpanded.value = true
+        _state.value = CallUiState.Outgoing(pendingId, conversationId, peerName, video)
+        setCallSignalingPriority(true)
+        ringtonePlayer.playOutgoingRingback()
+        startCallProtection(peerName, outgoing = true, video = video)
+        startStatsMonitor()
+
+        outgoingJob?.cancel()
+        outgoingJob = scope.launch {
             try {
                 val resp = api.startCall(StartCallRequest(conversationId, video))
+                if (_state.value !is CallUiState.Outgoing) return@launch
                 activeCallId = resp.callId
-                activePeerName = peerName
                 iceServers = resp.iceServers
-                _videoOn.value = video
-                _overlayExpanded.value = true
                 _state.value = CallUiState.Outgoing(resp.callId, conversationId, peerName, video)
-                setCallSignalingPriority(true)
-                ringtonePlayer.playOutgoingRingback()
-                startCallProtection(peerName, outgoing = true, video = video)
-                startStatsMonitor()
                 if (video) initEngine()
             } catch (e: Exception) {
-                _state.value = CallUiState.Idle
-                _error.value = e.message?.takeIf { it.isNotBlank() } ?: "Не удалось начать звонок"
-                CallForegroundService.stop(context)
+                if (_state.value is CallUiState.Outgoing) {
+                    endLocal("error")
+                    _error.value = e.message?.takeIf { it.isNotBlank() } ?: "Не удалось начать звонок"
+                }
             }
         }
     }
@@ -331,16 +341,13 @@ class CallManager(
 
     fun rejectFromNotification(callId: String) {
         val incoming = _state.value as? CallUiState.Incoming
+        outgoingJob?.cancel()
         if (incoming != null && incoming.callId == callId) {
-            scope.launch {
-                ringtonePlayer.stop()
-                runCatching { api.rejectCall(callId) }
-                endLocal("reject")
-            }
+            endLocal("reject")
+            scope.launch { runCatching { api.rejectCall(callId) } }
             return
         }
         scope.launch {
-            ringtonePlayer.stop()
             runCatching { api.rejectCall(callId) }
             if (isInCall()) {
                 endLocal("reject")
@@ -351,10 +358,11 @@ class CallManager(
     }
 
     fun hangup() {
-        val callId = resolveCallId() ?: return
-        scope.launch {
-            runCatching { api.endCall(callId) }
-            endLocal("hangup")
+        val callId = activeCallId ?: resolveCallId()?.takeUnless { it.startsWith("pending:") }
+        outgoingJob?.cancel()
+        endLocal("hangup")
+        if (callId != null) {
+            scope.launch { runCatching { api.endCall(callId) } }
         }
     }
 
@@ -785,13 +793,20 @@ class CallManager(
     }
 
     private fun endLocal(@Suppress("UNUSED_PARAMETER") reason: String) {
-        val endedCallId = activeCallId
+        if (_state.value is CallUiState.Idle && activeCallId == null && outgoingJob?.isActive != true) return
+        val endedCallId = activeCallId ?: resolveCallId()?.takeUnless { it.startsWith("pending:") }
+
         ringtonePlayer.stop()
+        _state.value = CallUiState.Idle
+        IncomingCallNotifier.dismiss(context, endedCallId)
+        CallForegroundService.stop(context)
+
         stopStatsMonitor()
         stopNetworkMonitor()
         CallHoldActivity.stop(context)
         endAudioSession()
-        teardownRtc()
+        setCallSignalingPriority(false)
+
         activeCallId = null
         pendingOffer = null
         pendingIce.clear()
@@ -801,10 +816,7 @@ class CallManager(
         _localVideoMirror.value = false
         _remoteVideoTrack.value = null
         _overlayExpanded.value = true
-        setCallSignalingPriority(false)
-        _state.value = CallUiState.Idle
-        IncomingCallNotifier.dismiss(context, endedCallId)
-        CallForegroundService.stop(context)
+        teardownRtc()
     }
 
     private fun teardownRtc() {

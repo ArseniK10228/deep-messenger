@@ -6,15 +6,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -23,9 +19,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import online.deepdesign.deep.call.CallNetworkUiState
 import online.deepdesign.deep.ui.theme.DeepAccent
@@ -91,6 +93,18 @@ private fun SignalBars(bars: Int, color: Color) {
     }
 }
 
+private class BottomFractionShape(private val fraction: Float) : Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: LayoutDirection,
+        density: Density
+    ): Outline {
+        val f = fraction.coerceIn(0f, 1f)
+        val top = size.height * (1f - f)
+        return Outline.Rectangle(Rect(0f, top, size.width, size.height))
+    }
+}
+
 @Composable
 fun MicLevelIcon(
     icon: ImageVector,
@@ -98,46 +112,35 @@ fun MicLevelIcon(
     modifier: Modifier = Modifier,
     muted: Boolean = false,
     light: Boolean = false,
-    iconSize: androidx.compose.ui.unit.Dp = 24.dp
+    iconSize: Dp = 24.dp
 ) {
-    val normalized = if (muted) 0f else (level * 14f).coerceIn(0f, 1f)
+    val normalized = if (muted) 0f else (level * 16f).coerceIn(0f, 1f)
     val fillFraction by animateFloatAsState(
         targetValue = normalized,
-        animationSpec = tween(70),
+        animationSpec = tween(60),
         label = "micFill"
     )
     val baseTint = when {
         muted -> if (light) Color.White.copy(alpha = 0.55f) else DeepMuted
-        light -> Color.White.copy(alpha = 0.45f)
-        else -> DeepMuted.copy(alpha = 0.55f)
+        light -> Color.White.copy(alpha = 0.7f)
+        else -> DeepMuted.copy(alpha = 0.7f)
     }
     val fillTint = Color(0xFF5CE696)
 
     Box(modifier = modifier.size(iconSize), contentAlignment = Alignment.Center) {
         Icon(icon, contentDescription = null, tint = baseTint, modifier = Modifier.size(iconSize))
-        if (!muted) {
-            Box(
+        if (!muted && fillFraction > 0.02f) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = fillTint,
                 modifier = Modifier
-                    .matchParentSize()
-                    .clip(RoundedCornerShape(3.dp))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(fillFraction)
-                        .align(Alignment.BottomCenter)
-                        .clip(RoundedCornerShape(3.dp))
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = fillTint,
-                        modifier = Modifier
-                            .size(iconSize)
-                            .align(Alignment.BottomCenter)
-                    )
-                }
-            }
+                    .size(iconSize)
+                    .graphicsLayer {
+                        clip = true
+                        shape = BottomFractionShape(fillFraction)
+                    }
+            )
         }
     }
 }

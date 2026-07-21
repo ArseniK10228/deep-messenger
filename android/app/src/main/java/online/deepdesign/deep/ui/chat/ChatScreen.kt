@@ -8,10 +8,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,6 +69,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -205,14 +204,23 @@ fun ChatScreen(
         val nearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
             ?.let { it >= lastContentIndex - 1 } != false
         if (nearBottom) {
-            listState.animateScrollToItem(lastContentIndex)
+            listState.scrollToItem(lastContentIndex)
         }
     }
 
-    LaunchedEffect(imeBottomPx, state.peerTyping) {
+    LaunchedEffect(state.peerTyping) {
+        if (!state.peerTyping || state.messages.isEmpty()) return@LaunchedEffect
+        val idx = state.messages.lastIndex + 1
+        listState.scrollToItem(idx)
+        withFrameNanos { }
+        listState.scrollToItem(idx)
+    }
+
+    LaunchedEffect(imeBottomPx) {
         if (imeBottomPx > 0 && state.messages.isNotEmpty()) {
-            val lastContentIndex = state.messages.lastIndex + if (state.peerTyping) 1 else 0
-            listState.animateScrollToItem(lastContentIndex)
+            listState.scrollToItem(
+                state.messages.lastIndex + if (state.peerTyping) 1 else 0
+            )
         }
     }
 
@@ -260,8 +268,103 @@ fun ChatScreen(
                     containerColor = DeepBg.copy(alpha = 0.92f)
                 )
             )
-        },
-        bottomBar = {
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .imePadding()
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xFF12101A),
+                                DeepBg,
+                                Color(0xFF0A0810)
+                            )
+                        )
+                    )
+            ) {
+                when {
+                    state.loading -> {
+                        CircularProgressIndicator(
+                            color = DeepAccent,
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
+                    state.messages.isEmpty() && !state.recording -> {
+                        Text(
+                            text = "Напиши первое сообщение",
+                            color = DeepMuted,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .deepAppear()
+                        )
+                    }
+                    else -> {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(
+                                start = 12.dp,
+                                top = 8.dp,
+                                end = 12.dp,
+                                bottom = 8.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(
+                                items = state.messages,
+                                key = { msg -> state.messageKeys[msg.id] ?: msg.id }
+                            ) { msg ->
+                                MessageBubble(
+                                    msg = msg,
+                                    mine = vm.isMine(msg),
+                                    onLongClick = { deleteTarget = msg }
+                                )
+                            }
+                            item(key = "peer_typing") {
+                                AnimatedVisibility(
+                                    visible = state.peerTyping,
+                                    enter = fadeIn(tween(180, easing = FastOutSlowInEasing)),
+                                    exit = fadeOut(tween(140))
+                                ) {
+                                    TypingBubbleIndicator(
+                                        asMessageBubble = true,
+                                        modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (state.recording) {
+                    RecordingOverlay(
+                        onCancel = vm::cancelRecording,
+                        onSend = vm::stopRecordingAndSend
+                    )
+                }
+
+                state.error?.let {
+                    Text(
+                        text = it,
+                        color = DeepError,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 8.dp)
+                            .background(DeepSurface.copy(alpha = 0.9f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+
             if (!state.recording) {
                 Surface(
                     color = DeepSurface,
@@ -272,165 +375,69 @@ fun ChatScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .navigationBarsPadding()
-                            .imePadding()
                             .padding(horizontal = 6.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                    IconButton(
-                        onClick = { showAttach = true },
-                        enabled = !state.uploading
-                    ) {
-                        Icon(Icons.Default.AttachFile, contentDescription = "Вложение", tint = DeepMuted)
-                    }
-                    OutlinedTextField(
-                        modifier = Modifier.weight(1f),
-                        value = state.input,
-                        onValueChange = vm::onInputChange,
-                        placeholder = { Text("Сообщение", color = DeepMuted) },
-                        maxLines = 4,
-                        shape = RoundedCornerShape(20.dp),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(onSend = { vm.send() }),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = DeepAccent,
-                            unfocusedBorderColor = DeepSurfaceHigh,
-                            focusedContainerColor = DeepSurfaceHigh,
-                            unfocusedContainerColor = DeepSurfaceHigh,
-                            cursorColor = DeepAccent
-                        )
-                    )
-                    if (state.input.isBlank()) {
                         IconButton(
-                            onClick = {
-                                val granted = ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.RECORD_AUDIO
-                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                                if (granted) vm.startRecording()
-                                else voiceMicPermission.launch(Manifest.permission.RECORD_AUDIO)
-                            },
+                            onClick = { showAttach = true },
                             enabled = !state.uploading
                         ) {
-                            Icon(Icons.Default.Mic, contentDescription = "Голосовое", tint = DeepAccent)
+                            Icon(Icons.Default.AttachFile, contentDescription = "Вложение", tint = DeepMuted)
                         }
-                    } else {
-                        IconButton(
-                            onClick = vm::send,
-                            enabled = !state.uploading
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "Отправить",
-                                tint = DeepAccent
+                        OutlinedTextField(
+                            modifier = Modifier.weight(1f),
+                            value = state.input,
+                            onValueChange = vm::onInputChange,
+                            placeholder = { Text("Сообщение", color = DeepMuted) },
+                            maxLines = 4,
+                            shape = RoundedCornerShape(20.dp),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(onSend = { vm.send() }),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = DeepAccent,
+                                unfocusedBorderColor = DeepSurfaceHigh,
+                                focusedContainerColor = DeepSurfaceHigh,
+                                unfocusedContainerColor = DeepSurfaceHigh,
+                                cursorColor = DeepAccent
                             )
-                        }
-                    }
-                    if (state.uploading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .padding(start = 4.dp)
-                                .size(22.dp),
-                            strokeWidth = 2.dp,
-                            color = DeepAccent
                         )
-                    }
-                }
-                }
-            }
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0xFF12101A),
-                            DeepBg,
-                            Color(0xFF0A0810)
-                        )
-                    )
-                )
-        ) {
-            when {
-                state.loading -> {
-                    CircularProgressIndicator(
-                        color = DeepAccent,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-                state.messages.isEmpty() && !state.recording -> {
-                    Text(
-                        text = "Напиши первое сообщение",
-                        color = DeepMuted,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .deepAppear()
-                    )
-                }
-                else -> {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            start = 12.dp,
-                            top = 8.dp,
-                            end = 12.dp,
-                            bottom = 8.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(
-                            items = state.messages,
-                            key = { msg -> state.messageKeys[msg.id] ?: msg.id }
-                        ) { msg ->
-                            MessageBubble(
-                                msg = msg,
-                                mine = vm.isMine(msg),
-                                onLongClick = { deleteTarget = msg }
-                            )
-                        }
-                        item(key = "peer_typing") {
-                            AnimatedVisibility(
-                                visible = state.peerTyping,
-                                enter = expandVertically(
-                                    animationSpec = tween(260, easing = FastOutSlowInEasing),
-                                    expandFrom = Alignment.Top
-                                ) + fadeIn(tween(220, easing = FastOutSlowInEasing)),
-                                exit = shrinkVertically(
-                                    animationSpec = tween(220, easing = FastOutSlowInEasing),
-                                    shrinkTowards = Alignment.Top
-                                ) + fadeOut(tween(160))
+                        if (state.input.isBlank()) {
+                            IconButton(
+                                onClick = {
+                                    val granted = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.RECORD_AUDIO
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    if (granted) vm.startRecording()
+                                    else voiceMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+                                },
+                                enabled = !state.uploading
                             ) {
-                                TypingBubbleIndicator(
-                                    asMessageBubble = true,
-                                    modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
+                                Icon(Icons.Default.Mic, contentDescription = "Голосовое", tint = DeepAccent)
+                            }
+                        } else {
+                            IconButton(
+                                onClick = vm::send,
+                                enabled = !state.uploading
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = "Отправить",
+                                    tint = DeepAccent
                                 )
                             }
                         }
+                        if (state.uploading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .padding(start = 4.dp)
+                                    .size(22.dp),
+                                strokeWidth = 2.dp,
+                                color = DeepAccent
+                            )
+                        }
                     }
                 }
-            }
-
-            if (state.recording) {
-                RecordingOverlay(
-                    onCancel = vm::cancelRecording,
-                    onSend = vm::stopRecordingAndSend
-                )
-            }
-
-            state.error?.let {
-                Text(
-                    text = it,
-                    color = DeepError,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 8.dp)
-                        .background(DeepSurface.copy(alpha = 0.9f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                )
             }
         }
     }

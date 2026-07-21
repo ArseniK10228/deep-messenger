@@ -94,6 +94,7 @@ class CallManager(
     val remoteVideoTrack: StateFlow<VideoTrack?> = _remoteVideoTrack.asStateFlow()
 
     private var engine: WebRtcCallEngine? = null
+    private var rtcGeneration = 0
     private var iceServers: List<IceServerDto> = emptyList()
     private var listenJob: Job? = null
     private var activeCallId: String? = null
@@ -288,7 +289,6 @@ class CallManager(
                 activeCallId = resp.callId
                 iceServers = resp.iceServers
                 _state.value = CallUiState.Outgoing(resp.callId, conversationId, peerName, video)
-                if (video) initEngine()
             } catch (e: Exception) {
                 if (_state.value is CallUiState.Outgoing) {
                     endLocal("error")
@@ -486,24 +486,23 @@ class CallManager(
             }
             "call_accept" -> {
                 val callId = env.callId ?: return
-                if (_state.value is CallUiState.Outgoing) {
-                    val outgoing = _state.value as CallUiState.Outgoing
-                    activeCallId = callId
-                    ringtonePlayer.stop()
-                    _overlayExpanded.value = true
-                    _state.value = CallUiState.Active(
-                        callId,
-                        activePeerName,
-                        outgoing.video,
-                        connected = false
-                    )
-                    setCallSignalingPriority(true)
-                    beginAudioSession()
-                    refreshForegroundService()
-                    initEngine()
-                    engine?.createOffer { sdp ->
-                        signaling.sendSdp(callId, sdp.description, sdp.type.canonicalForm())
-                    }
+                val outgoing = _state.value as? CallUiState.Outgoing ?: return
+                if (!outgoing.callId.startsWith("pending:") && outgoing.callId != callId) return
+                activeCallId = callId
+                ringtonePlayer.stop()
+                _overlayExpanded.value = true
+                _state.value = CallUiState.Active(
+                    callId,
+                    activePeerName,
+                    outgoing.video,
+                    connected = false
+                )
+                setCallSignalingPriority(true)
+                beginAudioSession()
+                refreshForegroundService()
+                initEngine()
+                engine?.createOffer { sdp ->
+                    signaling.sendSdp(callId, sdp.description, sdp.type.canonicalForm())
                 }
             }
             "call_sdp" -> handleRemoteSdp(env)
@@ -576,19 +575,23 @@ class CallManager(
         }
         val relayOnly = NetworkUtils.isVpnActive(context)
         teardownRtc()
+        val generation = rtcGeneration
         beginAudioSession()
         engine = WebRtcCallEngine(context, iceServers, video, relayOnly, object : WebRtcCallEngine.Listener {
             override fun onIceCandidate(candidate: IceCandidate) {
+                if (generation != rtcGeneration) return
                 val callId = activeCallId ?: return
                 signaling.sendIce(callId, candidate.sdp, candidate.sdpMid, candidate.sdpMLineIndex)
             }
 
             override fun onRemoteVideoTrack(track: VideoTrack) {
+                if (generation != rtcGeneration) return
                 _remoteVideoTrack.value = track
             }
 
             override fun onConnectionChange(state: PeerConnection.PeerConnectionState) {
                 scope.launch {
+                    if (generation != rtcGeneration) return@launch
                     when (state) {
                         PeerConnection.PeerConnectionState.CONNECTED -> {
                             disconnectJob?.cancel()
@@ -604,7 +607,7 @@ class CallManager(
                             if (_state.value is CallUiState.Active) scheduleDisconnectHangup(graceMs = 25_000)
                         }
                         PeerConnection.PeerConnectionState.CLOSED -> {
-                            if (_state.value is CallUiState.Active) endLocal("remote_closed")
+                            if (_state.value is CallUiState.Active) hangup()
                         }
                         else -> Unit
                     }
@@ -613,6 +616,7 @@ class CallManager(
 
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState) {
                 scope.launch {
+                    if (generation != rtcGeneration) return@launch
                     when (state) {
                         PeerConnection.IceConnectionState.CONNECTED,
                         PeerConnection.IceConnectionState.COMPLETED -> {
@@ -824,6 +828,7 @@ class CallManager(
 
     private fun teardownRtc() {
         stopStatsMonitor()
+        rtcGeneration++
         engine?.close()
         engine = null
     }

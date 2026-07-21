@@ -42,6 +42,7 @@ class MainActivity : ComponentActivity() {
                 val callManager = DeepApp.instance.callManager
                 val callState by callManager.state.collectAsState()
                 val callError by callManager.error.collectAsState()
+                val callAudio by callManager.callAudio.collectAsState()
                 val snackbar = remember { SnackbarHostState() }
                 var showAudioSettings by remember { mutableStateOf(false) }
 

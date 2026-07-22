@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
+import online.deepdesign.deep.AppForegroundState
 import online.deepdesign.deep.data.ChatEvent
 import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.ChatSocket
@@ -63,10 +64,17 @@ class ChatViewModel(
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            runCatching { api.markConversationRead(conversationId) }
+        }
         loadDraft()
         loadMessages()
         loadPeer()
-        connectWs()
+        viewModelScope.launch {
+            AppForegroundState.foreground.collectLatest { fg ->
+                if (fg) connectWs() else disconnectWs()
+            }
+        }
         viewModelScope.launch {
             PresenceStore.users.collectLatest { applyPeerPresence() }
         }
@@ -139,6 +147,7 @@ class ChatViewModel(
     }
 
     private fun connectWs() {
+        if (wsJob?.isActive == true) return
         wsJob?.cancel()
         wsJob = viewModelScope.launch {
             while (true) {
@@ -152,6 +161,11 @@ class ChatViewModel(
                 delay(2_000)
             }
         }
+    }
+
+    private fun disconnectWs() {
+        wsJob?.cancel()
+        wsJob = null
     }
 
     private fun handleWsEvent(event: WsEnvelope) {
@@ -335,17 +349,17 @@ class ChatViewModel(
         }
         val added = appendMessage(msg)
         if (added && !isMine(msg)) {
-            ackDelivered(msg.id)
-            viewModelScope.launch { runCatching { api.markRead(msg.id) } }
+            viewModelScope.launch {
+                ackDelivered(msg.id)
+                runCatching { api.markRead(msg.id) }
+            }
         }
     }
 
-    private fun ackDelivered(messageId: String) {
+    private suspend fun ackDelivered(messageId: String) {
         socket.sendDelivered(messageId)
         DeepApp.instance.signalingHub.sendDelivered(messageId)
-        viewModelScope.launch {
-            runCatching { api.markDelivered(messageId) }
-        }
+        runCatching { api.markDelivered(messageId) }
     }
 
     private fun replacePendingMessage(clientId: String, msg: MessageDto, stableKey: String?) {
@@ -396,11 +410,9 @@ class ChatViewModel(
     }
 
     private fun markIncomingRead(msgs: List<MessageDto>) {
+        if (msgs.none { !isMine(it) }) return
         viewModelScope.launch {
-            msgs.filter { !isMine(it) }.forEach {
-                ackDelivered(it.id)
-                runCatching { api.markRead(it.id) }
-            }
+            runCatching { api.markConversationRead(conversationId) }
         }
     }
 

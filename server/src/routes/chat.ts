@@ -11,6 +11,7 @@ import {
   hideMessageForUser,
   insertMessage,
   listMessages,
+  markConversationRead,
   markDelivered,
   markRead
 } from '../db/messages.js';
@@ -135,6 +136,24 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       });
     }
     return { ok: true };
+  });
+
+  app.post('/conversations/:id/read', async (req, reply) => {
+    const user = getAuthUser(req);
+    const { id } = req.params as { id: string };
+    if (!(await userInConversation(user.id, id))) {
+      return reply.code(403).send({ error: 'forbidden' });
+    }
+    const notified = await markConversationRead(id, user.id);
+    for (const n of notified) {
+      sendToUser(n.senderId, {
+        type: 'message_read',
+        messageId: n.messageId,
+        conversationId: n.conversationId,
+        userId: user.id
+      });
+    }
+    return { ok: true, count: notified.length };
   });
 
   app.post('/messages/:id/delete', async (req, reply) => {

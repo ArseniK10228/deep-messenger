@@ -35,7 +35,11 @@ export function broadcastToConversation(conversationId: string, payload: unknown
 
 export function isUserOnline(userId: string): boolean {
   for (const c of clients) {
-    if (c.userId === userId && c.ws.readyState === c.ws.OPEN) {
+    if (
+      c.userId === userId &&
+      c.ws.readyState === c.ws.OPEN &&
+      c.conversationIds.size === 0
+    ) {
       return true;
     }
   }

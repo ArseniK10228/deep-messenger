@@ -86,6 +86,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.ui.components.AnimatedChatStatus
 import online.deepdesign.deep.ui.components.ChatAvatar
@@ -227,6 +228,7 @@ fun ChatScreen(
 
     LaunchedEffect(state.peerTyping) {
         if (!state.peerTyping || state.messages.isEmpty()) return@LaunchedEffect
+        delay(280)
         listState.animateScrollToItem(state.messages.lastIndex + 1)
     }
 
@@ -406,7 +408,7 @@ fun ChatScreen(
                             start = 12.dp,
                             top = 8.dp,
                             end = 12.dp,
-                            bottom = 8.dp
+                            bottom = if (state.peerTyping) 52.dp else 8.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {

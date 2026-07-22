@@ -191,4 +191,40 @@ export async function markRead(
   }));
 }
 
+export async function markConversationRead(
+  conversationId: string,
+  userId: string
+): Promise<Array<{ messageId: string; senderId: string; conversationId: string }>> {
+  const r = await query<{ id: string; sender_id: string }>(
+    `SELECT m.id, m.sender_id FROM messages m
+     JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = $2
+     WHERE m.conversation_id = $1 AND m.sender_id <> $2
+       AND m.deleted_for_all_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM message_reads mr WHERE mr.message_id = m.id AND mr.user_id = $2
+       )`,
+    [conversationId, userId]
+  );
+  const ids = r.rows.map((row) => row.id);
+  if (!ids.length) return [];
+
+  await query(
+    `INSERT INTO message_deliveries (message_id, user_id)
+     SELECT unnest($1::uuid[]), $2::uuid
+     ON CONFLICT DO NOTHING`,
+    [ids, userId]
+  );
+  await query(
+    `INSERT INTO message_reads (message_id, user_id)
+     SELECT unnest($1::uuid[]), $2::uuid
+     ON CONFLICT DO NOTHING`,
+    [ids, userId]
+  );
+  return r.rows.map((row) => ({
+    messageId: row.id,
+    senderId: row.sender_id,
+    conversationId
+  }));
+}
+
 export { mapMessage };

@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.SessionBootstrap
+import online.deepdesign.deep.call.CallAppState
 import online.deepdesign.deep.data.ChatEvent
 import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.FcmRegisterRequest
@@ -32,7 +33,7 @@ class DeepMessagingService : FirebaseMessagingService() {
         val notifBody = message.notification?.body
         scope.launch {
             val app = DeepApp.instance
-            runCatching { SessionBootstrap.restore(app.sessionStore, app) }
+            runCatching { SessionBootstrap.restoreToken(app.sessionStore, app) }
             when (data["type"]) {
                 "incoming_call" -> withContext(Dispatchers.Main.immediate) {
                     app.callManager.handleIncomingPush(data)
@@ -52,18 +53,19 @@ class DeepMessagingService : FirebaseMessagingService() {
                     val sender = data["senderName"] ?: notifTitle ?: "Deep"
                     val preview = data["preview"] ?: notifBody ?: "Новое сообщение"
                     if (convId != null) {
-                        MessageNotifier.show(
-                            this@DeepMessagingService,
-                            convId,
-                            sender,
-                            preview
-                        )
+                        if (!CallAppState.isInForeground()) {
+                            MessageNotifier.show(
+                                this@DeepMessagingService,
+                                convId,
+                                sender,
+                                preview
+                            )
+                        }
                         ChatNotifier.emit(ChatEvent.NewMessage(convId))
                     } else {
                         ChatNotifier.emit(ChatEvent.RefreshChats)
                     }
                     if (messageId != null) {
-                        app.signalingHub.sendDelivered(messageId)
                         runCatching { app.api.markDelivered(messageId) }
                     }
                 }

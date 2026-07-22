@@ -72,6 +72,9 @@ interface DeepApi {
     @POST("api/v1/messages/{id}/read")
     suspend fun markRead(@Path("id") messageId: String): Map<String, Boolean>
 
+    @POST("api/v1/conversations/{id}/read")
+    suspend fun markConversationRead(@Path("id") conversationId: String): Map<String, Any>
+
     @POST("api/v1/messages/{id}/delivered")
     suspend fun markDelivered(@Path("id") messageId: String): Map<String, Boolean>
 

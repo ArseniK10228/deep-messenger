@@ -59,13 +59,34 @@ class DeepApp : Application() {
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
-                callManager.onAppForegrounded()
+                onForeground()
             }
 
             override fun onStop(owner: LifecycleOwner) {
-                callManager.onAppBackgrounded()
+                onBackground()
             }
         })
+    }
+
+    fun cacheSession(token: String, userId: String?) {
+        cachedToken = token
+        cachedUserId = userId
+    }
+
+    private fun onForeground() {
+        AppForegroundState.setForeground(true)
+        callManager.onAppForegrounded()
+        if (!cachedToken.isNullOrBlank()) {
+            callManager.start()
+        }
+    }
+
+    private fun onBackground() {
+        AppForegroundState.setForeground(false)
+        callManager.onAppBackgrounded()
+        if (!callManager.isInCall()) {
+            callManager.stop()
+        }
     }
 
     fun setAuthSession(token: String?, userId: String?) {

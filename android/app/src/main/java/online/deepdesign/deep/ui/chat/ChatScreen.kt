@@ -23,8 +23,13 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.filled.Videocam
@@ -108,8 +113,7 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val density = LocalDensity.current
-    val imeBottomPx = WindowInsets.ime.getBottom(density)
-    val keyboardVisible = imeBottomPx > 0
+    val keyboardVisible = WindowInsets.ime.getBottom(density) > 0
     var showAttach by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<MessageDto?>(null) }
     val attachSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -214,8 +218,8 @@ fun ChatScreen(
         listState.animateScrollToItem(state.messages.lastIndex + 1)
     }
 
-    LaunchedEffect(imeBottomPx) {
-        if (imeBottomPx > 0 && state.messages.isNotEmpty()) {
+    LaunchedEffect(keyboardVisible) {
+        if (keyboardVisible && state.messages.isNotEmpty()) {
             listState.scrollToItem(
                 state.messages.lastIndex + if (state.peerTyping) 1 else 0
             )
@@ -224,6 +228,7 @@ fun ChatScreen(
 
     Scaffold(
         containerColor = DeepBg,
+        contentWindowInsets = WindowInsets.statusBars,
         topBar = {
             TopAppBar(
                 title = {
@@ -266,110 +271,8 @@ fun ChatScreen(
                     containerColor = DeepBg.copy(alpha = 0.92f)
                 )
             )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color(0xFF12101A),
-                                DeepBg,
-                                Color(0xFF0A0810)
-                            )
-                        )
-                    )
-            ) {
-                when {
-                    state.loading -> {
-                        CircularProgressIndicator(
-                            color = DeepAccent,
-                            modifier = Modifier.align(Alignment.Center)
-                        )
-                    }
-                    state.messages.isEmpty() && !state.recording -> {
-                        Text(
-                            text = "Напиши первое сообщение",
-                            color = DeepMuted,
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .deepAppear()
-                        )
-                    }
-                    else -> {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(
-                                start = 12.dp,
-                                top = 8.dp,
-                                end = 12.dp,
-                                bottom = 8.dp
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            items(
-                                items = state.messages,
-                                key = { msg -> state.messageKeys[msg.id] ?: msg.id }
-                            ) { msg ->
-                                MessageBubble(
-                                    msg = msg,
-                                    mine = vm.isMine(msg),
-                                    onLongClick = { deleteTarget = msg }
-                                )
-                            }
-                            item(key = "peer_typing") {
-                                Column {
-                                    AnimatedVisibility(
-                                        visible = state.peerTyping,
-                                        enter = expandVertically(
-                                            animationSpec = tween(260, easing = FastOutSlowInEasing),
-                                            expandFrom = Alignment.Top
-                                        ) + fadeIn(tween(220, easing = FastOutSlowInEasing)),
-                                        exit = shrinkVertically(
-                                            animationSpec = tween(220, easing = FastOutSlowInEasing),
-                                            shrinkTowards = Alignment.Top
-                                        ) + fadeOut(tween(160))
-                                    ) {
-                                        TypingBubbleIndicator(
-                                            asMessageBubble = true,
-                                            modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (state.recording) {
-                    RecordingOverlay(
-                        onCancel = vm::cancelRecording,
-                        onSend = vm::stopRecordingAndSend
-                    )
-                }
-
-                state.error?.let {
-                    Text(
-                        text = it,
-                        color = DeepError,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 8.dp)
-                            .background(DeepSurface.copy(alpha = 0.9f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    )
-                }
-            }
-
+        },
+        bottomBar = {
             if (!state.recording) {
                 Surface(
                     color = DeepSurface,
@@ -379,9 +282,10 @@ fun ChatScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .then(
-                                if (keyboardVisible) Modifier
-                                else Modifier.navigationBarsPadding()
+                            .windowInsetsPadding(
+                                WindowInsets.ime
+                                    .union(WindowInsets.navigationBars)
+                                    .only(WindowInsetsSides.Bottom)
                             )
                             .padding(horizontal = 6.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -446,6 +350,103 @@ fun ChatScreen(
                         }
                     }
                 }
+            }
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF12101A),
+                            DeepBg,
+                            Color(0xFF0A0810)
+                        )
+                    )
+                )
+        ) {
+            when {
+                state.loading -> {
+                    CircularProgressIndicator(
+                        color = DeepAccent,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+                state.messages.isEmpty() && !state.recording -> {
+                    Text(
+                        text = "Напиши первое сообщение",
+                        color = DeepMuted,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .deepAppear()
+                    )
+                }
+                else -> {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 12.dp,
+                            top = 8.dp,
+                            end = 12.dp,
+                            bottom = 8.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(
+                            items = state.messages,
+                            key = { msg -> state.messageKeys[msg.id] ?: msg.id }
+                        ) { msg ->
+                            MessageBubble(
+                                msg = msg,
+                                mine = vm.isMine(msg),
+                                onLongClick = { deleteTarget = msg }
+                            )
+                        }
+                        item(key = "peer_typing") {
+                            Column {
+                                AnimatedVisibility(
+                                    visible = state.peerTyping,
+                                    enter = expandVertically(
+                                        animationSpec = tween(260, easing = FastOutSlowInEasing),
+                                        expandFrom = Alignment.Top
+                                    ) + fadeIn(tween(220, easing = FastOutSlowInEasing)),
+                                    exit = shrinkVertically(
+                                        animationSpec = tween(220, easing = FastOutSlowInEasing),
+                                        shrinkTowards = Alignment.Top
+                                    ) + fadeOut(tween(160))
+                                ) {
+                                    TypingBubbleIndicator(
+                                        asMessageBubble = true,
+                                        modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (state.recording) {
+                RecordingOverlay(
+                    onCancel = vm::cancelRecording,
+                    onSend = vm::stopRecordingAndSend
+                )
+            }
+
+            state.error?.let {
+                Text(
+                    text = it,
+                    color = DeepError,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp)
+                        .background(DeepSurface.copy(alpha = 0.9f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
             }
         }
     }

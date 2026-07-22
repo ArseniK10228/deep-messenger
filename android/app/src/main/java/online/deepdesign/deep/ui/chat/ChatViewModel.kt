@@ -23,6 +23,8 @@ import online.deepdesign.deep.data.MediaUploader
 import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.data.PickedFile
 import online.deepdesign.deep.data.PresenceStore
+import online.deepdesign.deep.data.ClientStateDto
+import online.deepdesign.deep.data.OperatorAccess
 import online.deepdesign.deep.data.SendMessageRequest
 import online.deepdesign.deep.data.VoiceRecorder
 import online.deepdesign.deep.data.WsEnvelope
@@ -43,6 +45,7 @@ data class ChatUiState(
     val peerOnline: Boolean = false,
     val peerLastSeenAt: String? = null,
     val peerAppVersion: String? = null,
+    val peerClientState: String? = null,
     val messageKeys: Map<String, String> = emptyMap()
 )
 
@@ -127,21 +130,36 @@ class ChatViewModel(
                 peerApiOnline = peer.online == true
                 peerApiLastSeen = peer.lastSeenAt
                 PresenceStore.setFromApi(peer.id, peer.online, peer.lastSeenAt)
-                applyPeerPresence(peer.appVersionName)
+                applyPeerPresence(peer.appVersionName, formatClientState(peer.clientState))
             }
         }
     }
 
-    private fun applyPeerPresence(peerAppVersion: String? = _state.value.peerAppVersion) {
+    private fun applyPeerPresence(peerAppVersion: String? = _state.value.peerAppVersion, peerClientState: String? = _state.value.peerClientState) {
         val peerId = peerUserId ?: return
-        val (online, lastSeen) = PresenceStore.peerOnline(peerId, peerApiOnline, peerApiLastSeen)
+        val (online, lastSeen) = if (OperatorAccess.canViewPresence) {
+            PresenceStore.peerOnline(peerId, peerApiOnline, peerApiLastSeen)
+        } else {
+            false to null
+        }
         _state.update {
             it.copy(
                 peerOnline = online,
                 peerLastSeenAt = lastSeen,
-                peerAppVersion = peerAppVersion ?: it.peerAppVersion
+                peerAppVersion = if (OperatorAccess.canViewPresence) peerAppVersion ?: it.peerAppVersion else null,
+                peerClientState = if (OperatorAccess.canViewPresence) peerClientState ?: it.peerClientState else null
             )
         }
+    }
+
+    private fun formatClientState(state: ClientStateDto?): String? {
+        state ?: return null
+        val parts = mutableListOf<String>()
+        parts += if (state.foreground == true) "на экране" else "в фоне"
+        state.batteryPct?.let { parts += "$it%" }
+        state.network?.let { parts += it }
+        if (state.inCall == true) parts += "в звонке"
+        return parts.joinToString(" · ")
     }
 
     private fun loadMessages() {

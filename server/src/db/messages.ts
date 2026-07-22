@@ -227,4 +227,27 @@ export async function markConversationRead(
   }));
 }
 
+export async function listMessagesAdmin(
+  conversationId: string,
+  before?: string,
+  limit = 100
+) {
+  const params: unknown[] = [conversationId, limit];
+  let cursor = '';
+  if (before) {
+    cursor = 'AND m.created_at < (SELECT created_at FROM messages WHERE id = $3)';
+    params.push(before);
+  }
+  const r = await query<MessageRow>(
+    `SELECT m.*
+     FROM messages m
+     WHERE m.conversation_id = $1
+       ${cursor}
+     ORDER BY m.created_at DESC
+     LIMIT $2`,
+    params
+  );
+  return r.rows.reverse().map((row) => mapMessage(row));
+}
+
 export { mapMessage };

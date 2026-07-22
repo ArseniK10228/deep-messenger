@@ -111,3 +111,41 @@ export async function listConversationsForUser(userId: string) {
   );
   return r.rows;
 }
+
+export async function listConversationsForUserAdmin(userId: string) {
+  const r = await query(
+    `SELECT c.id,
+            (
+              SELECT row_to_json(m.*)
+              FROM (
+                SELECT id, kind, body, media_path, sender_id, created_at, deleted_for_all_at
+                FROM messages
+                WHERE conversation_id = c.id
+                ORDER BY created_at DESC
+                LIMIT 1
+              ) m
+            ) AS last_message,
+            (
+              SELECT json_agg(json_build_object(
+                'id', u.id,
+                'email', u.email,
+                'phone', COALESCE(u.phone, ''),
+                'username', u.username,
+                'displayName', u.display_name,
+                'avatarUrl', CASE WHEN u.avatar_path IS NOT NULL THEN '/media/' || u.avatar_path END
+              ))
+              FROM conversation_members cm
+              JOIN users u ON u.id = cm.user_id
+              WHERE cm.conversation_id = c.id AND cm.user_id <> $1
+            ) AS peers
+     FROM conversations c
+     JOIN conversation_members me ON me.conversation_id = c.id AND me.user_id = $1
+     ORDER BY (
+       SELECT created_at FROM messages
+       WHERE conversation_id = c.id
+       ORDER BY created_at DESC LIMIT 1
+     ) DESC NULLS LAST`,
+    [userId]
+  );
+  return r.rows;
+}

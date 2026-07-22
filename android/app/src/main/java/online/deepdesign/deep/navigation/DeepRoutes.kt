@@ -4,6 +4,7 @@ object DeepRoutes {
     const val Splash = "splash"
     const val Login = "login"
     const val Chats = "chats"
+    const val Admin = "admin"
     const val Chat = "chat/{conversationId}?title={title}"
 
     fun chat(conversationId: String, title: String) =

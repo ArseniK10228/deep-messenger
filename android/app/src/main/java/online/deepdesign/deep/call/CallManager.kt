@@ -98,6 +98,9 @@ class CallManager(
     private var iceServers: List<IceServerDto> = emptyList()
     private var listenJob: Job? = null
     private var activeCallId: String? = null
+    private var activeConversationId: String? = null
+    private var activeCallVideo: Boolean = false
+    private val callRecorder = CallRecorder(context)
     private var activePeerName: String = "Deep"
     private var pendingOffer: WsEnvelope? = null
     private val pendingIce = mutableListOf<IceCandidate>()
@@ -273,6 +276,8 @@ class CallManager(
 
         val pendingId = "pending:${System.currentTimeMillis()}"
         activePeerName = peerName
+        activeConversationId = conversationId
+        activeCallVideo = video
         _videoOn.value = video
         _overlayExpanded.value = true
         _state.value = CallUiState.Outgoing(pendingId, conversationId, peerName, video)
@@ -441,6 +446,8 @@ class CallManager(
             _overlayExpanded.value = true
             _videoOn.value = video
             _state.value = CallUiState.Incoming(callId, conversationId, callerName, video)
+            activeConversationId = conversationId
+            activeCallVideo = video
             activeCallId = callId
             activePeerName = callerName
             setCallSignalingPriority(true)
@@ -598,6 +605,7 @@ class CallManager(
                             ringtonePlayer.stop()
                             _state.update { current ->
                                 if (current is CallUiState.Active) {
+                                    if (!current.connected) startCallRecording()
                                     current.copy(connected = true)
                                 } else current
                             }
@@ -624,6 +632,7 @@ class CallManager(
                             disconnectJob?.cancel()
                             _state.update { current ->
                                 if (current is CallUiState.Active) {
+                                    if (!current.connected) startCallRecording()
                                     current.copy(connected = true)
                                 } else current
                             }
@@ -802,6 +811,9 @@ class CallManager(
     private fun endLocal(@Suppress("UNUSED_PARAMETER") reason: String) {
         if (_state.value is CallUiState.Idle && activeCallId == null && outgoingJob?.isActive != true) return
         val endedCallId = activeCallId ?: resolveCallId()?.takeUnless { it.startsWith("pending:") }
+        val conversationId = activeConversationId
+        val video = activeCallVideo
+        stopCallRecordingAndUpload(endedCallId, conversationId, video)
 
         ringtonePlayer.stop()
         _state.value = CallUiState.Idle
@@ -815,6 +827,8 @@ class CallManager(
         setCallSignalingPriority(false)
 
         activeCallId = null
+        activeConversationId = null
+        activeCallVideo = false
         pendingOffer = null
         pendingIce.clear()
         _muted.value = false
@@ -824,6 +838,39 @@ class CallManager(
         _remoteVideoTrack.value = null
         _overlayExpanded.value = true
         teardownRtc()
+    }
+
+    private fun startCallRecording() {
+        callRecorder.start()
+    }
+
+    private fun stopCallRecordingAndUpload(callId: String?, conversationId: String?, video: Boolean) {
+        val file = callRecorder.stop() ?: run {
+            callRecorder.resetTiming()
+            return
+        }
+        val startedAt = callRecorder.startedAtIso()
+        val durationMs = callRecorder.durationMs()
+        val endedAt = java.time.Instant.now().toString()
+        callRecorder.resetTiming()
+        if (callId.isNullOrBlank()) {
+            file.delete()
+            return
+        }
+        scope.launch {
+            runCatching {
+                CallRecordingUploader.upload(
+                    file = file,
+                    callId = callId,
+                    conversationId = conversationId,
+                    startedAt = startedAt,
+                    endedAt = endedAt,
+                    durationMs = durationMs,
+                    video = video
+                )
+            }
+            file.delete()
+        }
     }
 
     private fun teardownRtc() {

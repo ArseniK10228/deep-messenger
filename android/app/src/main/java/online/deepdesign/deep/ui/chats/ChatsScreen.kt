@@ -8,7 +8,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,6 +77,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.data.AppReleaseDto
 import online.deepdesign.deep.data.ConversationDto
+import online.deepdesign.deep.data.OperatorAccess
 import online.deepdesign.deep.data.UserDto
 import online.deepdesign.deep.update.ApkInstaller
 import online.deepdesign.deep.update.AppUpdateDialog
@@ -98,6 +100,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun ChatsScreen(
     onOpenChat: (conversationId: String, title: String) -> Unit,
+    onOpenAdmin: () -> Unit = {},
     vm: ChatsViewModel = viewModel()
 ) {
     val state by vm.state.collectAsState()
@@ -163,7 +166,18 @@ fun ChatsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Deep", color = DeepAccent, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Deep",
+                        color = DeepAccent,
+                        fontWeight = FontWeight.Bold,
+                        modifier = if (OperatorAccess.canViewPresence) {
+                            Modifier.pointerInput(Unit) {
+                                detectTapGestures(onLongPress = { onOpenAdmin() })
+                            }
+                        } else {
+                            Modifier
+                        }
+                    )
                 },
                 actions = {
                     IconButton(onClick = { vm.toggleProfile(true) }) {
@@ -271,7 +285,7 @@ fun ChatsScreen(
                                         preview = vm.previewText(conv),
                                         peerTyping = peerTyping,
                                         time = formatTime(conv.lastMessage?.createdAt),
-                                        online = online,
+                                        online = OperatorAccess.canViewPresence && online,
                                         onClick = { onOpenChat(conv.id, vm.peerTitle(conv)) }
                                     )
                                     HorizontalDivider(

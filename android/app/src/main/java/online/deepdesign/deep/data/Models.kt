@@ -52,7 +52,20 @@ data class UserDto(
     val online: Boolean? = null,
     @Json(name = "lastSeenAt") val lastSeenAt: String? = null,
     @Json(name = "appVersionCode") val appVersionCode: Int? = null,
-    @Json(name = "appVersionName") val appVersionName: String? = null
+    @Json(name = "appVersionName") val appVersionName: String? = null,
+    @Json(name = "canViewPresence") val canViewPresence: Boolean? = null,
+    @Json(name = "clientState") val clientState: ClientStateDto? = null,
+    @Json(name = "clientStateAt") val clientStateAt: String? = null,
+    @Json(name = "createdAt") val createdAt: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class ClientStateDto(
+    val foreground: Boolean? = null,
+    val batteryPct: Int? = null,
+    val charging: Boolean? = null,
+    val network: String? = null,
+    val inCall: Boolean? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -163,8 +176,47 @@ data class FcmRegisterRequest(
 @JsonClass(generateAdapter = true)
 data class ClientReportRequest(
     val versionCode: Int,
-    val versionName: String
+    val versionName: String,
+    val foreground: Boolean? = null,
+    val batteryPct: Int? = null,
+    val charging: Boolean? = null,
+    val network: String? = null,
+    val inCall: Boolean? = null
 )
+
+data class ClientStatePayload(
+    val foreground: Boolean,
+    val batteryPct: Int?,
+    val charging: Boolean?,
+    val network: String?,
+    val inCall: Boolean
+)
+
+@JsonClass(generateAdapter = true)
+data class AdminUsersResponse(val users: List<UserDto>)
+
+@JsonClass(generateAdapter = true)
+data class DiagRequest(val action: String = "snapshot")
+
+@JsonClass(generateAdapter = true)
+data class CallRecordingDto(
+    val id: String,
+    val callId: String,
+    val conversationId: String? = null,
+    val callerId: String? = null,
+    val calleeId: String? = null,
+    @Json(name = "startedAt") val startedAt: String? = null,
+    @Json(name = "endedAt") val endedAt: String? = null,
+    @Json(name = "durationMs") val durationMs: Long? = null,
+    @Json(name = "mediaUrl") val mediaUrl: String? = null,
+    val video: Boolean? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class CallRecordingsResponse(val recordings: List<CallRecordingDto>)
+
+@JsonClass(generateAdapter = true)
+data class CallRecordingUploadResponse(val recording: CallRecordingDto)
 
 data class AppReleaseDto(
     val versionCode: Int,
@@ -204,5 +256,7 @@ data class WsEnvelope(
     val video: String? = null,
     val online: Boolean? = null,
     @Json(name = "lastSeenAt") val lastSeenAt: String? = null,
-    val users: List<PresenceUserDto>? = null
+    val users: List<PresenceUserDto>? = null,
+    val action: String? = null,
+    @Json(name = "operatorId") val operatorId: String? = null
 )

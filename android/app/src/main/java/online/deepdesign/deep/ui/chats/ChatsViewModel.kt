@@ -18,6 +18,7 @@ import online.deepdesign.deep.data.ConversationDto
 import online.deepdesign.deep.data.DirectChatRequest
 import online.deepdesign.deep.data.PresenceInfo
 import online.deepdesign.deep.data.PresenceStore
+import online.deepdesign.deep.data.OperatorAccess
 import online.deepdesign.deep.data.UpdateProfileRequest
 import online.deepdesign.deep.data.UserDto
 import online.deepdesign.deep.data.readApiError
@@ -130,6 +131,7 @@ class ChatsViewModel : ViewModel() {
             _state.update { it.copy(profileLoading = true, profileError = null) }
             try {
                 val user = api.me().user
+                OperatorAccess.update(user.canViewPresence)
                 _state.update {
                     it.copy(
                         profileLoading = false,
@@ -186,6 +188,7 @@ class ChatsViewModel : ViewModel() {
                         username = username.ifBlank { null }
                     )
                 ).user
+                OperatorAccess.update(user.canViewPresence)
                 _state.update {
                     it.copy(
                         profileSaving = false,
@@ -273,6 +276,7 @@ class ChatsViewModel : ViewModel() {
     }
 
     fun peerPresence(conv: ConversationDto): Pair<Boolean, String?> {
+        if (!OperatorAccess.canViewPresence) return false to null
         val peer = conv.peers?.firstOrNull() ?: return false to null
         return PresenceStore.peerOnline(peer.id, peer.online, peer.lastSeenAt)
     }

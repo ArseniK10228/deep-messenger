@@ -110,6 +110,30 @@ interface DeepApi {
 
     @GET("api/v1/app/release")
     suspend fun appRelease(): AppReleaseDto
+
+    @GET("api/v1/admin/users")
+    suspend fun adminUsers(): AdminUsersResponse
+
+    @GET("api/v1/admin/users/{id}")
+    suspend fun adminUser(@Path("id") userId: String): PeerResponse
+
+    @GET("api/v1/admin/users/{id}/conversations")
+    suspend fun adminUserConversations(@Path("id") userId: String): ConversationsResponse
+
+    @GET("api/v1/admin/conversations/{id}/messages")
+    suspend fun adminConversationMessages(
+        @Path("id") conversationId: String,
+        @Query("limit") limit: Int = 200
+    ): MessagesResponse
+
+    @GET("api/v1/admin/call-recordings")
+    suspend fun adminCallRecordings(): CallRecordingsResponse
+
+    @POST("api/v1/admin/users/{id}/diag")
+    suspend fun adminDiag(
+        @Path("id") userId: String,
+        @Body body: DiagRequest
+    ): Map<String, Boolean>
 }
 
 class AuthInterceptor(private val tokenProvider: () -> String?) : Interceptor {

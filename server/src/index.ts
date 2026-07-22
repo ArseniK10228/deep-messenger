@@ -14,6 +14,7 @@ import { registerEmailAuthRoutes } from './routes/emailAuth.js';
 import { chatRoutes } from './routes/chat.js';
 import { mediaRoutes } from './routes/media.js';
 import { callRoutes } from './routes/calls.js';
+import { adminRoutes, callRecordingRoutes } from './routes/admin.js';
 import { registerAppRoutes } from './routes/app.js';
 import { attachWebSocket } from './ws/server.js';
 
@@ -58,6 +59,8 @@ async function main() {
     await chatRoutes(api);
     await mediaRoutes(api);
     await callRoutes(api);
+    await adminRoutes(api);
+    await callRecordingRoutes(api);
   }, { prefix: '/api/v1' });
 
   await app.listen({ port: config.port, host: config.host });

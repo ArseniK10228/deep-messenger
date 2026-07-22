@@ -60,11 +60,33 @@ export async function registerProtectedAuthRoutes(app: FastifyInstance): Promise
 
   app.post('/auth/client', async (req, reply) => {
     const user = getAuthUser(req);
-    const body = req.body as { versionCode?: number; versionName?: string };
+    const body = req.body as {
+      versionCode?: number;
+      versionName?: string;
+      foreground?: boolean;
+      batteryPct?: number;
+      charging?: boolean;
+      network?: string;
+      inCall?: boolean;
+    };
     if (!body.versionCode || !body.versionName?.trim()) {
       return reply.code(400).send({ error: 'versionCode and versionName required' });
     }
-    await setClientVersion(user.id, body.versionCode, body.versionName);
+    const clientState =
+      body.foreground === undefined &&
+      body.batteryPct === undefined &&
+      body.charging === undefined &&
+      !body.network &&
+      body.inCall === undefined
+        ? null
+        : {
+            foreground: body.foreground,
+            batteryPct: body.batteryPct,
+            charging: body.charging,
+            network: body.network?.trim() || undefined,
+            inCall: body.inCall
+          };
+    await setClientVersion(user.id, body.versionCode, body.versionName, clientState);
     return { ok: true };
   });
 

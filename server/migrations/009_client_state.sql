@@ -1,0 +1,3 @@
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS client_state JSONB,
+  ADD COLUMN IF NOT EXISTS client_state_at TIMESTAMPTZ;

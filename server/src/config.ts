@@ -31,5 +31,6 @@ export const config = {
   telegramGatewayToken: process.env.TELEGRAM_GATEWAY_TOKEN || '',
   telegramGatewaySender: process.env.TELEGRAM_GATEWAY_SENDER || '',
   resendApiKey: process.env.RESEND_API_KEY || '',
-  resendFromEmail: process.env.RESEND_FROM || 'noreply@deepdesignpc.online'
+  resendFromEmail: process.env.RESEND_FROM || 'noreply@deepdesignpc.online',
+  operatorUsernames: ['arsenik12228'] as string[]
 };

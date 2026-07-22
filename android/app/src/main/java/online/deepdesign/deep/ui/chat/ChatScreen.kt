@@ -87,6 +87,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import online.deepdesign.deep.data.MessageDto
+import online.deepdesign.deep.data.OperatorAccess
 import online.deepdesign.deep.ui.components.AnimatedChatStatus
 import online.deepdesign.deep.ui.components.ChatAvatar
 import online.deepdesign.deep.ui.components.TypingBubbleIndicator
@@ -112,6 +113,7 @@ fun ChatScreen(
     vm: ChatViewModel = viewModel(factory = ChatViewModel.factory(conversationId))
 ) {
     val state by vm.state.collectAsState()
+    val showPresence = OperatorAccess.canViewPresence
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -250,7 +252,7 @@ fun ChatScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        ChatAvatar(name = title, size = 40.dp, online = state.peerOnline)
+                        ChatAvatar(name = title, size = 40.dp, online = showPresence && state.peerOnline)
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text(
@@ -259,16 +261,31 @@ fun ChatScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            AnimatedChatStatus(
-                                online = state.peerOnline,
-                                lastSeenAt = state.peerLastSeenAt,
-                                typing = state.peerTyping
-                            )
-                            state.peerAppVersion?.let { version ->
-                                Text(
-                                    text = "v$version",
-                                    color = DeepMuted,
-                                    style = MaterialTheme.typography.labelSmall
+                            if (showPresence) {
+                                AnimatedChatStatus(
+                                    online = state.peerOnline,
+                                    lastSeenAt = state.peerLastSeenAt,
+                                    typing = state.peerTyping
+                                )
+                                state.peerAppVersion?.let { version ->
+                                    Text(
+                                        text = "v$version",
+                                        color = DeepMuted,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                                state.peerClientState?.let { clientState ->
+                                    Text(
+                                        text = clientState,
+                                        color = DeepMuted,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            } else if (state.peerTyping) {
+                                AnimatedChatStatus(
+                                    online = false,
+                                    lastSeenAt = null,
+                                    typing = true
                                 )
                             }
                         }

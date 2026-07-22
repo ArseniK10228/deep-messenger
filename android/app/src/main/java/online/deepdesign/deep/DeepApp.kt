@@ -92,6 +92,11 @@ class DeepApp : Application() {
     private fun onBackground() {
         AppForegroundState.setForeground(false)
         callManager.onAppBackgrounded()
+        if (!cachedToken.isNullOrBlank()) {
+            appScope.launch {
+                runCatching { ClientReporter.report(api) }
+            }
+        }
         if (!callManager.isInCall()) {
             callManager.stop()
         }

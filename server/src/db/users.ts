@@ -1,5 +1,15 @@
 import { isValidUsername, normalizeSearchKey, normalizeUsername } from '../lib/searchNormalize.js';
+import { isOwnerUserId, isReservedUsername } from '../lib/operator.js';
+import { isUserOnline } from '../ws/hub.js';
 import { query } from './client.js';
+
+export interface ClientState {
+  foreground?: boolean;
+  batteryPct?: number | null;
+  charging?: boolean | null;
+  network?: string | null;
+  inCall?: boolean | null;
+}
 
 export interface UserRow {
   id: string;
@@ -12,6 +22,10 @@ export interface UserRow {
   app_version_code?: number | null;
   app_version_name?: string | null;
   app_version_at?: string | null;
+  last_seen_at?: string | null;
+  client_state?: ClientState | null;
+  client_state_at?: string | null;
+  created_at?: string | null;
 }
 
 export function mapUserDto(row: UserRow) {
@@ -22,8 +36,42 @@ export function mapUserDto(row: UserRow) {
     username: row.username,
     displayName: row.display_name,
     avatarUrl: row.avatar_path ? `/media/${row.avatar_path}` : null,
+    canViewPresence: isOwnerUserId(row.id)
+  };
+}
+
+export async function listUsersAdmin(): Promise<UserRow[]> {
+  const r = await query<UserRow>(
+    `SELECT * FROM users ORDER BY COALESCE(last_seen_at, created_at) DESC`
+  );
+  return r.rows;
+}
+
+export function mapAdminUserDto(row: UserRow) {
+  const online = isUserOnline(row.id);
+  return {
+    ...mapPeerDto(row, true),
+    online,
+    lastSeenAt: online ? null : row.last_seen_at ?? null,
+    clientState: row.client_state ?? null,
+    clientStateAt: row.client_state_at ?? null,
+    createdAt: row.created_at ?? null
+  };
+}
+
+export function mapPeerDto(row: UserRow, viewerIsOperator: boolean) {
+  const base = mapUserDto(row);
+  if (!viewerIsOperator) {
+    return base;
+  }
+  return {
+    ...base,
+    online: false,
+    lastSeenAt: row.last_seen_at ?? null,
     appVersionCode: row.app_version_code ?? null,
-    appVersionName: row.app_version_name ?? null
+    appVersionName: row.app_version_name ?? null,
+    clientState: row.client_state ?? null,
+    clientStateAt: row.client_state_at ?? null
   };
 }
 
@@ -124,8 +172,23 @@ export async function setFcmToken(
 export async function setClientVersion(
   userId: string,
   versionCode: number,
-  versionName: string
+  versionName: string,
+  clientState?: ClientState | null
 ): Promise<void> {
+  if (clientState) {
+    await query(
+      `UPDATE users SET
+         app_version_code = $2,
+         app_version_name = $3,
+         app_version_at = now(),
+         client_state = $4::jsonb,
+         client_state_at = now(),
+         updated_at = now()
+       WHERE id = $1`,
+      [userId, versionCode, versionName.trim(), JSON.stringify(clientState)]
+    );
+    return;
+  }
   await query(
     `UPDATE users SET
        app_version_code = $2,
@@ -155,6 +218,9 @@ export async function updateUserProfile(
   if (usernameRaw !== undefined) {
     if (usernameRaw && !isValidUsername(usernameRaw)) {
       throw new Error('INVALID_USERNAME');
+    }
+    if (usernameRaw && isReservedUsername(usernameRaw) && userId !== current.id) {
+      throw new Error('USERNAME_TAKEN');
     }
     if (usernameRaw) {
       const taken = await query(

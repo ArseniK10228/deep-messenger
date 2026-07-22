@@ -15,23 +15,28 @@ import {
   markDelivered,
   markRead
 } from '../db/messages.js';
-import { getUserById } from '../db/users.js';
+import { getUserById, mapPeerDto } from '../db/users.js';
 import { pushChatEvent } from '../lib/chatPush.js';
 import { notifyMessagePeers, previewText } from '../lib/messageNotify.js';
 import { enrichPeerPresence } from '../lib/presence.js';
-import { mapUserDto } from '../db/users.js';
+import { isOperatorUser } from '../lib/operator.js';
 import { query } from '../db/client.js';
 import { sendToUser } from '../ws/hub.js';
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.get('/conversations', async (req) => {
     const user = getAuthUser(req);
+    const viewerIsOperator = await isOperatorUser(user.id);
     const rows = await listConversationsForUser(user.id);
     const conversations = rows.map((row) => ({
       ...row,
-      peers: row.peers?.map((peer: { id: string; lastSeenAt?: string | null }) =>
-        enrichPeerPresence(peer)
-      )
+      peers: row.peers?.map((peer: Record<string, unknown>) => {
+        if (!viewerIsOperator) {
+          const { lastSeenAt: _l, online: _o, appVersionCode: _c, appVersionName: _n, clientState: _s, clientStateAt: _a, ...rest } = peer;
+          return rest;
+        }
+        return enrichPeerPresence(peer as { id: string; lastSeenAt?: string | null });
+      })
     }));
     return { conversations };
   });
@@ -44,9 +49,14 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     }
     const peer = await getConversationPeer(user.id, id);
     if (!peer) return reply.code(404).send({ error: 'peer not found' });
+    const viewerIsOperator = await isOperatorUser(user.id);
+    const dto = mapPeerDto(peer, viewerIsOperator);
+    if (!viewerIsOperator) {
+      return { peer: dto };
+    }
     return {
       peer: enrichPeerPresence({
-        ...mapUserDto(peer),
+        ...dto,
         lastSeenAt: peer.last_seen_at
       })
     };

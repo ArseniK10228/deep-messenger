@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.data.AuthEvents
+import online.deepdesign.deep.ui.admin.AdminScreen
 import online.deepdesign.deep.ui.auth.LoginScreen
 import online.deepdesign.deep.ui.chat.ChatScreen
 import online.deepdesign.deep.ui.chats.ChatsScreen
@@ -49,6 +50,7 @@ fun DeepNavHost(modifier: Modifier = Modifier) {
                 scope.launch {
                     val jwt = sessionStore.tokenFlow.first()
                     val userId = sessionStore.userIdFlow.first()
+                    sessionStore.restoreOperatorAccess()
                     DeepApp.instance.setAuthSession(jwt, userId)
                     val dest = if (jwt.isNullOrBlank()) DeepRoutes.Login else DeepRoutes.Chats
                     navController.navigate(dest) {
@@ -72,8 +74,15 @@ fun DeepNavHost(modifier: Modifier = Modifier) {
             ChatsScreen(
                 onOpenChat = { id, title ->
                     navController.navigate(DeepRoutes.chat(id, title))
+                },
+                onOpenAdmin = {
+                    navController.navigate(DeepRoutes.Admin)
                 }
             )
+        }
+
+        composable(DeepRoutes.Admin) {
+            AdminScreen(onBack = { navController.popBackStack() })
         }
 
         composable(

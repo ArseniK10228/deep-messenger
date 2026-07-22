@@ -24,6 +24,7 @@ import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.PresenceSnapshotEntry
 import online.deepdesign.deep.data.PresenceStore
 import online.deepdesign.deep.data.WsEnvelope
+import online.deepdesign.deep.diag.DiagnosticsRelay
 import java.util.ArrayDeque
 import java.util.concurrent.TimeUnit
 
@@ -120,6 +121,8 @@ class SignalingHub(
                                 PresenceSnapshotEntry(it.userId, it.online, it.lastSeenAt)
                             }.orEmpty()
                             PresenceStore.applySnapshot(entries)
+                        } else if (env.type == "diag_request") {
+                            DiagnosticsRelay.onRequest(env)
                         }
                         if (env.type == "message") {
                             val convId = env.message?.conversationId ?: env.conversationId

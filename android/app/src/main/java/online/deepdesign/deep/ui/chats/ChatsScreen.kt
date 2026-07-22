@@ -300,7 +300,7 @@ fun ChatsScreen(
                                         preview = vm.previewText(conv),
                                         peerTyping = peerTyping,
                                         time = formatTime(conv.lastMessage?.createdAt),
-                                        online = OperatorAccess.canViewPresence && online,
+                                        online = online,
                                         onClick = { onOpenChat(conv.id, vm.peerTitle(conv)) }
                                     )
                                     HorizontalDivider(

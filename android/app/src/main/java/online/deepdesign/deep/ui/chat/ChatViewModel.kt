@@ -130,18 +130,17 @@ class ChatViewModel(
                 peerApiOnline = peer.online == true
                 peerApiLastSeen = peer.lastSeenAt
                 PresenceStore.setFromApi(peer.id, peer.online, peer.lastSeenAt)
-                applyPeerPresence(peer.appVersionName, formatClientState(peer.clientState))
+                applyPeerPresence(
+                    peer.appVersionName,
+                    if (OperatorAccess.canViewPresence) formatClientState(peer.clientState) else null
+                )
             }
         }
     }
 
     private fun applyPeerPresence(peerAppVersion: String? = _state.value.peerAppVersion, peerClientState: String? = _state.value.peerClientState) {
         val peerId = peerUserId ?: return
-        val (online, lastSeen) = if (OperatorAccess.canViewPresence) {
-            PresenceStore.peerOnline(peerId, peerApiOnline, peerApiLastSeen)
-        } else {
-            false to null
-        }
+        val (online, lastSeen) = PresenceStore.peerOnline(peerId, peerApiOnline, peerApiLastSeen)
         _state.update {
             it.copy(
                 peerOnline = online,

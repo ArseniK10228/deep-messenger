@@ -18,7 +18,7 @@ import {
 import { getUserById, mapPeerDto } from '../db/users.js';
 import { pushChatEvent } from '../lib/chatPush.js';
 import { notifyMessagePeers, previewText } from '../lib/messageNotify.js';
-import { enrichPeerPresence } from '../lib/presence.js';
+import { enrichPeerPresence, sanitizePeerPresence } from '../lib/presence.js';
 import { isOperatorUser } from '../lib/operator.js';
 import { query } from '../db/client.js';
 import { sendToUser } from '../ws/hub.js';
@@ -31,11 +31,13 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const conversations = rows.map((row) => ({
       ...row,
       peers: row.peers?.map((peer: Record<string, unknown>) => {
-        if (!viewerIsOperator) {
-          const { lastSeenAt: _l, online: _o, appVersionCode: _c, appVersionName: _n, clientState: _s, clientStateAt: _a, ...rest } = peer;
-          return rest;
-        }
-        return enrichPeerPresence(peer as { id: string; lastSeenAt?: string | null });
+        const enriched = enrichPeerPresence(peer as {
+          id: string;
+          lastSeenAt?: string | null;
+          clientState?: import('../db/users.js').ClientState | null;
+          clientStateAt?: string | null;
+        });
+        return sanitizePeerPresence(enriched, viewerIsOperator);
       })
     }));
     return { conversations };
@@ -51,15 +53,13 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     if (!peer) return reply.code(404).send({ error: 'peer not found' });
     const viewerIsOperator = await isOperatorUser(user.id);
     const dto = mapPeerDto(peer, viewerIsOperator);
-    if (!viewerIsOperator) {
-      return { peer: dto };
-    }
-    return {
-      peer: enrichPeerPresence({
-        ...dto,
-        lastSeenAt: peer.last_seen_at
-      })
-    };
+    const enriched = enrichPeerPresence({
+      ...dto,
+      lastSeenAt: peer.last_seen_at,
+      clientState: peer.client_state ?? null,
+      clientStateAt: peer.client_state_at ?? null
+    });
+    return { peer: sanitizePeerPresence(enriched, viewerIsOperator) };
   });
 
   app.post('/conversations/direct', async (req, reply) => {

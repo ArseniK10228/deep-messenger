@@ -159,7 +159,7 @@ class CallForegroundService : Service() {
             .setContentIntent(open)
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
@@ -179,7 +179,7 @@ class CallForegroundService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Звонки Deep",
-            NotificationManager.IMPORTANCE_DEFAULT
+            NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = "Активный звонок"
             setSound(null, null)

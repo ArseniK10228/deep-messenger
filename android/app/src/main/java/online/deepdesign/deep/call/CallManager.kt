@@ -139,10 +139,9 @@ class CallManager(
     fun onAppBackgrounded() {
         if (!isInCall()) return
         signaling.setUrgentReconnect(true)
-        signaling.forceReconnect()
-        if (engine != null) {
-            beginAudioSession()
-            engine?.restartIce()
+        beginAudioSession()
+        if (!signaling.isConnected()) {
+            signaling.forceReconnect()
         }
         refreshForegroundService()
     }
@@ -674,8 +673,10 @@ class CallManager(
                         }
                         PeerConnection.IceConnectionState.DISCONNECTED -> {
                             iceDegraded = true
-                            engine?.restartIce()
-                            scheduleDisconnectHangup(graceMs = 90_000)
+                            if (CallAppState.isInForeground()) {
+                                engine?.restartIce()
+                            }
+                            scheduleDisconnectHangup(graceMs = 120_000)
                         }
                         PeerConnection.IceConnectionState.FAILED -> {
                             iceDegraded = true
@@ -815,6 +816,7 @@ class CallManager(
 
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
                 if (!isInCall()) return
+                if (!CallAppState.isInForeground()) return
                 if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
                     scope.launch {
                         refreshIceServers()

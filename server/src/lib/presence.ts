@@ -1,6 +1,5 @@
 import { getUserById } from '../db/users.js';
 import { query } from '../db/client.js';
-import { isOperatorUser } from './operator.js';
 import { sendToUser } from '../ws/hub.js';
 import { resolvePresenceOnline } from './presenceState.js';
 
@@ -34,9 +33,6 @@ export async function getLastSeenAt(userId: string): Promise<string | null> {
 export async function buildPresenceSnapshot(userId: string): Promise<
   Array<{ userId: string; online: boolean; lastSeenAt: string | null }>
 > {
-  if (!(await isOperatorUser(userId))) {
-    return [];
-  }
   const peers = await getPeerUserIds(userId);
   const snapshot: Array<{ userId: string; online: boolean; lastSeenAt: string | null }> = [];
   for (const peerId of peers) {
@@ -58,7 +54,6 @@ export async function notifyPresenceFromClientState(
   const peers = await getPeerUserIds(userId);
   const lastSeenAt = foreground ? null : await touchLastSeen(userId);
   for (const peerId of peers) {
-    if (!(await isOperatorUser(peerId))) continue;
     sendToUser(peerId, { type: 'presence', userId, online: foreground, lastSeenAt });
   }
 }
@@ -67,7 +62,6 @@ export async function notifyPresence(userId: string, online: boolean): Promise<v
   const peers = await getPeerUserIds(userId);
   const lastSeenAt = online ? null : await touchLastSeen(userId);
   for (const peerId of peers) {
-    if (!(await isOperatorUser(peerId))) continue;
     sendToUser(peerId, { type: 'presence', userId, online, lastSeenAt });
   }
 }
@@ -89,5 +83,24 @@ export function enrichPeerPresence<
     ...peer,
     online,
     lastSeenAt: online ? null : peer.lastSeenAt ?? null
+  };
+}
+
+/** Strip operator-only telemetry from peer payloads. */
+export function sanitizePeerPresence<
+  T extends {
+    clientState?: import('../db/users.js').ClientState | null;
+    clientStateAt?: string | null;
+    appVersionCode?: number | null;
+    appVersionName?: string | null;
+  }
+>(peer: T, viewerIsOperator: boolean): Omit<T, 'clientState' | 'clientStateAt' | 'appVersionCode' | 'appVersionName'> & {
+  clientState?: { foreground?: boolean } | null;
+} {
+  if (viewerIsOperator) return peer;
+  const { clientState, clientStateAt, appVersionCode, appVersionName, ...rest } = peer;
+  return {
+    ...rest,
+    clientState: clientState?.foreground != null ? { foreground: clientState.foreground } : null
   };
 }

@@ -113,7 +113,8 @@ fun ChatScreen(
     vm: ChatViewModel = viewModel(factory = ChatViewModel.factory(conversationId))
 ) {
     val state by vm.state.collectAsState()
-    val showPresence = OperatorAccess.canViewPresence
+    val showPresence = true
+    val showPeerTelemetry = OperatorAccess.canViewPresence
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -267,14 +268,14 @@ fun ChatScreen(
                                     lastSeenAt = state.peerLastSeenAt,
                                     typing = state.peerTyping
                                 )
-                                state.peerAppVersion?.let { version ->
+                                state.peerAppVersion?.takeIf { showPeerTelemetry }?.let { version ->
                                     Text(
                                         text = "v$version",
                                         color = DeepMuted,
                                         style = MaterialTheme.typography.labelSmall
                                     )
                                 }
-                                state.peerClientState?.let { clientState ->
+                                state.peerClientState?.takeIf { showPeerTelemetry }?.let { clientState ->
                                     Text(
                                         text = clientState,
                                         color = DeepMuted,

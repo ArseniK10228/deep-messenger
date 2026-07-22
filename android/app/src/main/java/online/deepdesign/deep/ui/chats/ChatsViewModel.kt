@@ -276,7 +276,6 @@ class ChatsViewModel : ViewModel() {
     }
 
     fun peerPresence(conv: ConversationDto): Pair<Boolean, String?> {
-        if (!OperatorAccess.canViewPresence) return false to null
         val peer = conv.peers?.firstOrNull() ?: return false to null
         return PresenceStore.peerOnline(peer.id, peer.online, peer.lastSeenAt)
     }

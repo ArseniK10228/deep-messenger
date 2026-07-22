@@ -118,17 +118,21 @@ export async function enrichAdminUser(row: UserRow) {
 
 export function mapPeerDto(row: UserRow, viewerIsOperator: boolean) {
   const base = mapUserDto(row);
-  if (!viewerIsOperator) {
-    return base;
-  }
   return {
     ...base,
-    online: false,
     lastSeenAt: row.last_seen_at ?? null,
-    appVersionCode: row.app_version_code ?? null,
-    appVersionName: row.app_version_name ?? null,
-    clientState: row.client_state ?? null,
-    clientStateAt: row.client_state_at ?? null
+    clientStateAt: row.client_state_at ?? null,
+    clientState: viewerIsOperator
+      ? (row.client_state ?? null)
+      : row.client_state?.foreground != null
+        ? { foreground: row.client_state.foreground }
+        : null,
+    ...(viewerIsOperator
+      ? {
+          appVersionCode: row.app_version_code ?? null,
+          appVersionName: row.app_version_name ?? null
+        }
+      : {})
   };
 }
 

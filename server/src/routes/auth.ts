@@ -11,6 +11,7 @@ import {
   upsertUserByPhone
 } from '../db/users.js';
 import { notifyAdminUserUpdate } from '../lib/adminMonitor.js';
+import { notifyPresenceFromClientState, touchLastSeen } from '../lib/presence.js';
 
 export async function registerPublicAuthRoutes(app: FastifyInstance): Promise<void> {
   app.post('/auth/firebase', async (req, reply) => {
@@ -88,6 +89,12 @@ export async function registerProtectedAuthRoutes(app: FastifyInstance): Promise
             inCall: body.inCall
           };
     await setClientVersion(user.id, body.versionCode, body.versionName, clientState);
+    if (body.foreground === false) {
+      await touchLastSeen(user.id);
+    }
+    if (body.foreground !== undefined) {
+      await notifyPresenceFromClientState(user.id, body.foreground);
+    }
     await notifyAdminUserUpdate(user.id);
     return { ok: true };
   });

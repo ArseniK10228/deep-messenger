@@ -46,7 +46,9 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -80,6 +82,9 @@ import online.deepdesign.deep.data.AppReleaseDto
 import online.deepdesign.deep.data.ConversationDto
 import online.deepdesign.deep.data.OperatorAccess
 import online.deepdesign.deep.data.UserDto
+import online.deepdesign.deep.session.PowerSettings
+import androidx.compose.ui.res.stringResource
+import online.deepdesign.deep.R
 import online.deepdesign.deep.update.ApkInstaller
 import online.deepdesign.deep.update.AppUpdateDialog
 import online.deepdesign.deep.update.UpdateChecker
@@ -112,6 +117,7 @@ fun ChatsScreen(
     var showUpdate by remember { mutableStateOf(false) }
     var downloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableFloatStateOf(0f) }
+    var showBatteryBanner by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -127,6 +133,7 @@ fun ChatsScreen(
                 notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+        showBatteryBanner = PowerSettings.needsBackgroundSetup(context)
         val release = UpdateChecker.fetchRelease()
         if (release != null && UpdateChecker.needsUpdate(release)) {
             updateRelease = release
@@ -214,11 +221,18 @@ fun ChatsScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            PullToRefreshBox(
-                isRefreshing = state.loading && state.conversations.isNotEmpty(),
-                onRefresh = vm::refresh,
-                modifier = Modifier.fillMaxSize()
-            ) {
+            Column(Modifier.fillMaxSize()) {
+                if (showBatteryBanner) {
+                    BackgroundSetupBanner(
+                        onConfigure = { PowerSettings.requestIgnoreBatteryOptimizations(context) },
+                        onDismiss = { showBatteryBanner = false }
+                    )
+                }
+                PullToRefreshBox(
+                    isRefreshing = state.loading && state.conversations.isNotEmpty(),
+                    onRefresh = vm::refresh,
+                    modifier = Modifier.fillMaxSize()
+                ) {
             when {
                 state.loading && state.conversations.isEmpty() -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -297,6 +311,7 @@ fun ChatsScreen(
                             }
                         }
                     }
+                }
                 }
             }
             }
@@ -605,6 +620,46 @@ private fun ProfileSheet(
                 } else {
                     Text("Сохранить")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackgroundSetupBanner(
+    onConfigure: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = DeepSurface
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.battery_banner_title),
+                    color = DeepText,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    stringResource(R.string.battery_banner_text),
+                    color = DeepMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            TextButton(onClick = onConfigure) {
+                Text(stringResource(R.string.battery_banner_action), color = DeepAccent)
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Default.Close, contentDescription = "Скрыть", tint = DeepMuted)
             }
         }
     }

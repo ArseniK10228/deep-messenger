@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Deep Messenger</string>
+    <string name="session_notification_channel">Фоновая работа</string>
+    <string name="session_notification_channel_desc">Поддерживает звонки и обновление статуса, когда приложение свёрнуто</string>
+    <string name="session_notification_title">Deep на связи</string>
+    <string name="session_notification_text">Работает в фоне</string>
+    <string name="battery_banner_title">Разреши работу в фоне</string>
+    <string name="battery_banner_text">Чтобы звонки и статусы работали при свёрнутом приложении, отключи ограничения батареи для Deep.</string>
+    <string name="battery_banner_action">Настроить</string>
 </resources>

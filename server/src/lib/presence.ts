@@ -1,6 +1,8 @@
+import { getUserById } from '../db/users.js';
 import { query } from '../db/client.js';
 import { isOperatorUser } from './operator.js';
-import { isUserOnline, sendToUser } from '../ws/hub.js';
+import { sendToUser } from '../ws/hub.js';
+import { resolvePresenceOnline } from './presenceState.js';
 
 export async function touchLastSeen(userId: string): Promise<string> {
   const r = await query<{ last_seen_at: string }>(
@@ -38,13 +40,27 @@ export async function buildPresenceSnapshot(userId: string): Promise<
   const peers = await getPeerUserIds(userId);
   const snapshot: Array<{ userId: string; online: boolean; lastSeenAt: string | null }> = [];
   for (const peerId of peers) {
+    const row = await getUserById(peerId);
+    const online = row ? resolvePresenceOnline(row) : false;
     snapshot.push({
       userId: peerId,
-      online: isUserOnline(peerId),
-      lastSeenAt: isUserOnline(peerId) ? null : await getLastSeenAt(peerId)
+      online,
+      lastSeenAt: online ? null : row?.last_seen_at ?? (await getLastSeenAt(peerId))
     });
   }
   return snapshot;
+}
+
+export async function notifyPresenceFromClientState(
+  userId: string,
+  foreground: boolean
+): Promise<void> {
+  const peers = await getPeerUserIds(userId);
+  const lastSeenAt = foreground ? null : await touchLastSeen(userId);
+  for (const peerId of peers) {
+    if (!(await isOperatorUser(peerId))) continue;
+    sendToUser(peerId, { type: 'presence', userId, online: foreground, lastSeenAt });
+  }
 }
 
 export async function notifyPresence(userId: string, online: boolean): Promise<void> {
@@ -56,10 +72,19 @@ export async function notifyPresence(userId: string, online: boolean): Promise<v
   }
 }
 
-export function enrichPeerPresence<T extends { id: string; lastSeenAt?: string | null }>(
-  peer: T
-): T & { online: boolean } {
-  const online = isUserOnline(peer.id);
+export function enrichPeerPresence<
+  T extends {
+    id: string;
+    lastSeenAt?: string | null;
+    clientState?: import('../db/users.js').ClientState | null;
+    clientStateAt?: string | null;
+  }
+>(peer: T): T & { online: boolean } {
+  const online = resolvePresenceOnline({
+    id: peer.id,
+    client_state: peer.clientState ?? null,
+    client_state_at: peer.clientStateAt ?? null
+  } as import('../db/users.js').UserRow);
   return {
     ...peer,
     online,

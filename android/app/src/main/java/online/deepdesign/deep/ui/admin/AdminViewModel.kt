@@ -213,10 +213,17 @@ class AdminViewModel : ViewModel() {
     }
 }
 
+fun formatUserPresenceLine(user: UserDto): String {
+    return when {
+        user.online == true -> "на экране"
+        user.clientState?.foreground == false -> "в фоне"
+        else -> "был ${formatLastSeen(user.lastSeenAt)}"
+    }
+}
+
 fun formatClientState(state: ClientStateDto?, activeCall: ActiveCallDto? = null, nowMs: Long = System.currentTimeMillis()): String? {
     val parts = mutableListOf<String>()
     if (state != null) {
-        parts += if (state.foreground == true) "на экране" else "в фоне"
         state.batteryPct?.let { parts += "$it%" }
         state.charging?.let { if (it) parts += "заряжается" }
         state.network?.let { parts += networkLabel(it) }

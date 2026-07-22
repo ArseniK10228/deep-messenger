@@ -1,7 +1,7 @@
 import { isValidUsername, normalizeSearchKey, normalizeUsername } from '../lib/searchNormalize.js';
 import { isOwnerUserId, isReservedUsername } from '../lib/operator.js';
 import { getActiveCallForUser, peerUserId, type CallSession } from '../lib/callRegistry.js';
-import { isUserOnline } from '../ws/hub.js';
+import { resolvePresenceOnline } from '../lib/presenceState.js';
 import { query } from './client.js';
 
 export interface ClientState {
@@ -83,7 +83,7 @@ export async function listUsersAdmin(): Promise<UserRow[]> {
 }
 
 export function mapAdminUserDto(row: UserRow) {
-  const online = isUserOnline(row.id);
+  const online = resolvePresenceOnline(row);
   return {
     ...mapPeerDto(row, true),
     online,
@@ -106,7 +106,7 @@ export async function enrichAdminUser(row: UserRow) {
   } else if (activeCall && !clientState) {
     clientState = { inCall: true };
   }
-  const online = isUserOnline(row.id);
+  const online = resolvePresenceOnline(row);
   return {
     ...base,
     online,

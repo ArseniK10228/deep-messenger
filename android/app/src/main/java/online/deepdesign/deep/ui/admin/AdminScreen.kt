@@ -274,7 +274,7 @@ private fun AdminUserCard(
                     Text("@$it", color = DeepMuted, style = MaterialTheme.typography.labelMedium)
                 }
                 Text(
-                    if (user.online == true) "в сети" else "был ${formatLastSeen(user.lastSeenAt)}",
+                    formatUserPresenceLine(user),
                     color = if (user.online == true) DeepAccent else DeepMuted,
                     style = MaterialTheme.typography.labelSmall
                 )
@@ -322,7 +322,7 @@ private fun AdminUserDetail(
                     user.email?.let { Text(it, color = DeepMuted) }
                     user.phone.takeIf { it.isNotBlank() }?.let { Text(it, color = DeepMuted) }
                     Text(
-                        if (user.online == true) "Сейчас в сети" else "Оффлайн · ${formatLastSeen(user.lastSeenAt)}",
+                        formatUserPresenceLine(user),
                         color = if (user.online == true) DeepAccent else DeepMuted
                     )
                     formatClientState(user.clientState, user.activeCall, state.nowMs)?.let {

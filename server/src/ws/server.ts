@@ -3,7 +3,6 @@ import { WebSocketServer } from 'ws';
 import type { FastifyInstance } from 'fastify';
 import {
   broadcastToConversation,
-  isUserOnline,
   registerClient,
   sendToUser,
   subscribeConversation,
@@ -13,9 +12,7 @@ import { markDelivered } from '../db/messages.js';
 import { listConversationMemberIds } from '../db/conversations.js';
 import { handleCallMessage, isCallMessage } from './callSignaling.js';
 import {
-  buildPresenceSnapshot,
-  notifyPresence,
-  touchLastSeen
+  buildPresenceSnapshot
 } from '../lib/presence.js';
 import { notifyAdminUserUpdate } from '../lib/adminMonitor.js';
 
@@ -31,11 +28,7 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
         return;
       }
       const payload = await app.jwt.verify<{ id: string }>(token);
-      const wasOnline = isUserOnline(payload.id);
       const client = registerClient(ws, payload.id);
-      if (!wasOnline) {
-        await notifyPresence(payload.id, true);
-      }
       await notifyAdminUserUpdate(payload.id);
       ws.send(
         JSON.stringify({
@@ -94,9 +87,6 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
       ws.on('close', async () => {
         clearInterval(pingTimer);
         unregisterClient(client);
-        if (!isUserOnline(payload.id)) {
-          await notifyPresence(payload.id, false);
-        }
         await notifyAdminUserUpdate(payload.id);
       });
     } catch {

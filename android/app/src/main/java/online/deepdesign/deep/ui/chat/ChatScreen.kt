@@ -86,7 +86,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.delay
 import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.ui.components.AnimatedChatStatus
 import online.deepdesign.deep.ui.components.ChatAvatar
@@ -216,30 +215,31 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(state.messages.lastOrNull()?.id, state.peerTyping) {
+    LaunchedEffect(state.messages.lastOrNull()?.id) {
         if (state.messages.isEmpty()) return@LaunchedEffect
-        val lastContentIndex = state.messages.lastIndex + if (state.peerTyping) 1 else 0
         val nearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-            ?.let { it >= lastContentIndex - 1 } != false
+            ?.let { it >= state.messages.lastIndex - 1 } != false
         if (nearBottom) {
-            listState.scrollToItem(lastContentIndex)
+            listState.scrollToItem(state.messages.lastIndex)
         }
     }
 
     LaunchedEffect(state.peerTyping) {
         if (!state.peerTyping || state.messages.isEmpty()) return@LaunchedEffect
-        delay(280)
-        listState.animateScrollToItem(state.messages.lastIndex + 1)
+        val nearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+            ?.let { it >= state.messages.lastIndex - 1 } != false
+        if (nearBottom) {
+            listState.animateScrollToItem(state.messages.lastIndex)
+        }
     }
 
     // Скролл вниз синхронно с анимацией клавиатуры (на каждый кадр IME inset).
-    LaunchedEffect(imeBottomPx, state.messages.size, state.peerTyping) {
+    LaunchedEffect(imeBottomPx, state.messages.size) {
         if (imeBottomPx <= 0 || state.messages.isEmpty()) return@LaunchedEffect
-        val lastIdx = state.messages.lastIndex + if (state.peerTyping) 1 else 0
         val nearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-            ?.let { it >= lastIdx - 1 } != false
+            ?.let { it >= state.messages.lastIndex - 1 } != false
         if (nearBottom) {
-            listState.scrollToItem(lastIdx)
+            listState.scrollToItem(state.messages.lastIndex)
         }
     }
 
@@ -291,11 +291,28 @@ fun ChatScreen(
         },
         bottomBar = {
             if (!state.recording) {
-                Surface(
-                    color = DeepSurface,
-                    shadowElevation = 8.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    AnimatedVisibility(
+                        visible = state.peerTyping,
+                        enter = expandVertically(
+                            animationSpec = tween(220, easing = FastOutSlowInEasing),
+                            expandFrom = Alignment.Top
+                        ) + fadeIn(tween(180, easing = FastOutSlowInEasing)),
+                        exit = shrinkVertically(
+                            animationSpec = tween(200, easing = FastOutSlowInEasing),
+                            shrinkTowards = Alignment.Top
+                        ) + fadeOut(tween(140))
+                    ) {
+                        TypingBubbleIndicator(
+                            asMessageBubble = true,
+                            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 2.dp)
+                        )
+                    }
+                    Surface(
+                        color = DeepSurface,
+                        shadowElevation = 8.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -366,6 +383,7 @@ fun ChatScreen(
                             )
                         }
                     }
+                    }
                 }
             }
         }
@@ -408,7 +426,7 @@ fun ChatScreen(
                             start = 12.dp,
                             top = 8.dp,
                             end = 12.dp,
-                            bottom = if (state.peerTyping) 52.dp else 8.dp
+                            bottom = 8.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -421,26 +439,6 @@ fun ChatScreen(
                                 mine = vm.isMine(msg),
                                 onLongClick = { deleteTarget = msg }
                             )
-                        }
-                        item(key = "peer_typing") {
-                            Column {
-                                AnimatedVisibility(
-                                    visible = state.peerTyping,
-                                    enter = expandVertically(
-                                        animationSpec = tween(260, easing = FastOutSlowInEasing),
-                                        expandFrom = Alignment.Top
-                                    ) + fadeIn(tween(220, easing = FastOutSlowInEasing)),
-                                    exit = shrinkVertically(
-                                        animationSpec = tween(220, easing = FastOutSlowInEasing),
-                                        shrinkTowards = Alignment.Top
-                                    ) + fadeOut(tween(160))
-                                ) {
-                                    TypingBubbleIndicator(
-                                        asMessageBubble = true,
-                                        modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
-                                    )
-                                }
-                            }
                         }
                     }
                 }

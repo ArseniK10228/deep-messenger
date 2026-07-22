@@ -1,7 +1,7 @@
 {
-  "versionCode": 24,
-  "versionName": "0.3.21",
+  "versionCode": 45,
+  "versionName": "0.3.42",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Статус и «печатает» на главном экране как в Telegram.",
-  "forceUpdate": false
+  "changelog": "Доступно обновление приложения.",
+  "forceUpdate": true
 }

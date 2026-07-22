@@ -115,7 +115,7 @@ interface DeepApi {
     suspend fun adminUsers(): AdminUsersResponse
 
     @GET("api/v1/admin/users/{id}")
-    suspend fun adminUser(@Path("id") userId: String): PeerResponse
+    suspend fun adminUser(@Path("id") userId: String): AdminUserResponse
 
     @GET("api/v1/admin/users/{id}/conversations")
     suspend fun adminUserConversations(@Path("id") userId: String): ConversationsResponse

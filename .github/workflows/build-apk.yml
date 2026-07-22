@@ -65,16 +65,14 @@ jobs:
             const fs = require('fs');
             const p = 'server/app-release.json';
             const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-            const note = (j.changelog || '').trim().replace(/\s+/g, ' ');
             j.versionCode = Number(process.env.VC);
             j.versionName = process.env.VN;
             if (!j.versionCode || !j.versionName) {
               console.error('Invalid version from Gradle:', process.env.VC, process.env.VN);
               process.exit(1);
             }
-            j.changelog = note
-              ? 'Выпущена версия ' + j.versionName + '. ' + note + ' Рекомендуется установить обновление для обеспечения стабильной работы сервиса.'
-              : 'Выпущена версия ' + j.versionName + '. Обновление содержит улучшения стабильности и исправления ошибок. Рекомендуется установить актуальную версию приложения.';
+            j.changelog = 'Доступно обновление приложения.';
+            j.forceUpdate = j.forceUpdate === true;
             fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
           "
           echo "Release metadata: versionCode=$VC versionName=$VN"

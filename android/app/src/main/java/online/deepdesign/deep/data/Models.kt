@@ -196,6 +196,9 @@ data class ClientStatePayload(
 data class AdminUsersResponse(val users: List<UserDto>)
 
 @JsonClass(generateAdapter = true)
+data class AdminUserResponse(val user: UserDto)
+
+@JsonClass(generateAdapter = true)
 data class DiagRequest(val action: String = "snapshot")
 
 @JsonClass(generateAdapter = true)

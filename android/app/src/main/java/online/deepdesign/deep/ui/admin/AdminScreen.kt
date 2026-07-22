@@ -289,7 +289,11 @@ private fun AdminUserDetail(
     val user = state.selectedUser
     if (user == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = DeepAccent)
+            if (state.loading) {
+                CircularProgressIndicator(color = DeepAccent)
+            } else {
+                Text(state.error ?: "Не удалось загрузить", color = DeepMuted)
+            }
         }
         return
     }

@@ -144,7 +144,7 @@ class AdminViewModel : ViewModel() {
     private suspend fun loadUserDetail(userId: String, silent: Boolean = false) {
         if (!silent) _state.update { it.copy(loading = true, error = null) }
         try {
-            val user = api.adminUser(userId).peer
+            val user = api.adminUser(userId).user
             val conversations = api.adminUserConversations(userId).conversations
             _state.update {
                 it.copy(loading = false, selectedUser = user, userConversations = conversations)

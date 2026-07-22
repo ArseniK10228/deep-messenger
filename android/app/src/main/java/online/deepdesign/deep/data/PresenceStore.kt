@@ -43,6 +43,18 @@ object PresenceStore {
         }
     }
 
+    fun applyApiSnapshot(entries: Map<String, Pair<Boolean?, String?>>) {
+        if (entries.isEmpty()) return
+        _users.update { current ->
+            val next = current.toMutableMap()
+            entries.forEach { (userId, pair) ->
+                val (online, lastSeen) = pair
+                next[userId] = PresenceInfo(online == true, lastSeen)
+            }
+            next
+        }
+    }
+
     fun onSignalingDisconnected() {
         _signalingLive.value = false
         _users.update { map -> map.mapValues { (_, info) -> info.copy(online = false) } }
@@ -58,11 +70,20 @@ object PresenceStore {
         apiOnline: Boolean?,
         apiLastSeen: String?
     ): Pair<Boolean, String?> {
+        // REST snapshot is authoritative for offline — fixes stale WS cache.
+        if (apiOnline == false) {
+            val lastSeen = apiLastSeen ?: _users.value[userId]?.lastSeenAt
+            return false to lastSeen
+        }
         if (!_signalingLive.value) {
             return (apiOnline == true) to apiLastSeen
         }
         val live = _users.value[userId]
-        return (live?.online == true) to (live?.lastSeenAt ?: apiLastSeen)
+        val online = when {
+            live != null -> live.online
+            else -> apiOnline == true
+        }
+        return online to (live?.lastSeenAt ?: apiLastSeen)
     }
 }
 

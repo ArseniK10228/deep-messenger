@@ -2,6 +2,7 @@ package online.deepdesign.deep.push
 
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,7 +23,7 @@ class DeepMessagingService : FirebaseMessagingService() {
             val app = DeepApp.instance
             runCatching { SessionBootstrap.restore(app.sessionStore, app) }
             runCatching {
-                app.api.registerFcm(FcmRegisterRequest(token))
+                app.api.registerFcm(ClientReporter.fcmRequest(token))
             }
         }
     }

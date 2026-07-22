@@ -103,6 +103,13 @@ class ChatsViewModel : ViewModel() {
                         PresenceStore.setFromApi(peer.id, peer.online, peer.lastSeenAt)
                     }
                 }
+                PresenceStore.applyApiSnapshot(
+                    list.mapNotNull { conv ->
+                        conv.peers?.firstOrNull()?.let { peer ->
+                            peer.id to (peer.online to peer.lastSeenAt)
+                        }
+                    }.toMap()
+                )
                 _state.update { it.copy(loading = false, conversations = list) }
             } catch (e: Exception) {
                 val msg = when {

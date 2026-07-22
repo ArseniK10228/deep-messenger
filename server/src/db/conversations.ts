@@ -47,7 +47,8 @@ export async function getConversationPeer(
   conversationId: string
 ): Promise<(UserRow & { last_seen_at: string | null }) | null> {
   const r = await query<UserRow & { last_seen_at: string | null }>(
-    `SELECT u.id, u.email, u.phone, u.username, u.display_name, u.avatar_path, u.fcm_token, u.last_seen_at
+    `SELECT u.id, u.email, u.phone, u.username, u.display_name, u.avatar_path, u.fcm_token,
+            u.last_seen_at, u.app_version_code, u.app_version_name
      FROM conversation_members cm
      JOIN users u ON u.id = cm.user_id
      WHERE cm.conversation_id = $1 AND cm.user_id <> $2
@@ -91,7 +92,9 @@ export async function listConversationsForUser(userId: string) {
                 'username', u.username,
                 'displayName', u.display_name,
                 'avatarUrl', CASE WHEN u.avatar_path IS NOT NULL THEN '/media/' || u.avatar_path END,
-                'lastSeenAt', u.last_seen_at
+                'lastSeenAt', u.last_seen_at,
+                'appVersionCode', u.app_version_code,
+                'appVersionName', u.app_version_name
               ))
               FROM conversation_members cm
               JOIN users u ON u.id = cm.user_id

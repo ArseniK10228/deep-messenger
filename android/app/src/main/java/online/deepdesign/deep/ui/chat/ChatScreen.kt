@@ -264,6 +264,13 @@ fun ChatScreen(
                                 lastSeenAt = state.peerLastSeenAt,
                                 typing = state.peerTyping
                             )
+                            state.peerAppVersion?.let { version ->
+                                Text(
+                                    text = "v$version",
+                                    color = DeepMuted,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
                         }
                     }
                 },

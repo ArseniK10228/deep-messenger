@@ -42,6 +42,7 @@ data class ChatUiState(
     val peerTyping: Boolean = false,
     val peerOnline: Boolean = false,
     val peerLastSeenAt: String? = null,
+    val peerAppVersion: String? = null,
     val messageKeys: Map<String, String> = emptyMap()
 )
 
@@ -86,7 +87,15 @@ class ChatViewModel(
                         peerDelivered = event.peerDelivered,
                         peerRead = event.peerRead
                     )
+                } else if (event is ChatEvent.RefreshChats) {
+                    loadPeer()
                 }
+            }
+        }
+        viewModelScope.launch {
+            while (true) {
+                delay(45_000)
+                loadPeer()
             }
         }
     }
@@ -118,16 +127,20 @@ class ChatViewModel(
                 peerApiOnline = peer.online == true
                 peerApiLastSeen = peer.lastSeenAt
                 PresenceStore.setFromApi(peer.id, peer.online, peer.lastSeenAt)
-                applyPeerPresence()
+                applyPeerPresence(peer.appVersionName)
             }
         }
     }
 
-    private fun applyPeerPresence() {
+    private fun applyPeerPresence(peerAppVersion: String? = _state.value.peerAppVersion) {
         val peerId = peerUserId ?: return
         val (online, lastSeen) = PresenceStore.peerOnline(peerId, peerApiOnline, peerApiLastSeen)
         _state.update {
-            it.copy(peerOnline = online, peerLastSeenAt = lastSeen)
+            it.copy(
+                peerOnline = online,
+                peerLastSeenAt = lastSeen,
+                peerAppVersion = peerAppVersion ?: it.peerAppVersion
+            )
         }
     }
 

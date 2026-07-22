@@ -105,6 +105,9 @@ interface DeepApi {
     @POST("api/v1/auth/fcm")
     suspend fun registerFcm(@Body body: FcmRegisterRequest): Map<String, Boolean>
 
+    @POST("api/v1/auth/client")
+    suspend fun reportClient(@Body body: ClientReportRequest): Map<String, Boolean>
+
     @GET("api/v1/app/release")
     suspend fun appRelease(): AppReleaseDto
 }

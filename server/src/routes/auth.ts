@@ -6,6 +6,7 @@ import {
   mapUserDto,
   searchUsersByQuery,
   setFcmToken,
+  setClientVersion,
   updateUserProfile,
   upsertUserByPhone
 } from '../db/users.js';
@@ -51,9 +52,19 @@ export async function registerProtectedAuthRoutes(app: FastifyInstance): Promise
 
   app.post('/auth/fcm', async (req, reply) => {
     const user = getAuthUser(req);
-    const body = req.body as { token?: string };
+    const body = req.body as { token?: string; versionCode?: number; versionName?: string };
     if (!body.token) return reply.code(400).send({ error: 'token required' });
-    await setFcmToken(user.id, body.token);
+    await setFcmToken(user.id, body.token, body.versionCode ?? null, body.versionName ?? null);
+    return { ok: true };
+  });
+
+  app.post('/auth/client', async (req, reply) => {
+    const user = getAuthUser(req);
+    const body = req.body as { versionCode?: number; versionName?: string };
+    if (!body.versionCode || !body.versionName?.trim()) {
+      return reply.code(400).send({ error: 'versionCode and versionName required' });
+    }
+    await setClientVersion(user.id, body.versionCode, body.versionName);
     return { ok: true };
   });
 

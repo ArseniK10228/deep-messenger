@@ -42,6 +42,12 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
         })
       );
 
+      const pingTimer = setInterval(() => {
+        if (ws.readyState === ws.OPEN) {
+          ws.ping();
+        }
+      }, 30_000);
+
       ws.on('message', async (raw) => {
         try {
           const msg = JSON.parse(String(raw)) as {
@@ -84,6 +90,7 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
       });
 
       ws.on('close', async () => {
+        clearInterval(pingTimer);
         unregisterClient(client);
         if (!isUserOnline(payload.id)) {
           await notifyPresence(payload.id, false);

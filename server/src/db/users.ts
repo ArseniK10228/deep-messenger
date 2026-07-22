@@ -9,6 +9,9 @@ export interface UserRow {
   display_name: string;
   avatar_path: string | null;
   fcm_token: string | null;
+  app_version_code?: number | null;
+  app_version_name?: string | null;
+  app_version_at?: string | null;
 }
 
 export function mapUserDto(row: UserRow) {
@@ -18,7 +21,9 @@ export function mapUserDto(row: UserRow) {
     phone: row.phone || '',
     username: row.username,
     displayName: row.display_name,
-    avatarUrl: row.avatar_path ? `/media/${row.avatar_path}` : null
+    avatarUrl: row.avatar_path ? `/media/${row.avatar_path}` : null,
+    appVersionCode: row.app_version_code ?? null,
+    appVersionName: row.app_version_name ?? null
   };
 }
 
@@ -94,8 +99,42 @@ export async function upsertUserByPhone(phone: string, displayName?: string): Pr
   return r.rows[0];
 }
 
-export async function setFcmToken(userId: string, token: string): Promise<void> {
+export async function setFcmToken(
+  userId: string,
+  token: string,
+  versionCode?: number | null,
+  versionName?: string | null
+): Promise<void> {
+  if (versionCode && versionName) {
+    await query(
+      `UPDATE users SET
+         fcm_token = $2,
+         app_version_code = $3,
+         app_version_name = $4,
+         app_version_at = now(),
+         updated_at = now()
+       WHERE id = $1`,
+      [userId, token, versionCode, versionName.trim()]
+    );
+    return;
+  }
   await query('UPDATE users SET fcm_token = $2, updated_at = now() WHERE id = $1', [userId, token]);
+}
+
+export async function setClientVersion(
+  userId: string,
+  versionCode: number,
+  versionName: string
+): Promise<void> {
+  await query(
+    `UPDATE users SET
+       app_version_code = $2,
+       app_version_name = $3,
+       app_version_at = now(),
+       updated_at = now()
+     WHERE id = $1`,
+    [userId, versionCode, versionName.trim()]
+  );
 }
 
 export async function getUserById(id: string): Promise<UserRow | null> {

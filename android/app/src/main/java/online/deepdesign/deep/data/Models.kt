@@ -50,7 +50,9 @@ data class UserDto(
     val displayName: String,
     val avatarUrl: String?,
     val online: Boolean? = null,
-    @Json(name = "lastSeenAt") val lastSeenAt: String? = null
+    @Json(name = "lastSeenAt") val lastSeenAt: String? = null,
+    @Json(name = "appVersionCode") val appVersionCode: Int? = null,
+    @Json(name = "appVersionName") val appVersionName: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -152,7 +154,17 @@ data class AcceptCallResponse(
 )
 
 @JsonClass(generateAdapter = true)
-data class FcmRegisterRequest(val token: String)
+data class FcmRegisterRequest(
+    val token: String,
+    val versionCode: Int? = null,
+    val versionName: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class ClientReportRequest(
+    val versionCode: Int,
+    val versionName: String
+)
 
 data class AppReleaseDto(
     val versionCode: Int,

@@ -13,9 +13,12 @@ import online.deepdesign.deep.call.SignalingHub
 import online.deepdesign.deep.data.ApiClient
 import online.deepdesign.deep.data.DeepApi
 import online.deepdesign.deep.data.ChatDraftStore
+import online.deepdesign.deep.data.ChatNotifier
+import online.deepdesign.deep.data.ChatEvent
 import online.deepdesign.deep.data.SessionStore
 import online.deepdesign.deep.data.DeepAppToken
 import online.deepdesign.deep.data.VoicePlayer
+import online.deepdesign.deep.push.ClientReporter
 import online.deepdesign.deep.push.FcmRegistrar
 
 class DeepApp : Application() {
@@ -78,6 +81,11 @@ class DeepApp : Application() {
         callManager.onAppForegrounded()
         if (!cachedToken.isNullOrBlank()) {
             callManager.start()
+            appScope.launch {
+                runCatching { ClientReporter.report(api) }
+                runCatching { FcmRegistrar.register(api) }
+            }
+            ChatNotifier.emit(ChatEvent.RefreshChats)
         }
     }
 
@@ -98,6 +106,7 @@ class DeepApp : Application() {
             callManager.start()
             appScope.launch {
                 runCatching { FcmRegistrar.register(api) }
+                runCatching { ClientReporter.report(api) }
             }
         }
     }

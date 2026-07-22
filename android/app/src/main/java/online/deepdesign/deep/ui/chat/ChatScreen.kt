@@ -75,7 +75,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -114,6 +113,7 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val density = LocalDensity.current
+    val imeBottomPx = WindowInsets.ime.getBottom(density)
     var showAttach by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<MessageDto?>(null) }
     val attachSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -218,18 +218,14 @@ fun ChatScreen(
         listState.animateScrollToItem(state.messages.lastIndex + 1)
     }
 
-    // Скролл вниз синхронно с анимацией клавиатуры (каждый кадр IME inset).
-    LaunchedEffect(state.messages.size, state.peerTyping) {
-        if (state.messages.isEmpty()) return@LaunchedEffect
+    // Скролл вниз синхронно с анимацией клавиатуры (на каждый кадр IME inset).
+    LaunchedEffect(imeBottomPx, state.messages.size, state.peerTyping) {
+        if (imeBottomPx <= 0 || state.messages.isEmpty()) return@LaunchedEffect
         val lastIdx = state.messages.lastIndex + if (state.peerTyping) 1 else 0
-        snapshotFlow {
-            WindowInsets.ime.getBottom(density) to
-                listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-        }.collect { (imePx, lastVisible) ->
-            val nearBottom = lastVisible?.let { it >= lastIdx - 1 } != false
-            if (imePx > 0 && nearBottom) {
-                listState.scrollToItem(lastIdx)
-            }
+        val nearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+            ?.let { it >= lastIdx - 1 } != false
+        if (nearBottom) {
+            listState.scrollToItem(lastIdx)
         }
     }
 

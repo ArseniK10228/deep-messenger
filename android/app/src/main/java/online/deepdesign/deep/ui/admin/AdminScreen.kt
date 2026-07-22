@@ -130,10 +130,11 @@ fun AdminScreen(
             label = "adminNav"
         ) { dest ->
             when (dest) {
-                is AdminDestination.Home -> AdminHome(
+                is AdminDestination.Home ->                 AdminHome(
                     state = state,
                     onTab = vm::setTab,
                     onUser = vm::openUser,
+                    onRefresh = vm::refreshAll,
                     onPlayRecording = { rec ->
                         val url = resolveMediaUrl(rec.mediaUrl) ?: return@AdminHome
                         voicePlayer.toggle(rec.id, url)
@@ -162,6 +163,7 @@ private fun AdminHome(
     state: AdminUiState,
     onTab: (Int) -> Unit,
     onUser: (String) -> Unit,
+    onRefresh: () -> Unit,
     onPlayRecording: (CallRecordingDto) -> Unit,
     playingId: String?,
     isPlaying: Boolean
@@ -186,7 +188,7 @@ private fun AdminHome(
 
         PullToRefreshBox(
             isRefreshing = state.refreshing,
-            onRefresh = { /* handled by parent refresh button */ },
+            onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize()
         ) {
             when (state.tab) {
@@ -204,6 +206,7 @@ private fun AdminHome(
                                 AdminUserCard(
                                     modifier = Modifier.deepAppear(delayMillis = index * 25),
                                     user = user,
+                                    nowMs = state.nowMs,
                                     onClick = { onUser(user.id) }
                                 )
                             }
@@ -243,6 +246,7 @@ private fun AdminHome(
 @Composable
 private fun AdminUserCard(
     user: UserDto,
+    nowMs: Long,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -257,7 +261,12 @@ private fun AdminUserCard(
             modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ChatAvatar(name = userLabel(user), size = 48.dp, online = user.online == true)
+            ChatAvatar(
+                name = userLabel(user),
+                size = 48.dp,
+                online = user.online == true,
+                inCall = userHasActiveCall(user)
+            )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(userLabel(user), color = DeepText, fontWeight = FontWeight.SemiBold)
@@ -269,8 +278,12 @@ private fun AdminUserCard(
                     color = if (user.online == true) DeepAccent else DeepMuted,
                     style = MaterialTheme.typography.labelSmall
                 )
-                formatClientState(user.clientState)?.let {
-                    Text(it, color = DeepMuted, style = MaterialTheme.typography.labelSmall)
+                formatClientState(user.clientState, user.activeCall, nowMs)?.let {
+                    Text(
+                        it,
+                        color = if (userHasActiveCall(user)) DeepAccent else DeepMuted,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
                 user.appVersionName?.let {
                     Text("v$it", color = DeepMuted, style = MaterialTheme.typography.labelSmall)
@@ -312,7 +325,12 @@ private fun AdminUserDetail(
                         if (user.online == true) "Сейчас в сети" else "Оффлайн · ${formatLastSeen(user.lastSeenAt)}",
                         color = if (user.online == true) DeepAccent else DeepMuted
                     )
-                    formatClientState(user.clientState)?.let { Text(it, color = DeepMuted) }
+                    formatClientState(user.clientState, user.activeCall, state.nowMs)?.let {
+                        Text(
+                            it,
+                            color = if (userHasActiveCall(user)) DeepAccent else DeepMuted
+                        )
+                    }
                     user.appVersionName?.let { Text("Версия v$it", color = DeepMuted) }
                     TextButton(
                         onClick = { onDiag(user.id) },

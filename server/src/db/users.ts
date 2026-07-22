@@ -1,5 +1,6 @@
 import { isValidUsername, normalizeSearchKey, normalizeUsername } from '../lib/searchNormalize.js';
 import { isOwnerUserId, isReservedUsername } from '../lib/operator.js';
+import { getActiveCallForUser, peerUserId, type CallSession } from '../lib/callRegistry.js';
 import { isUserOnline } from '../ws/hub.js';
 import { query } from './client.js';
 
@@ -9,6 +10,40 @@ export interface ClientState {
   charging?: boolean | null;
   network?: string | null;
   inCall?: boolean | null;
+}
+
+export interface ActiveCallDto {
+  callId: string;
+  state: 'ringing' | 'active';
+  peerId: string;
+  peerName?: string | null;
+  ringingSince: number;
+  activeSince?: number | null;
+  durationMs: number;
+}
+
+function buildActiveCallDto(call: CallSession, userId: string, peerName?: string | null): ActiveCallDto {
+  const peerId = peerUserId(call, userId)!;
+  const since = call.state === 'active' && call.activeAt ? call.activeAt : call.createdAt;
+  return {
+    callId: call.id,
+    state: call.state === 'active' ? 'active' : 'ringing',
+    peerId,
+    peerName: peerName ?? null,
+    ringingSince: call.createdAt,
+    activeSince: call.activeAt ?? null,
+    durationMs: Math.max(0, Date.now() - since)
+  };
+}
+
+async function resolveActiveCall(userId: string): Promise<ActiveCallDto | null> {
+  const call = getActiveCallForUser(userId);
+  if (!call) return null;
+  const peerId = peerUserId(call, userId);
+  if (!peerId) return null;
+  const peer = await getUserById(peerId);
+  const peerName = peer?.display_name?.trim() || peer?.username || null;
+  return buildActiveCallDto(call, userId, peerName);
 }
 
 export interface UserRow {
@@ -55,7 +90,29 @@ export function mapAdminUserDto(row: UserRow) {
     lastSeenAt: online ? null : row.last_seen_at ?? null,
     clientState: row.client_state ?? null,
     clientStateAt: row.client_state_at ?? null,
-    createdAt: row.created_at ?? null
+    createdAt: row.created_at ?? null,
+    activeCall: null as ActiveCallDto | null
+  };
+}
+
+export async function enrichAdminUser(row: UserRow) {
+  const base = mapAdminUserDto(row);
+  const activeCall = await resolveActiveCall(row.id);
+  let clientState = base.clientState;
+  if (!activeCall && clientState?.inCall) {
+    clientState = { ...clientState, inCall: false };
+  } else if (activeCall && clientState) {
+    clientState = { ...clientState, inCall: true };
+  } else if (activeCall && !clientState) {
+    clientState = { inCall: true };
+  }
+  const online = isUserOnline(row.id);
+  return {
+    ...base,
+    online,
+    lastSeenAt: online ? null : row.last_seen_at ?? null,
+    clientState,
+    activeCall
   };
 }
 

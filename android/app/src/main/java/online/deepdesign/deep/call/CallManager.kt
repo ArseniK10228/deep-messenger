@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.data.IceServerDto
 import online.deepdesign.deep.data.StartCallRequest
+import online.deepdesign.deep.push.ClientReporter
 import online.deepdesign.deep.push.IncomingCallNotifier
 import online.deepdesign.deep.data.WsEnvelope
 import org.webrtc.IceCandidate
@@ -281,6 +282,7 @@ class CallManager(
         _videoOn.value = video
         _overlayExpanded.value = true
         _state.value = CallUiState.Outgoing(pendingId, conversationId, peerName, video)
+        ClientReporter.scheduleReport()
         setCallSignalingPriority(true)
         ringtonePlayer.playOutgoingRingback()
         startCallProtection(peerName, outgoing = true, video = video)
@@ -294,6 +296,7 @@ class CallManager(
                 activeCallId = resp.callId
                 iceServers = resp.iceServers
                 _state.value = CallUiState.Outgoing(resp.callId, conversationId, peerName, video)
+                ClientReporter.scheduleReport()
             } catch (e: Exception) {
                 if (_state.value is CallUiState.Outgoing) {
                     endLocal("error")
@@ -331,6 +334,7 @@ class CallManager(
                 beginAudioSession()
                 refreshForegroundService()
                 initEngine()
+                ClientReporter.scheduleReport()
                 pendingOffer?.let {
                     pendingOffer = null
                     handleRemoteSdp(it)
@@ -446,6 +450,7 @@ class CallManager(
             _overlayExpanded.value = true
             _videoOn.value = video
             _state.value = CallUiState.Incoming(callId, conversationId, callerName, video)
+            ClientReporter.scheduleReport()
             activeConversationId = conversationId
             activeCallVideo = video
             activeCallId = callId
@@ -508,6 +513,7 @@ class CallManager(
                 beginAudioSession()
                 refreshForegroundService()
                 initEngine()
+                ClientReporter.scheduleReport()
                 engine?.createOffer { sdp ->
                     signaling.sendSdp(callId, sdp.description, sdp.type.canonicalForm())
                 }
@@ -605,7 +611,10 @@ class CallManager(
                             ringtonePlayer.stop()
                             _state.update { current ->
                                 if (current is CallUiState.Active) {
-                                    if (!current.connected) startCallRecording()
+                                    if (!current.connected) {
+                                        startCallRecording()
+                                        ClientReporter.scheduleReport()
+                                    }
                                     current.copy(connected = true)
                                 } else current
                             }
@@ -632,7 +641,10 @@ class CallManager(
                             disconnectJob?.cancel()
                             _state.update { current ->
                                 if (current is CallUiState.Active) {
-                                    if (!current.connected) startCallRecording()
+                                    if (!current.connected) {
+                                        startCallRecording()
+                                        ClientReporter.scheduleReport()
+                                    }
                                     current.copy(connected = true)
                                 } else current
                             }
@@ -838,6 +850,7 @@ class CallManager(
         _remoteVideoTrack.value = null
         _overlayExpanded.value = true
         teardownRtc()
+        ClientReporter.scheduleReport()
     }
 
     private fun startCallRecording() {

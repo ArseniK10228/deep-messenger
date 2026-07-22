@@ -6,8 +6,7 @@ import { getAuthUser } from '../lib/auth.js';
 import {
   getUserById,
   listUsersAdmin,
-  mapAdminUserDto,
-  mapPeerDto
+  enrichAdminUser
 } from '../db/users.js';
 import { enrichPeerPresence } from '../lib/presence.js';
 import { isOperatorUser } from '../lib/operator.js';
@@ -35,7 +34,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   app.get('/admin/users', async (req, reply) => {
     if (!(await requireOwner(req, reply))) return;
     const rows = await listUsersAdmin();
-    return { users: rows.map((row) => mapAdminUserDto(row)) };
+    const users = await Promise.all(rows.map((row) => enrichAdminUser(row)));
+    return { users };
   });
 
   app.get('/admin/users/:userId', async (req, reply) => {
@@ -44,10 +44,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const row = await getUserById(userId);
     if (!row) return reply.code(404).send({ error: 'user not found' });
     return {
-      user: enrichPeerPresence({
-        ...mapAdminUserDto(row),
-        lastSeenAt: row.last_seen_at ?? null
-      })
+      user: enrichPeerPresence(await enrichAdminUser(row))
     };
   });
 

@@ -9,6 +9,7 @@ export interface CallSession {
   calleeId: string;
   state: CallState;
   createdAt: number;
+  activeAt?: number;
 }
 
 const calls = new Map<string, CallSession>();
@@ -64,6 +65,9 @@ export function setCallState(callId: string, state: CallState): CallSession | un
   const call = calls.get(callId);
   if (!call) return undefined;
   call.state = state;
+  if (state === 'active' && !call.activeAt) {
+    call.activeAt = Date.now();
+  }
   if (state === 'ended') {
     byUser.delete(call.callerId);
     byUser.delete(call.calleeId);

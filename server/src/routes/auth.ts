@@ -10,6 +10,7 @@ import {
   updateUserProfile,
   upsertUserByPhone
 } from '../db/users.js';
+import { notifyAdminUserUpdate } from '../lib/adminMonitor.js';
 
 export async function registerPublicAuthRoutes(app: FastifyInstance): Promise<void> {
   app.post('/auth/firebase', async (req, reply) => {
@@ -87,6 +88,7 @@ export async function registerProtectedAuthRoutes(app: FastifyInstance): Promise
             inCall: body.inCall
           };
     await setClientVersion(user.id, body.versionCode, body.versionName, clientState);
+    await notifyAdminUserUpdate(user.id);
     return { ok: true };
   });
 

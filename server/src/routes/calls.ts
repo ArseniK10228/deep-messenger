@@ -12,6 +12,7 @@ import { userInConversation } from '../db/conversations.js';
 import { query } from '../db/client.js';
 import { sendCallPush } from '../lib/firebase.js';
 import { sendToUser } from '../ws/hub.js';
+import { notifyAdminUsers } from '../lib/adminMonitor.js';
 
 async function getPeerUserId(conversationId: string, userId: string): Promise<string | null> {
   const r = await query<{ user_id: string }>(
@@ -83,6 +84,8 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
       video: isVideo ? 'true' : 'false'
     }).catch(() => {});
 
+    await notifyAdminUsers([user.id, calleeId]);
+
     return {
       callId: call.id,
       iceServers: buildIceServers(user.id)
@@ -101,6 +104,7 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
     }
     setCallState(id, 'active');
     sendToUser(call.callerId, { type: 'call_accept', callId: id });
+    await notifyAdminUsers([call.callerId, call.calleeId]);
     return { ok: true, iceServers: buildIceServers(user.id) };
   });
 
@@ -116,6 +120,7 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
     if (peer) {
       await notifyCallEnded(peer, id, 'reject');
     }
+    await notifyAdminUsers([call.callerId, call.calleeId]);
     return { ok: true };
   });
 
@@ -131,6 +136,7 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
     if (peer) {
       await notifyCallEnded(peer, id, 'hangup');
     }
+    await notifyAdminUsers([call.callerId, call.calleeId]);
     return { ok: true };
   });
 }

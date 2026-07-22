@@ -17,6 +17,7 @@ import {
   notifyPresence,
   touchLastSeen
 } from '../lib/presence.js';
+import { notifyAdminUserUpdate } from '../lib/adminMonitor.js';
 
 export function attachWebSocket(server: Server, app: FastifyInstance): void {
   const wss = new WebSocketServer({ server, path: '/ws' });
@@ -35,6 +36,7 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
       if (!wasOnline) {
         await notifyPresence(payload.id, true);
       }
+      await notifyAdminUserUpdate(payload.id);
       ws.send(
         JSON.stringify({
           type: 'presence_snapshot',
@@ -95,6 +97,7 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
         if (!isUserOnline(payload.id)) {
           await notifyPresence(payload.id, false);
         }
+        await notifyAdminUserUpdate(payload.id);
       });
     } catch {
       ws.close(4401, 'unauthorized');

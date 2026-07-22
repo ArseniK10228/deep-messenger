@@ -32,7 +32,8 @@ fun ChatAvatar(
     name: String,
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
-    online: Boolean = false
+    online: Boolean = false,
+    inCall: Boolean = false
 ) {
     val initial = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
     val gradient = Brush.linearGradient(listOf(DeepAccent, DeepAccentDim))
@@ -59,7 +60,11 @@ fun ChatAvatar(
                 .size(dotSize)
         ) {
             AnimatedContent(
-                targetState = online,
+                targetState = when {
+                    inCall -> AvatarStatus.InCall
+                    online -> AvatarStatus.Online
+                    else -> AvatarStatus.Offline
+                },
                 transitionSpec = {
                     (scaleIn(
                         initialScale = 0.4f,
@@ -68,21 +73,27 @@ fun ChatAvatar(
                         (scaleOut(targetScale = 0.5f, animationSpec = tween(180)) + fadeOut(tween(160)))
                 },
                 label = "onlineDot"
-            ) { isOnline ->
-                if (isOnline) {
-                    OnlineDot(size = dotSize)
+            ) { status ->
+                when (status) {
+                    AvatarStatus.InCall -> StatusDot(size = dotSize, color = Color(0xFFFF9500))
+                    AvatarStatus.Online -> StatusDot(size = dotSize, color = Color(0xFF34C759))
+                    AvatarStatus.Offline -> Unit
                 }
             }
         }
     }
 }
 
+private enum class AvatarStatus {
+    Offline, Online, InCall
+}
+
 @Composable
-private fun OnlineDot(size: Dp) {
+private fun StatusDot(size: Dp, color: Color) {
     Box(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(Color(0xFF34C759))
+            .background(color)
     )
 }

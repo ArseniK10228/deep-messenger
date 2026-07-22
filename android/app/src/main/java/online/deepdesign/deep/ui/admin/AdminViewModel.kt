@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
+import online.deepdesign.deep.data.ActiveCallDto
 import online.deepdesign.deep.data.CallRecordingDto
 import online.deepdesign.deep.data.ClientStateDto
 import online.deepdesign.deep.data.ConversationDto
@@ -38,7 +39,8 @@ data class AdminUiState(
     val chatLoading: Boolean = false,
     val recordings: List<CallRecordingDto> = emptyList(),
     val destination: AdminDestination = AdminDestination.Home,
-    val diagPending: String? = null
+    val diagPending: String? = null,
+    val nowMs: Long = System.currentTimeMillis()
 )
 
 class AdminViewModel : ViewModel() {
@@ -46,17 +48,35 @@ class AdminViewModel : ViewModel() {
     private val _state = MutableStateFlow(AdminUiState())
     val state: StateFlow<AdminUiState> = _state.asStateFlow()
     private var pollJob: Job? = null
+    private var tickJob: Job? = null
 
     init {
+        DeepApp.instance.callManager.start()
         refreshAll()
         startPolling()
+        startTick()
+        viewModelScope.launch {
+            AdminNotifier.updates.collect { user ->
+                applyUserUpdate(user)
+            }
+        }
+    }
+
+    private fun startTick() {
+        tickJob?.cancel()
+        tickJob = viewModelScope.launch {
+            while (isActive) {
+                delay(1_000)
+                _state.update { it.copy(nowMs = System.currentTimeMillis()) }
+            }
+        }
     }
 
     private fun startPolling() {
         pollJob?.cancel()
         pollJob = viewModelScope.launch {
             while (isActive) {
-                delay(12_000)
+                delay(3_000)
                 when (val dest = _state.value.destination) {
                     is AdminDestination.Home -> loadUsers(silent = true)
                     is AdminDestination.User -> {
@@ -66,6 +86,17 @@ class AdminViewModel : ViewModel() {
                     is AdminDestination.Chat -> loadUsers(silent = true)
                 }
             }
+        }
+    }
+
+    private fun applyUserUpdate(user: UserDto) {
+        _state.update { current ->
+            val users = current.users.map { if (it.id == user.id) user else it }
+                .let { list ->
+                    if (list.any { it.id == user.id }) list else list
+                }
+            val selectedUser = if (current.selectedUser?.id == user.id) user else current.selectedUser
+            current.copy(users = users, selectedUser = selectedUser)
         }
     }
 
@@ -149,6 +180,7 @@ class AdminViewModel : ViewModel() {
             _state.update {
                 it.copy(loading = false, selectedUser = user, userConversations = conversations)
             }
+            applyUserUpdate(user)
         } catch (e: Exception) {
             _state.update { it.copy(loading = false, error = e.message) }
         }
@@ -176,18 +208,49 @@ class AdminViewModel : ViewModel() {
 
     override fun onCleared() {
         pollJob?.cancel()
+        tickJob?.cancel()
         super.onCleared()
     }
 }
 
-fun formatClientState(state: ClientStateDto?): String? {
-    state ?: return null
+fun formatClientState(state: ClientStateDto?, activeCall: ActiveCallDto? = null, nowMs: Long = System.currentTimeMillis()): String? {
     val parts = mutableListOf<String>()
-    parts += if (state.foreground == true) "на экране" else "в фоне"
-    state.batteryPct?.let { parts += "$it%" }
-    state.network?.let { parts += it }
-    if (state.inCall == true) parts += "в звонке"
-    return parts.joinToString(" · ")
+    if (state != null) {
+        parts += if (state.foreground == true) "на экране" else "в фоне"
+        state.batteryPct?.let { parts += "$it%" }
+        state.charging?.let { if (it) parts += "заряжается" }
+        state.network?.let { parts += networkLabel(it) }
+    }
+    activeCall?.let { call ->
+        val peer = call.peerName?.takeIf { it.isNotBlank() } ?: call.peerId.take(8)
+        val duration = formatActiveCallDuration(call, nowMs)
+        val label = when (call.state) {
+            "active" -> "в разговоре с $peer · $duration"
+            else -> "звонит $peer · $duration"
+        }
+        parts += label
+    }
+    return parts.joinToString(" · ").ifBlank { null }
+}
+
+private fun networkLabel(network: String): String = when (network) {
+    "wifi" -> "Wi‑Fi"
+    "mobile" -> "моб. сеть"
+    "ethernet" -> "Ethernet"
+    "offline" -> "офлайн"
+    else -> network
+}
+
+fun activeCallDurationMs(call: ActiveCallDto, nowMs: Long): Long {
+    val since = when (call.state) {
+        "active" -> call.activeSince ?: call.ringingSince
+        else -> call.ringingSince
+    }
+    return (nowMs - since).coerceAtLeast(0)
+}
+
+fun formatActiveCallDuration(call: ActiveCallDto, nowMs: Long): String {
+    return formatDuration(activeCallDurationMs(call, nowMs))
 }
 
 fun formatLastSeen(lastSeenAt: String?): String {
@@ -211,9 +274,11 @@ fun userLabel(user: UserDto): String {
 }
 
 fun formatDuration(ms: Long?): String {
-    if (ms == null || ms <= 0) return "—"
+    if (ms == null || ms <= 0) return "0:00"
     val totalSec = ms / 1000
     val min = totalSec / 60
     val sec = totalSec % 60
     return "%d:%02d".format(min, sec)
 }
+
+fun userHasActiveCall(user: UserDto): Boolean = user.activeCall != null

@@ -56,7 +56,19 @@ data class UserDto(
     @Json(name = "canViewPresence") val canViewPresence: Boolean? = null,
     @Json(name = "clientState") val clientState: ClientStateDto? = null,
     @Json(name = "clientStateAt") val clientStateAt: String? = null,
-    @Json(name = "createdAt") val createdAt: String? = null
+    @Json(name = "createdAt") val createdAt: String? = null,
+    @Json(name = "activeCall") val activeCall: ActiveCallDto? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class ActiveCallDto(
+    val callId: String,
+    val state: String,
+    val peerId: String,
+    val peerName: String? = null,
+    @Json(name = "ringingSince") val ringingSince: Long,
+    @Json(name = "activeSince") val activeSince: Long? = null,
+    @Json(name = "durationMs") val durationMs: Long? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -261,5 +273,6 @@ data class WsEnvelope(
     @Json(name = "lastSeenAt") val lastSeenAt: String? = null,
     val users: List<PresenceUserDto>? = null,
     val action: String? = null,
-    @Json(name = "operatorId") val operatorId: String? = null
+    @Json(name = "operatorId") val operatorId: String? = null,
+    val user: UserDto? = null
 )

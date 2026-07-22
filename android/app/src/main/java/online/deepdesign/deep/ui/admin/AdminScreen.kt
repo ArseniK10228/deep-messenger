@@ -130,7 +130,7 @@ fun AdminScreen(
             label = "adminNav"
         ) { dest ->
             when (dest) {
-                is AdminDestination.Home ->                 AdminHome(
+                is AdminDestination.Home -> AdminHome(
                     state = state,
                     onTab = vm::setTab,
                     onUser = vm::openUser,
@@ -140,7 +140,8 @@ fun AdminScreen(
                         voicePlayer.toggle(rec.id, url)
                     },
                     playingId = voiceState.messageId,
-                    isPlaying = voiceState.playing
+                    isPlaying = voiceState.playing,
+                    loadingId = if (voiceState.loading) voiceState.messageId else null
                 )
                 is AdminDestination.User -> AdminUserDetail(
                     state = state,
@@ -166,7 +167,8 @@ private fun AdminHome(
     onRefresh: () -> Unit,
     onPlayRecording: (CallRecordingDto) -> Unit,
     playingId: String?,
-    isPlaying: Boolean
+    isPlaying: Boolean,
+    loadingId: String?
 ) {
     Column(Modifier.fillMaxSize()) {
         TabRow(
@@ -232,7 +234,7 @@ private fun AdminHome(
                                     modifier = Modifier.deepAppear(delayMillis = index * 25),
                                     recording = rec,
                                     playing = playingId == rec.id && isPlaying,
-                                    loading = voiceState.messageId == rec.id && voiceState.loading,
+                                    loading = loadingId == rec.id,
                                     onPlay = { onPlayRecording(rec) }
                                 )
                             }

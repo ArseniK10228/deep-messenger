@@ -58,6 +58,9 @@ class AdminViewModel : ViewModel() {
         viewModelScope.launch {
             AdminNotifier.updates.collect { user ->
                 applyUserUpdate(user)
+                if (user.activeCall == null) {
+                    runCatching { loadRecordings(silent = true) }
+                }
             }
         }
     }
@@ -78,7 +81,10 @@ class AdminViewModel : ViewModel() {
             while (isActive) {
                 delay(3_000)
                 when (val dest = _state.value.destination) {
-                    is AdminDestination.Home -> loadUsers(silent = true)
+                    is AdminDestination.Home -> {
+                        loadUsers(silent = true)
+                        if (_state.value.tab == 1) loadRecordings(silent = true)
+                    }
                     is AdminDestination.User -> {
                         loadUsers(silent = true)
                         loadUserDetail(dest.userId, silent = true)

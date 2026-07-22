@@ -6,7 +6,10 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.call.CallManager
 import online.deepdesign.deep.call.SignalingHub
@@ -20,7 +23,6 @@ import online.deepdesign.deep.data.DeepAppToken
 import online.deepdesign.deep.data.VoicePlayer
 import online.deepdesign.deep.push.ClientReporter
 import online.deepdesign.deep.push.FcmRegistrar
-import online.deepdesign.deep.session.SessionForegroundService
 
 class DeepApp : Application() {
     lateinit var sessionStore: SessionStore
@@ -48,6 +50,8 @@ class DeepApp : Application() {
 
     @Volatile
     private var cachedUserId: String? = null
+
+    private var heartbeatJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -82,7 +86,7 @@ class DeepApp : Application() {
         callManager.onAppForegrounded()
         if (!cachedToken.isNullOrBlank()) {
             callManager.start()
-            SessionForegroundService.start(this)
+            startHeartbeat()
             appScope.launch {
                 runCatching { ClientReporter.report(api) }
                 runCatching { FcmRegistrar.register(api) }
@@ -95,7 +99,6 @@ class DeepApp : Application() {
         AppForegroundState.setForeground(false)
         callManager.onAppBackgrounded()
         if (!cachedToken.isNullOrBlank()) {
-            SessionForegroundService.start(this)
             appScope.launch {
                 runCatching { ClientReporter.report(api) }
             }
@@ -106,11 +109,11 @@ class DeepApp : Application() {
         cachedToken = token
         cachedUserId = userId
         if (token.isNullOrBlank()) {
-            SessionForegroundService.stop(this)
+            stopHeartbeat()
             callManager.stop()
         } else {
             callManager.start()
-            SessionForegroundService.start(this)
+            startHeartbeat()
             appScope.launch {
                 runCatching { FcmRegistrar.register(api) }
                 runCatching { ClientReporter.report(api) }
@@ -122,6 +125,24 @@ class DeepApp : Application() {
         get() = cachedUserId
 
     fun currentToken(): String? = cachedToken
+
+    private fun startHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = appScope.launch {
+            while (isActive) {
+                val inCall = callManager.isInCall()
+                delay(if (inCall) 15_000 else 30_000)
+                if (!cachedToken.isNullOrBlank()) {
+                    runCatching { ClientReporter.report(api) }
+                }
+            }
+        }
+    }
+
+    private fun stopHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+    }
 
     fun saveChatDraft(conversationId: String, text: String) {
         appScope.launch {

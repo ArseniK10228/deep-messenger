@@ -16,6 +16,7 @@ import org.webrtc.SurfaceTextureHelper
 import org.webrtc.VideoCapturer
 import org.webrtc.VideoSource
 import org.webrtc.VideoTrack
+import org.webrtc.AudioTrack
 import online.deepdesign.deep.data.IceServerDto
 
 class WebRtcCallEngine(
@@ -30,6 +31,7 @@ class WebRtcCallEngine(
         fun onConnectionChange(state: PeerConnection.PeerConnectionState)
         fun onIceConnectionChange(state: PeerConnection.IceConnectionState)
         fun onRemoteVideoTrack(track: VideoTrack)
+        fun onRemoteAudioTrack(track: AudioTrack)
     }
 
     private val appContext = context.applicationContext
@@ -98,9 +100,12 @@ class WebRtcCallEngine(
                 streams: Array<out org.webrtc.MediaStream>?
             ) {
                 val track = receiver?.track()
-                if (track is VideoTrack) {
-                    _remoteVideoTrack.value = track
-                    listener.onRemoteVideoTrack(track)
+                when (track) {
+                    is VideoTrack -> {
+                        _remoteVideoTrack.value = track
+                        listener.onRemoteVideoTrack(track)
+                    }
+                    is AudioTrack -> listener.onRemoteAudioTrack(track)
                 }
             }
         })
@@ -151,6 +156,8 @@ class WebRtcCallEngine(
     fun setMicrophoneMuted(muted: Boolean) {
         localAudioTrack.setEnabled(!muted)
     }
+
+    fun getLocalAudioTrack(): AudioTrack = localAudioTrack
 
     private fun mediaConstraints(): MediaConstraints = MediaConstraints().apply {
         mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))

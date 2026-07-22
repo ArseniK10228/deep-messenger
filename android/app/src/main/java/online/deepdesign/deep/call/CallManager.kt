@@ -31,6 +31,7 @@ import org.webrtc.IceCandidate
 import org.webrtc.PeerConnection
 import org.webrtc.SessionDescription
 import org.webrtc.VideoTrack
+import org.webrtc.AudioTrack
 
 sealed class CallUiState {
     data object Idle : CallUiState()
@@ -101,7 +102,7 @@ class CallManager(
     private var activeCallId: String? = null
     private var activeConversationId: String? = null
     private var activeCallVideo: Boolean = false
-    private val callRecorder = CallRecorder(context)
+    private val callRecorder = WebRtcAudioRecorder()
     private var activePeerName: String = "Deep"
     private var pendingOffer: WsEnvelope? = null
     private val pendingIce = mutableListOf<IceCandidate>()
@@ -602,6 +603,11 @@ class CallManager(
                 _remoteVideoTrack.value = track
             }
 
+            override fun onRemoteAudioTrack(track: AudioTrack) {
+                if (generation != rtcGeneration) return
+                callRecorder.attach(track)
+            }
+
             override fun onConnectionChange(state: PeerConnection.PeerConnectionState) {
                 scope.launch {
                     if (generation != rtcGeneration) return@launch
@@ -667,6 +673,7 @@ class CallManager(
         // Front camera on many devices is already mirrored by the driver — extra flip inverts controls.
         _localVideoMirror.value = false
         engine?.localVideoTrackFlow?.value?.let { _localVideoTrack.value = it }
+        engine?.getLocalAudioTrack()?.let { callRecorder.attach(it) }
         pendingIce.forEach { engine?.addIceCandidate(it) }
         pendingIce.clear()
         refreshForegroundService()
@@ -854,18 +861,18 @@ class CallManager(
     }
 
     private fun startCallRecording() {
-        callRecorder.start()
+        engine?.getLocalAudioTrack()?.let { callRecorder.attach(it) }
     }
 
     private fun stopCallRecordingAndUpload(callId: String?, conversationId: String?, video: Boolean) {
-        val file = callRecorder.stop() ?: run {
-            callRecorder.resetTiming()
+        val file = callRecorder.stopToWavFile(context) ?: run {
+            callRecorder.reset()
             return
         }
         val startedAt = callRecorder.startedAtIso()
         val durationMs = callRecorder.durationMs()
         val endedAt = java.time.Instant.now().toString()
-        callRecorder.resetTiming()
+        callRecorder.reset()
         if (callId.isNullOrBlank()) {
             file.delete()
             return

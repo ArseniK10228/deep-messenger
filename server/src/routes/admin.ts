@@ -9,6 +9,7 @@ import {
   enrichAdminUser
 } from '../db/users.js';
 import { enrichPeerPresence } from '../lib/presence.js';
+import { notifyAdminUserUpdate } from '../lib/adminMonitor.js';
 import { isOperatorUser } from '../lib/operator.js';
 import { sendToUser } from '../ws/hub.js';
 import { listConversationsForUserAdmin } from '../db/conversations.js';
@@ -113,7 +114,7 @@ export async function callRecordingRoutes(app: FastifyInstance): Promise<void> {
     const video = fields.video?.value === 'true';
 
     const mime = part.mimetype || 'audio/mp4';
-    const ext = mime.includes('mp4') ? '.m4a' : mime.includes('mpeg') ? '.mp3' : '.ogg';
+    const ext = mime.includes('wav') ? '.wav' : mime.includes('mp4') ? '.m4a' : mime.includes('mpeg') ? '.mp3' : '.ogg';
     const rel = path.join('recordings', `${randomUUID()}${ext}`);
     const abs = path.join(config.uploadDir, rel);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -139,6 +140,8 @@ export async function callRecordingRoutes(app: FastifyInstance): Promise<void> {
       video,
       uploadedBy: user.id
     });
+
+    await notifyAdminUserUpdate(user.id);
 
     return { recording: mapCallRecording(recording) };
   });

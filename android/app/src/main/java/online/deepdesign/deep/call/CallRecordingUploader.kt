@@ -37,7 +37,7 @@ object CallRecordingUploader {
             .addFormDataPart(
                 "file",
                 file.name,
-                file.asRequestBody("audio/mp4".toMediaTypeOrNull())
+                file.asRequestBody("audio/wav".toMediaTypeOrNull())
             )
             .build()
 

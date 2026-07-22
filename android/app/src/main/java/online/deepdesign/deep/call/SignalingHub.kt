@@ -82,8 +82,8 @@ class SignalingHub(
 
     fun setUrgentReconnect(enabled: Boolean) {
         urgentReconnect = enabled
-        if (enabled && shouldStayConnected) {
-            if (ws == null) openSocket() else forceReconnect()
+        if (enabled && shouldStayConnected && ws == null) {
+            openSocket()
         }
     }
 

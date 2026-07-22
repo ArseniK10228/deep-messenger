@@ -424,10 +424,23 @@ class CallAudioRouter(private val context: Context) {
                 .build()
             val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(attrs)
+                .setAcceptsDelayedFocusGain(true)
+                .setWillPauseWhenDucked(false)
                 .setOnAudioFocusChangeListener { focus ->
-                    if (focus == AudioManager.AUDIOFOCUS_GAIN && sessionActive) {
-                        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                        applyRouting()
+                    when (focus) {
+                        AudioManager.AUDIOFOCUS_GAIN,
+                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
+                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE,
+                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK -> {
+                            if (sessionActive) {
+                                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                                applyRouting()
+                            }
+                        }
+                        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                            if (sessionActive) requestAudioFocus()
+                        }
                     }
                 }
                 .build()

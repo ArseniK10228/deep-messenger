@@ -89,11 +89,13 @@ export async function registerProtectedAuthRoutes(app: FastifyInstance): Promise
             inCall: body.inCall
           };
     await setClientVersion(user.id, body.versionCode, body.versionName, clientState);
-    if (body.foreground === false) {
+    const inCall = body.inCall === true;
+    if (body.foreground === false && !inCall) {
       await touchLastSeen(user.id);
     }
     if (body.foreground !== undefined) {
-      await notifyPresenceFromClientState(user.id, body.foreground);
+      const presenceOnline = body.foreground || inCall;
+      await notifyPresenceFromClientState(user.id, presenceOnline);
     }
     await notifyAdminUserUpdate(user.id);
     return { ok: true };

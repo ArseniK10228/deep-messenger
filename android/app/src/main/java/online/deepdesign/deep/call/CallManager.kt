@@ -140,10 +140,8 @@ class CallManager(
         if (!isInCall()) return
         signaling.setUrgentReconnect(true)
         beginAudioSession()
-        if (!signaling.isConnected()) {
-            signaling.forceReconnect()
-        }
-        refreshForegroundService()
+        audioRouter.refreshDevicesNow()
+        forceRefreshForegroundService()
     }
 
     fun onAppForegrounded() {
@@ -192,6 +190,11 @@ class CallManager(
         lastFgsRinging = ringing
         val outgoing = _state.value is CallUiState.Outgoing
         CallForegroundService.refresh(context, peer, outgoing, video, ringing)
+    }
+
+    private fun forceRefreshForegroundService() {
+        lastFgsPeer = null
+        refreshForegroundService()
     }
 
     private fun startCallProtection(peerName: String, outgoing: Boolean, video: Boolean) {
@@ -807,9 +810,10 @@ class CallManager(
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 if (!isInCall()) return
+                if (!CallAppState.isInForeground()) return
                 scope.launch {
                     refreshIceServers()
-                    signaling.forceReconnect()
+                    if (!signaling.isConnected()) signaling.forceReconnect()
                     engine?.restartIce()
                 }
             }

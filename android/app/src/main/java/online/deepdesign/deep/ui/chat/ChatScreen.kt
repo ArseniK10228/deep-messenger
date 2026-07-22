@@ -9,10 +9,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -236,6 +234,8 @@ fun ChatScreen(
         }
     }
 
+    val inputBarColor = DeepBg.copy(alpha = 0.94f)
+
     // Скролл вниз синхронно с анимацией клавиатуры (на каждый кадр IME inset).
     LaunchedEffect(imeBottomPx, state.messages.size) {
         if (imeBottomPx <= 0 || state.messages.isEmpty()) return@LaunchedEffect
@@ -316,28 +316,11 @@ fun ChatScreen(
         },
         bottomBar = {
             if (!state.recording) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    AnimatedVisibility(
-                        visible = state.peerTyping,
-                        enter = expandVertically(
-                            animationSpec = tween(220, easing = FastOutSlowInEasing),
-                            expandFrom = Alignment.Top
-                        ) + fadeIn(tween(180, easing = FastOutSlowInEasing)),
-                        exit = shrinkVertically(
-                            animationSpec = tween(200, easing = FastOutSlowInEasing),
-                            shrinkTowards = Alignment.Top
-                        ) + fadeOut(tween(140))
-                    ) {
-                        TypingBubbleIndicator(
-                            asMessageBubble = true,
-                            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 2.dp)
-                        )
-                    }
-                    Surface(
-                        color = DeepSurface,
-                        shadowElevation = 8.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                Surface(
+                    color = inputBarColor,
+                    shadowElevation = 0.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -408,7 +391,6 @@ fun ChatScreen(
                             )
                         }
                     }
-                    }
                 }
             }
         }
@@ -466,6 +448,25 @@ fun ChatScreen(
                             )
                         }
                     }
+                }
+            }
+
+            AnimatedVisibility(
+                visible = state.peerTyping,
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(tween(120)),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(inputBarColor)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TypingBubbleIndicator(compact = true)
                 }
             }
 

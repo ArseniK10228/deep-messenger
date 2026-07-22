@@ -46,6 +46,7 @@ class ChatViewModel(
     private val conversationId: String
 ) : ViewModel() {
     private val api = DeepApp.instance.api
+    private val draftStore = DeepApp.instance.chatDraftStore
     private val socket = ChatSocket { DeepApp.instance.currentToken() }
     private val voiceRecorder = VoiceRecorder(DeepApp.instance)
     private var peerUserId: String? = null
@@ -53,17 +54,38 @@ class ChatViewModel(
     private var peerApiLastSeen: String? = null
     private var wsJob: Job? = null
     private var typingJob: Job? = null
+    private var draftSaveJob: Job? = null
     private var lastTypingSentAt = 0L
 
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
     init {
+        loadDraft()
         loadMessages()
         loadPeer()
         connectWs()
         viewModelScope.launch {
             PresenceStore.users.collectLatest { applyPeerPresence() }
+        }
+    }
+
+    private fun loadDraft() {
+        viewModelScope.launch {
+            runCatching {
+                val draft = draftStore.getDraft(conversationId)
+                if (draft.isNotBlank()) {
+                    _state.update { it.copy(input = draft) }
+                }
+            }
+        }
+    }
+
+    private fun persistDraft(text: String) {
+        draftSaveJob?.cancel()
+        draftSaveJob = viewModelScope.launch {
+            delay(200)
+            runCatching { draftStore.saveDraft(conversationId, text) }
         }
     }
 
@@ -149,6 +171,7 @@ class ChatViewModel(
 
     fun onInputChange(v: String) {
         _state.update { it.copy(input = v) }
+        persistDraft(v)
         if (v.isNotBlank()) {
             val now = System.currentTimeMillis()
             if (now - lastTypingSentAt >= 2_000) {
@@ -186,6 +209,7 @@ class ChatViewModel(
                     messageKeys = it.messageKeys + (clientId to stableKey)
                 )
             }
+            runCatching { draftStore.saveDraft(conversationId, "") }
             appendMessage(optimistic)
             try {
                 val msg = api.sendMessage(
@@ -403,9 +427,12 @@ class ChatViewModel(
     }
 
     override fun onCleared() {
+        val draft = _state.value.input
+        draftSaveJob?.cancel()
         voiceRecorder.cancel()
         wsJob?.cancel()
         typingJob?.cancel()
+        DeepApp.instance.saveChatDraft(conversationId, draft)
         super.onCleared()
     }
 

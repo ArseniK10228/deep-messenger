@@ -3,7 +3,7 @@ package online.deepdesign.deep.ui.chat
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -91,6 +91,7 @@ import online.deepdesign.deep.ui.components.ChatAvatar
 import online.deepdesign.deep.ui.components.TypingBubbleIndicator
 import online.deepdesign.deep.ui.components.VoiceWaveform
 import online.deepdesign.deep.ui.components.deepAppear
+import online.deepdesign.deep.ui.util.rememberDismissKeyboard
 import online.deepdesign.deep.ui.theme.DeepAccent
 import online.deepdesign.deep.ui.theme.DeepBg
 import online.deepdesign.deep.ui.theme.DeepError
@@ -118,6 +119,14 @@ fun ChatScreen(
     var deleteTarget by remember { mutableStateOf<MessageDto?>(null) }
     val attachSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val deleteSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val dismissKeyboard = rememberDismissKeyboard()
+
+    fun leaveChat() {
+        dismissKeyboard()
+        onBack()
+    }
+
+    BackHandler { leaveChat() }
 
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -171,6 +180,7 @@ fun ChatScreen(
     }
 
     fun requestCall() {
+        dismissKeyboard()
         if (online.deepdesign.deep.call.CallPermissions.hasMic(context)) onStartCall()
         else {
             pendingCallAction = onStartCall
@@ -179,6 +189,7 @@ fun ChatScreen(
     }
 
     fun requestVideoCall() {
+        dismissKeyboard()
         val missing = online.deepdesign.deep.call.CallPermissions.missingForVideo(context)
         when {
             missing.isEmpty() -> onStartVideoCall()
@@ -254,7 +265,7 @@ fun ChatScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { leaveChat() }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Назад",

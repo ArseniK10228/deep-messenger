@@ -30,6 +30,7 @@ import online.deepdesign.deep.call.CallUiState
 import online.deepdesign.deep.navigation.DeepNavHost
 import online.deepdesign.deep.ui.call.CallAudioSettingsSheet
 import online.deepdesign.deep.ui.call.CallUiLayer
+import online.deepdesign.deep.ui.util.rememberDismissKeyboard
 import online.deepdesign.deep.ui.theme.DeepTheme
 
 class MainActivity : ComponentActivity() {
@@ -45,6 +46,13 @@ class MainActivity : ComponentActivity() {
                 val callAudio by callManager.callAudio.collectAsState()
                 val snackbar = remember { SnackbarHostState() }
                 var showAudioSettings by remember { mutableStateOf(false) }
+                val dismissKeyboard = rememberDismissKeyboard()
+
+                LaunchedEffect(callState) {
+                    if (callState !is CallUiState.Idle) {
+                        dismissKeyboard()
+                    }
+                }
 
                 val bluetoothPermission = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()

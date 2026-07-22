@@ -57,6 +57,7 @@ class ChatsViewModel : ViewModel() {
                 when (event) {
                     is ChatEvent.NewMessage, ChatEvent.RefreshChats -> refresh()
                     is ChatEvent.PeerTyping -> onPeerTyping(event.conversationId)
+                    is ChatEvent.MessageStatus -> Unit
                 }
             }
         }

@@ -11,11 +11,12 @@ import {
   hideMessageForUser,
   insertMessage,
   listMessages,
+  markDelivered,
   markRead
 } from '../db/messages.js';
 import { getUserById } from '../db/users.js';
-import { sendPush } from '../lib/firebase.js';
 import { pushChatEvent } from '../lib/chatPush.js';
+import { notifyMessagePeers, previewText } from '../lib/messageNotify.js';
 import { enrichPeerPresence } from '../lib/presence.js';
 import { mapUserDto } from '../db/users.js';
 import { query } from '../db/client.js';
@@ -97,8 +98,28 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       replyToId: body.replyToId || null
     });
     await pushChatEvent(id, user.id, { type: 'message', message });
-    await notifyPeers(id, user.id, user.displayName, previewText(message));
+    await notifyMessagePeers({
+      conversationId: id,
+      senderId: user.id,
+      messageId: message.id,
+      senderName: user.displayName,
+      preview: previewText(message)
+    });
     return { message };
+  });
+
+  app.post('/messages/:id/delivered', async (req) => {
+    const user = getAuthUser(req);
+    const { id } = req.params as { id: string };
+    const result = await markDelivered(id, user.id);
+    if (result) {
+      sendToUser(result.senderId, {
+        type: 'message_delivered',
+        messageId: id,
+        conversationId: result.conversationId
+      });
+    }
+    return { ok: true };
   });
 
   app.post('/messages/:id/read', async (req) => {
@@ -141,34 +162,4 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     await hideMessageForUser(id, user.id);
     return { ok: true };
   });
-}
-
-function previewText(message: { kind: string; body: string | null }): string {
-  if (message.kind === 'text') return message.body || '';
-  if (message.kind === 'image') return 'Фото';
-  if (message.kind === 'voice') return 'Голосовое сообщение';
-  return 'Файл';
-}
-
-async function notifyPeers(
-  conversationId: string,
-  senderId: string,
-  senderName: string,
-  text: string
-) {
-  const r = await query<{ fcm_token: string | null }>(
-    `SELECT u.fcm_token
-     FROM conversation_members cm
-     JOIN users u ON u.id = cm.user_id
-     WHERE cm.conversation_id = $1 AND cm.user_id <> $2 AND u.fcm_token IS NOT NULL`,
-    [conversationId, senderId]
-  );
-  for (const row of r.rows) {
-    if (row.fcm_token) {
-      await sendPush(row.fcm_token, senderName || 'Deep', text, {
-        conversationId,
-        type: 'message'
-      }).catch(() => {});
-    }
-  }
 }

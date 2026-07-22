@@ -17,5 +17,11 @@ object ChatNotifier {
 sealed class ChatEvent {
     data class NewMessage(val conversationId: String) : ChatEvent()
     data class PeerTyping(val conversationId: String) : ChatEvent()
+    data class MessageStatus(
+        val conversationId: String,
+        val messageId: String,
+        val peerDelivered: Boolean,
+        val peerRead: Boolean
+    ) : ChatEvent()
     data object RefreshChats : ChatEvent()
 }

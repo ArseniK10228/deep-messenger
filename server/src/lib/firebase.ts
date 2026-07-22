@@ -28,12 +28,25 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<{ phone: s
   return { phone, uid: decoded.uid };
 }
 
-export async function sendPush(fcmToken: string, title: string, body: string, data?: Record<string, string>): Promise<void> {
+export async function sendMessagePush(
+  fcmToken: string,
+  data: {
+    conversationId: string;
+    messageId: string;
+    senderName: string;
+    preview: string;
+  }
+): Promise<void> {
   if (!admin.apps.length || !fcmToken) return;
   await admin.messaging().send({
     token: fcmToken,
-    notification: { title, body },
-    data: data || {},
+    data: {
+      type: 'message',
+      conversationId: data.conversationId,
+      messageId: data.messageId,
+      senderName: data.senderName,
+      preview: data.preview
+    },
     android: { priority: 'high' }
   });
 }

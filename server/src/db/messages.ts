@@ -172,6 +172,12 @@ export async function markRead(
   const ids = r.rows.map((row) => row.id);
   if (ids.length) {
     await query(
+      `INSERT INTO message_deliveries (message_id, user_id)
+       SELECT unnest($1::uuid[]), $2::uuid
+       ON CONFLICT DO NOTHING`,
+      [ids, userId]
+    );
+    await query(
       `INSERT INTO message_reads (message_id, user_id)
        SELECT unnest($1::uuid[]), $2::uuid
        ON CONFLICT DO NOTHING`,

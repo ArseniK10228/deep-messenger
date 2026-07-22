@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
+import online.deepdesign.deep.data.ChatEvent
+import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.ChatSocket
 import online.deepdesign.deep.data.DeleteMessageRequest
 import online.deepdesign.deep.data.MediaUploader
@@ -67,6 +69,17 @@ class ChatViewModel(
         connectWs()
         viewModelScope.launch {
             PresenceStore.users.collectLatest { applyPeerPresence() }
+        }
+        viewModelScope.launch {
+            ChatNotifier.events.collect { event ->
+                if (event is ChatEvent.MessageStatus && event.conversationId == conversationId) {
+                    updateMessageStatus(
+                        event.messageId,
+                        peerDelivered = event.peerDelivered,
+                        peerRead = event.peerRead
+                    )
+                }
+            }
         }
     }
 
@@ -322,8 +335,16 @@ class ChatViewModel(
         }
         val added = appendMessage(msg)
         if (added && !isMine(msg)) {
-            socket.sendDelivered(msg.id)
+            ackDelivered(msg.id)
             viewModelScope.launch { runCatching { api.markRead(msg.id) } }
+        }
+    }
+
+    private fun ackDelivered(messageId: String) {
+        socket.sendDelivered(messageId)
+        DeepApp.instance.signalingHub.sendDelivered(messageId)
+        viewModelScope.launch {
+            runCatching { api.markDelivered(messageId) }
         }
     }
 
@@ -376,7 +397,10 @@ class ChatViewModel(
 
     private fun markIncomingRead(msgs: List<MessageDto>) {
         viewModelScope.launch {
-            msgs.filter { !isMine(it) }.forEach { runCatching { api.markRead(it.id) } }
+            msgs.filter { !isMine(it) }.forEach {
+                ackDelivered(it.id)
+                runCatching { api.markRead(it.id) }
+            }
         }
     }
 

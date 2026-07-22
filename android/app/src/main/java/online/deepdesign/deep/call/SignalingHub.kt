@@ -127,6 +127,18 @@ class SignalingHub(
                                 ChatNotifier.emit(ChatEvent.NewMessage(convId))
                                 env.message?.id?.let { sendDelivered(it) }
                             }
+                        } else if (env.type == "message_delivered") {
+                            val convId = env.conversationId ?: return
+                            val messageId = env.messageId ?: return
+                            ChatNotifier.emit(
+                                ChatEvent.MessageStatus(convId, messageId, peerDelivered = true, peerRead = false)
+                            )
+                        } else if (env.type == "message_read") {
+                            val convId = env.conversationId ?: return
+                            val messageId = env.messageId ?: return
+                            ChatNotifier.emit(
+                                ChatEvent.MessageStatus(convId, messageId, peerDelivered = true, peerRead = true)
+                            )
                         }
                     } catch (_: Exception) { }
                 }

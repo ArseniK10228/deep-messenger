@@ -48,8 +48,9 @@ class DeepMessagingService : FirebaseMessagingService() {
                 }
                 "message" -> {
                     val convId = data["conversationId"]
-                    val sender = notifTitle ?: data["senderName"] ?: data["senderUsername"] ?: "Deep"
-                    val preview = notifBody ?: data["preview"] ?: data["body"] ?: "Новое сообщение"
+                    val messageId = data["messageId"]
+                    val sender = data["senderName"] ?: notifTitle ?: "Deep"
+                    val preview = data["preview"] ?: notifBody ?: "Новое сообщение"
                     if (convId != null) {
                         MessageNotifier.show(
                             this@DeepMessagingService,
@@ -60,6 +61,10 @@ class DeepMessagingService : FirebaseMessagingService() {
                         ChatNotifier.emit(ChatEvent.NewMessage(convId))
                     } else {
                         ChatNotifier.emit(ChatEvent.RefreshChats)
+                    }
+                    if (messageId != null) {
+                        app.signalingHub.sendDelivered(messageId)
+                        runCatching { app.api.markDelivered(messageId) }
                     }
                 }
             }

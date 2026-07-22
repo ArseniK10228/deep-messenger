@@ -7,6 +7,7 @@ import { getAuthUser } from '../lib/auth.js';
 import { userInConversation } from '../db/conversations.js';
 import { insertMessage } from '../db/messages.js';
 import { pushChatEvent } from '../lib/chatPush.js';
+import { notifyMessagePeers, previewText } from '../lib/messageNotify.js';
 
 const ALLOWED = new Set([
   'image/jpeg',
@@ -72,6 +73,13 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
     });
 
     await pushChatEvent(id, user.id, { type: 'message', message });
+    await notifyMessagePeers({
+      conversationId: id,
+      senderId: user.id,
+      messageId: message.id,
+      senderName: user.displayName,
+      preview: previewText(message)
+    });
     return { message };
   });
 }

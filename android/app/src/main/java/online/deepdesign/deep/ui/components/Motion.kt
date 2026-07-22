@@ -13,23 +13,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 
-/** Появление исходящего сообщения: снизу вверх + fade (без remount при pending→server). */
-fun Modifier.messageSendEnter(mine: Boolean): Modifier = composed {
-    if (!mine) return@composed this
+/** Появление сообщения в списке: fade + slide (исходящие и входящие). */
+fun Modifier.messageBubbleEnter(mine: Boolean = false): Modifier = composed {
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
     val progress by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
         animationSpec = tween(300, easing = FastOutSlowInEasing),
-        label = "messageSendEnter"
+        label = "messageBubbleEnter"
     )
+    val slide = if (mine) 18f else 14f
     graphicsLayer {
         alpha = progress
-        translationY = (1f - progress) * 18f
+        translationY = (1f - progress) * slide
         scaleX = 0.94f + 0.06f * progress
         scaleY = 0.94f + 0.06f * progress
     }
 }
+
+/** @deprecated use messageBubbleEnter */
+fun Modifier.messageSendEnter(mine: Boolean): Modifier = messageBubbleEnter(mine)
 
 /** Лёгкая fade+scale анимация, friendly для 120Hz (GPU layer, без layout). */
 fun Modifier.deepAppear(

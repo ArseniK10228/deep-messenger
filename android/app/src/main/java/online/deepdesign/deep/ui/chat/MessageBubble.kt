@@ -44,7 +44,7 @@ import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.data.resolveMediaUrl
 import online.deepdesign.deep.ui.components.VoiceWaveform
-import online.deepdesign.deep.ui.components.messageSendEnter
+import online.deepdesign.deep.ui.components.messageBubbleEnter
 import online.deepdesign.deep.ui.theme.DeepAccent
 import online.deepdesign.deep.ui.theme.DeepBubbleIn
 import online.deepdesign.deep.ui.theme.DeepBubbleOut
@@ -74,7 +74,7 @@ fun MessageBubble(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .messageSendEnter(mine),
+            .messageBubbleEnter(mine),
         contentAlignment = align
     ) {
         val isVoice = msg.kind == "voice"

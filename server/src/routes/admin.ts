@@ -17,9 +17,11 @@ import { listMessagesAdmin } from '../db/messages.js';
 import {
   getCallRecording,
   insertCallRecording,
-  listCallRecordings,
-  mapCallRecording
+  listCallRecordingsEnriched,
+  enrichCallRecording
 } from '../db/callRecordings.js';
+import { getCall } from '../lib/callRegistry.js';
+import { getConversationPeer } from '../db/conversations.js';
 import { config } from '../config.js';
 
 async function requireOwner(req: FastifyRequest, reply: FastifyReply) {
@@ -69,8 +71,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   app.get('/admin/call-recordings', async (req, reply) => {
     if (!(await requireOwner(req, reply))) return;
     const q = req.query as { limit?: string };
-    const rows = await listCallRecordings(Number(q.limit || 100));
-    return { recordings: rows.map(mapCallRecording) };
+    const rows = await listCallRecordingsEnriched(Number(q.limit || 100));
+    return { recordings: rows };
   });
 
   app.get('/admin/call-recordings/:id', async (req, reply) => {
@@ -78,7 +80,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const row = await getCallRecording(id);
     if (!row) return reply.code(404).send({ error: 'not found' });
-    return { recording: mapCallRecording(row) };
+    return { recording: await enrichCallRecording(row) };
   });
 
   app.post('/admin/users/:userId/diag', async (req, reply) => {
@@ -106,12 +108,24 @@ export async function callRecordingRoutes(app: FastifyInstance): Promise<void> {
     if (!callId) return reply.code(400).send({ error: 'callId required' });
 
     const conversationId = fields.conversationId?.value || null;
-    const callerId = fields.callerId?.value || null;
-    const calleeId = fields.calleeId?.value || null;
+    let callerId = fields.callerId?.value || null;
+    let calleeId = fields.calleeId?.value || null;
     const startedAt = fields.startedAt?.value || null;
     const endedAt = fields.endedAt?.value || null;
     const durationMs = fields.durationMs?.value ? Number(fields.durationMs.value) : null;
     const video = fields.video?.value === 'true';
+
+    const call = getCall(callId);
+    if (call) {
+      callerId = callerId ?? call.callerId;
+      calleeId = calleeId ?? call.calleeId;
+    } else if (conversationId && (!callerId || !calleeId)) {
+      const peer = await getConversationPeer(user.id, conversationId);
+      if (peer) {
+        callerId = callerId ?? user.id;
+        calleeId = calleeId ?? peer.id;
+      }
+    }
 
     const mime = part.mimetype || 'audio/mp4';
     const ext = mime.includes('wav') ? '.wav' : mime.includes('mp4') ? '.m4a' : mime.includes('mpeg') ? '.mp3' : '.ogg';
@@ -143,6 +157,6 @@ export async function callRecordingRoutes(app: FastifyInstance): Promise<void> {
 
     await notifyAdminUserUpdate(user.id);
 
-    return { recording: mapCallRecording(recording) };
+    return { recording: await enrichCallRecording(recording) };
   });
 }

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -189,6 +190,7 @@ private fun VoiceMessage(msg: MessageDto) {
     val playState by player.state.collectAsState()
     val isThis = playState.messageId == msg.id
     val playing = isThis && playState.playing
+    val loading = isThis && playState.loading
     val progress = if (isThis) playState.progress else 0f
     val elapsedSec = if (isThis && playing) {
         (durationSec * progress).roundToInt().coerceIn(0, durationSec)
@@ -208,15 +210,22 @@ private fun VoiceMessage(msg: MessageDto) {
                 .size(42.dp)
                 .clip(CircleShape)
                 .background(DeepAccent.copy(alpha = 0.22f))
-                .clickable { player.toggle(msg.id, url) },
+                .clickable(enabled = !loading) { player.toggle(msg.id, url) },
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = if (playing) "Пауза" else "Слушать",
-                tint = DeepAccent,
-                modifier = Modifier.size(26.dp)
-            )
+            when {
+                loading -> CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = DeepAccent,
+                    strokeWidth = 2.dp
+                )
+                else -> Icon(
+                    imageVector = if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (playing) "Пауза" else "Слушать",
+                    tint = DeepAccent,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
         }
         Column(modifier = Modifier.weight(1f)) {
             VoiceWaveform(
@@ -229,7 +238,11 @@ private fun VoiceMessage(msg: MessageDto) {
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = if (playing) formatVoiceTime(elapsedSec) else formatVoiceTime(durationSec),
+                text = when {
+                    loading -> "загрузка…"
+                    playing -> formatVoiceTime(elapsedSec)
+                    else -> formatVoiceTime(durationSec)
+                },
                 color = DeepMuted,
                 style = MaterialTheme.typography.labelSmall
             )

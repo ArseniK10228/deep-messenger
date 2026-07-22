@@ -63,7 +63,7 @@ class DeepApp : Application() {
         val signaling = SignalingHub { cachedToken }
         signalingHub = signaling
         callManager = CallManager(this, signaling)
-        voicePlayer = VoicePlayer()
+        voicePlayer = VoicePlayer(this)
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {

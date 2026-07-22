@@ -232,6 +232,7 @@ private fun AdminHome(
                                     modifier = Modifier.deepAppear(delayMillis = index * 25),
                                     recording = rec,
                                     playing = playingId == rec.id && isPlaying,
+                                    loading = voiceState.messageId == rec.id && voiceState.loading,
                                     onPlay = { onPlayRecording(rec) }
                                 )
                             }
@@ -471,6 +472,7 @@ private fun AdminMessageBubble(
 private fun RecordingRow(
     recording: CallRecordingDto,
     playing: Boolean,
+    loading: Boolean,
     onPlay: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -483,22 +485,59 @@ private fun RecordingRow(
             Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onPlay) {
-                Icon(
-                    if (playing) Icons.Default.Stop else Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    tint = DeepAccent
-                )
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                if (loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(28.dp),
+                        color = DeepAccent,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    IconButton(onClick = onPlay) {
+                        Icon(
+                            if (playing) Icons.Default.Stop else Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = DeepAccent
+                        )
+                    }
+                }
             }
             Column(Modifier.weight(1f)) {
-                Text("Звонок ${recording.callId.take(8)}", color = DeepText, fontWeight = FontWeight.Medium)
                 Text(
-                    "${formatDuration(recording.durationMs)} · ${formatMessageTime(recording.startedAt)}",
+                    recording.title ?: formatRecordingTitle(recording),
+                    color = DeepText,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    buildString {
+                        append(formatDuration(recording.durationMs))
+                        if (recording.video == true) append(" · видео")
+                        recording.startedAt?.let {
+                            append(" · ")
+                            append(formatMessageTime(it))
+                        }
+                    },
                     color = DeepMuted,
                     style = MaterialTheme.typography.labelSmall
                 )
             }
         }
+    }
+}
+
+private fun formatRecordingTitle(recording: CallRecordingDto): String {
+    val caller = recording.callerName
+        ?: recording.callerUsername?.let { "@$it" }
+    val callee = recording.calleeName
+        ?: recording.calleeUsername?.let { "@$it" }
+    return when {
+        caller != null && callee != null -> "$caller → $callee"
+        caller != null -> caller
+        callee != null -> callee
+        recording.uploadedByName != null -> "Запись: ${recording.uploadedByName}"
+        else -> "Звонок"
     }
 }
 

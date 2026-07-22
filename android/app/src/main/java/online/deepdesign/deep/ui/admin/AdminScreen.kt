@@ -278,6 +278,15 @@ private fun AdminUserCard(
                     color = if (user.online == true) DeepAccent else DeepMuted,
                     style = MaterialTheme.typography.labelSmall
                 )
+                formatLastSeenAbsolute(user.lastSeenAt)?.let { absolute ->
+                    if (user.online != true) {
+                        Text(
+                            absolute,
+                            color = DeepMuted,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
                 formatClientState(user.clientState, user.activeCall, nowMs)?.let {
                     Text(
                         it,
@@ -325,6 +334,11 @@ private fun AdminUserDetail(
                         formatUserPresenceLine(user),
                         color = if (user.online == true) DeepAccent else DeepMuted
                     )
+                    formatLastSeenAbsolute(user.lastSeenAt)?.let { absolute ->
+                        if (user.online != true) {
+                            Text(absolute, color = DeepMuted)
+                        }
+                    }
                     formatClientState(user.clientState, user.activeCall, state.nowMs)?.let {
                         Text(
                             it,

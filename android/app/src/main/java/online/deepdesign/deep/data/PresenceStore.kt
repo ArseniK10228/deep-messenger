@@ -70,19 +70,18 @@ object PresenceStore {
         apiOnline: Boolean?,
         apiLastSeen: String?
     ): Pair<Boolean, String?> {
-        // REST snapshot is authoritative for offline — fixes stale WS cache.
         if (apiOnline == false) {
             val lastSeen = apiLastSeen ?: _users.value[userId]?.lastSeenAt
             return false to lastSeen
         }
+        if (apiOnline == true) {
+            return true to null
+        }
         if (!_signalingLive.value) {
-            return (apiOnline == true) to apiLastSeen
+            return false to apiLastSeen
         }
         val live = _users.value[userId]
-        val online = when {
-            live != null -> live.online
-            else -> apiOnline == true
-        }
+        val online = live?.online == true
         return online to (live?.lastSeenAt ?: apiLastSeen)
     }
 }

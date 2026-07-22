@@ -12,7 +12,8 @@ import { markDelivered } from '../db/messages.js';
 import { listConversationMemberIds } from '../db/conversations.js';
 import { handleCallMessage, isCallMessage } from './callSignaling.js';
 import {
-  buildPresenceSnapshot
+  buildPresenceSnapshot,
+  notifyPresence
 } from '../lib/presence.js';
 import { notifyAdminUserUpdate } from '../lib/adminMonitor.js';
 
@@ -87,6 +88,7 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
       ws.on('close', async () => {
         clearInterval(pingTimer);
         unregisterClient(client);
+        await notifyPresence(payload.id, false);
         await notifyAdminUserUpdate(payload.id);
       });
     } catch {

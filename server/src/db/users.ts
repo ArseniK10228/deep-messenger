@@ -87,7 +87,7 @@ export function mapAdminUserDto(row: UserRow) {
   return {
     ...mapPeerDto(row, true),
     online,
-    lastSeenAt: online ? null : row.last_seen_at ?? null,
+    lastSeenAt: online ? null : row.last_seen_at ?? row.client_state_at ?? null,
     clientState: row.client_state ?? null,
     clientStateAt: row.client_state_at ?? null,
     createdAt: row.created_at ?? null,
@@ -110,7 +110,7 @@ export async function enrichAdminUser(row: UserRow) {
   return {
     ...base,
     online,
-    lastSeenAt: online ? null : row.last_seen_at ?? null,
+    lastSeenAt: online ? null : row.last_seen_at ?? row.client_state_at ?? null,
     clientState,
     activeCall
   };

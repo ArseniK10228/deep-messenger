@@ -55,15 +55,15 @@ fun CallMinimizedBar(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        color = DeepSurfaceHigh.copy(alpha = 0.96f),
-        shape = RoundedCornerShape(16.dp),
-        shadowElevation = 12.dp
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        color = DeepAccent.copy(alpha = 0.92f),
+        shape = RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp),
+        shadowElevation = 8.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -86,36 +86,36 @@ fun CallMinimizedBar(
                     Icon(
                         Icons.Default.Call,
                         contentDescription = null,
-                        tint = DeepAccent,
+                        tint = androidx.compose.ui.graphics.Color.White,
                         modifier = Modifier.size(18.dp)
                     )
                     Column {
                         Text(
                             peerName,
-                            color = DeepText,
+                            color = androidx.compose.ui.graphics.Color.White,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(status, color = DeepMuted, style = MaterialTheme.typography.labelSmall)
+                        Text(status, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
-            IconButton(onClick = onToggleMute, modifier = Modifier.size(48.dp)) {
+            IconButton(onClick = onToggleMute, modifier = Modifier.size(44.dp)) {
                 Icon(
                     if (muted) Icons.Default.MicOff else Icons.Default.Mic,
                     contentDescription = if (muted) "Включить микрофон" else "Выключить микрофон",
-                    tint = if (muted) DeepAccent else DeepText
+                    tint = androidx.compose.ui.graphics.Color.White
                 )
             }
             IconButton(
                 onClick = onHangup,
                 modifier = Modifier
-                    .size(48.dp)
-                    .background(DeepError.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                    .size(44.dp)
+                    .background(DeepError.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
             ) {
-                Icon(Icons.Default.CallEnd, contentDescription = "Завершить", tint = DeepError)
+                Icon(Icons.Default.CallEnd, contentDescription = "Завершить", tint = androidx.compose.ui.graphics.Color.White)
             }
         }
     }

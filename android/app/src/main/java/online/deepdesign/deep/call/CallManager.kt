@@ -82,6 +82,10 @@ class CallManager(
 
     private val _overlayExpanded = MutableStateFlow(true)
     val overlayExpanded: StateFlow<Boolean> = _overlayExpanded.asStateFlow()
+    private var userMinimizedOverlay = false
+    private var lastFgsPeer: String? = null
+    private var lastFgsVideo = false
+    private var lastFgsRinging = false
 
     private val _videoOn = MutableStateFlow(true)
     val videoOn: StateFlow<Boolean> = _videoOn.asStateFlow()
@@ -182,8 +186,13 @@ class CallManager(
             is CallUiState.Active -> s.video
             else -> false
         }
+        val ringing = isRingingPhase()
+        if (peer == lastFgsPeer && video == lastFgsVideo && ringing == lastFgsRinging) return
+        lastFgsPeer = peer
+        lastFgsVideo = video
+        lastFgsRinging = ringing
         val outgoing = _state.value is CallUiState.Outgoing
-        CallForegroundService.refresh(context, peer, outgoing, video, isRingingPhase())
+        CallForegroundService.refresh(context, peer, outgoing, video, ringing)
     }
 
     private fun startCallProtection(peerName: String, outgoing: Boolean, video: Boolean) {
@@ -256,11 +265,13 @@ class CallManager(
     fun minimizeOverlay() {
         if (_state.value is CallUiState.Outgoing || _state.value is CallUiState.Active) {
             _overlayExpanded.value = false
+            userMinimizedOverlay = true
         }
     }
 
     fun expandOverlay() {
         _overlayExpanded.value = true
+        userMinimizedOverlay = false
     }
 
     private var outgoingJob: Job? = null
@@ -281,6 +292,7 @@ class CallManager(
         activeConversationId = conversationId
         activeCallVideo = video
         _videoOn.value = video
+        userMinimizedOverlay = false
         _overlayExpanded.value = true
         _state.value = CallUiState.Outgoing(pendingId, conversationId, peerName, video)
         ClientReporter.scheduleReport()
@@ -324,6 +336,7 @@ class CallManager(
                 iceServers = resp.iceServers
                 activeCallId = incoming.callId
                 activePeerName = incoming.callerName
+                userMinimizedOverlay = false
                 _overlayExpanded.value = true
                 _state.value = CallUiState.Active(
                     incoming.callId,
@@ -448,6 +461,7 @@ class CallManager(
         synchronized(incomingLock) {
             if (isIncomingRinging(callId)) return
             if (_state.value is CallUiState.Outgoing || _state.value is CallUiState.Active) return
+            userMinimizedOverlay = false
             _overlayExpanded.value = true
             _videoOn.value = video
             _state.value = CallUiState.Incoming(callId, conversationId, callerName, video)
@@ -503,7 +517,9 @@ class CallManager(
                 if (!outgoing.callId.startsWith("pending:") && outgoing.callId != callId) return
                 activeCallId = callId
                 ringtonePlayer.stop()
-                _overlayExpanded.value = true
+                if (!userMinimizedOverlay) {
+                    _overlayExpanded.value = true
+                }
                 _state.value = CallUiState.Active(
                     callId,
                     activePeerName,
@@ -855,7 +871,9 @@ class CallManager(
         _localVideoTrack.value = null
         _localVideoMirror.value = false
         _remoteVideoTrack.value = null
+        userMinimizedOverlay = false
         _overlayExpanded.value = true
+        lastFgsPeer = null
         teardownRtc()
         ClientReporter.scheduleReport()
     }

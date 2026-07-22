@@ -20,6 +20,8 @@ import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.data.UserDto
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 sealed class AdminDestination {
     data object Home : AdminDestination()
@@ -220,11 +222,22 @@ class AdminViewModel : ViewModel() {
 }
 
 fun formatUserPresenceLine(user: UserDto): String {
+    val lastSeen = formatLastSeen(user.lastSeenAt)
     return when {
-        user.online == true -> "на экране"
-        user.clientState?.foreground == false -> "в фоне"
-        else -> "был ${formatLastSeen(user.lastSeenAt)}"
+        user.online == true -> "в сети"
+        user.clientState?.foreground == false -> "в фоне · был $lastSeen"
+        else -> "был $lastSeen"
     }
+}
+
+fun formatLastSeenAbsolute(lastSeenAt: String?): String? {
+    if (lastSeenAt.isNullOrBlank()) return null
+    return runCatching {
+        val instant = Instant.parse(lastSeenAt)
+        val formatter = DateTimeFormatter.ofPattern("d MMM, HH:mm")
+            .withZone(ZoneId.systemDefault())
+        formatter.format(instant)
+    }.getOrNull()
 }
 
 fun formatClientState(state: ClientStateDto?, activeCall: ActiveCallDto? = null, nowMs: Long = System.currentTimeMillis()): String? {

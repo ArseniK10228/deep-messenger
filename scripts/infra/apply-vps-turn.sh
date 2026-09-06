@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# coturn on VPS (138.124.102.53). Run as root after DNS turn.deepdesignpc.online → VPS.
+# coturn on VPS (2.56.120.54). Run as root after DNS turn.deepdesignpc.online → VPS.
 set -euo pipefail
 
 REPO="${REPO:-/tmp/deep-messenger}"

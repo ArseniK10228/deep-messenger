@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deep Messenger — nginx on VPS. Run as root on 138.124.102.53
+# Deep Messenger — nginx on VPS. Run as root on 2.56.120.54
 set -euo pipefail
 
 REPO="${REPO:-/tmp/deep-messenger}"

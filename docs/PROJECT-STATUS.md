@@ -33,7 +33,7 @@
 ```
 Android APK
     ↓ HTTPS :443
-VPS 138.124.102.53
+VPS 2.56.120.54
     api.deepdesignpc.online  (SSL здесь)
     ↓ Tailscale (НЕ через роутер)
 Дом 100.118.211.24:3002
@@ -46,8 +46,8 @@ VPS 138.124.102.53
 
 | Запись | Значение |
 |--------|----------|
-| `deepdesignpc.online` | A → `138.124.102.53` |
-| `api.deepdesignpc.online` | A → `138.124.102.53` |
+| `deepdesignpc.online` | A → `2.56.120.54` |
+| `api.deepdesignpc.online` | A → `2.56.120.54` |
 
 `www.deepdesignpc.online` — **не создан** (certbot без www).
 
@@ -161,7 +161,7 @@ sudo bash /opt/deep-messenger/scripts/infra/apply-home.sh
 
 ## Следующие шаги (порядок)
 
-1. DNS: `turn.deepdesignpc.online` A → `138.124.102.53`
+1. DNS: `turn.deepdesignpc.online` A → `2.56.120.54`
 2. Deploy → скопировать `TURN_SECRET` с VPS (`/etc/deep-messenger-turn-secret`) в home `.env`
 3. Собрать APK, тест звонка WiFi ↔ LTE
 4. Залить APK на `deepdesignpc.online/deep.apk`

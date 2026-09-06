@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Запускать на VPS (ssh root@138.124.102.53)
+# Запускать на VPS (ssh root@2.56.120.54)
 set -euo pipefail
 
 CONF_SRC="${1:-/tmp/nginx-vps-deep-online.conf}"

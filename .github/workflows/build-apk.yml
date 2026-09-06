@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SSH_KEY_FILE: /home/runner/.ssh/vps_deploy_key
-      EXPECTED_DEPLOY_PUBKEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA2wDQHc8nJInmTGwEDQklnRelm3nG5gxBxTXjTMS0eN
+      EXPECTED_DEPLOY_PUBKEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFP1VPZssMLz++UJ0GrnnobQrhKuGg8FMmhCVGE9Zbbr
 
     steps:
       - uses: actions/checkout@v4

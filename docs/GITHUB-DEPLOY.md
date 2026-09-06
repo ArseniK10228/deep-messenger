@@ -20,7 +20,7 @@ git push -u origin main
 
 | Secret | Значение |
 |--------|----------|
-| `VPS_HOST` | `138.124.102.53` |
+| `VPS_HOST` | `2.56.120.54` |
 | `VPS_USER` | `root` |
 | `VPS_SSH_KEY` | приватный ключ `github_actions_deploy` |
 

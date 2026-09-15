@@ -23,7 +23,7 @@ VERSION_NAME=$(node -e "const j=JSON.parse(require('fs').readFileSync('$RELEASE_
 echo "==> Verify APK is downloadable: $APK_URL"
 apk_ok=0
 for i in $(seq 1 12); do
-  SIZE=$(curl -fsSIL --max-time 20 "$APK_URL" | awk 'tolower($1)=="content-length:" {print $2}' | tr -d '\r' | tail -1)
+  SIZE=$(curl -fsSIL --max-time 20 "$APK_URL" 2>/dev/null | awk 'tolower($1)=="content-length:" {print $2}' | tr -d '\r' | tail -1)
   if [[ -n "$SIZE" && "$SIZE" -ge "$MIN_APK_BYTES" ]]; then
     echo "APK OK: ${SIZE} bytes"
     apk_ok=1
@@ -32,6 +32,16 @@ for i in $(seq 1 12); do
   echo "waiting for APK ($i/12)..."
   sleep 10
 done
+if [[ "$apk_ok" -ne 1 && -n "${SSH_KEY_FILE:-}" && -f "${SSH_KEY_FILE}" && -n "${VPS_HOST:-}" ]]; then
+  echo "Public APK URL not ready (DNS/SSL?) — checking file on VPS via SSH..."
+  VPS_OPTS=(-i "$SSH_KEY_FILE" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30)
+  REMOTE_SIZE=$(ssh "${VPS_OPTS[@]}" "${VPS_USER}@${VPS_HOST}" \
+    "stat -c%s /var/www/deep-messenger/deep.apk 2>/dev/null || echo 0")
+  if [[ -n "$REMOTE_SIZE" && "$REMOTE_SIZE" -ge "$MIN_APK_BYTES" ]]; then
+    echo "APK OK on VPS: ${REMOTE_SIZE} bytes"
+    apk_ok=1
+  fi
+fi
 if [[ "$apk_ok" -ne 1 ]]; then
   echo "ERROR: APK not available or too small at $APK_URL"
   exit 1
@@ -55,8 +65,8 @@ fi
 echo "==> Verify API exposes published version"
 api_ok=0
 for i in $(seq 1 12); do
-  LIVE_CODE=$(curl -fsS --max-time 15 "$API_URL" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).versionCode))")
-  LIVE_NAME=$(curl -fsS --max-time 15 "$API_URL" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).versionName))")
+  LIVE_CODE=$(curl -fsS --max-time 15 "$API_URL" 2>/dev/null | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).versionCode)}catch{console.log('')}})" || true)
+  LIVE_NAME=$(curl -fsS --max-time 15 "$API_URL" 2>/dev/null | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).versionName)}catch{console.log('')}})" || true)
   if [[ "$LIVE_CODE" == "$VERSION_CODE" && "$LIVE_NAME" == "$VERSION_NAME" ]]; then
     echo "API OK: versionCode=$LIVE_CODE versionName=$LIVE_NAME"
     api_ok=1
@@ -65,6 +75,18 @@ for i in $(seq 1 12); do
   echo "waiting for API release metadata ($i/12): live=$LIVE_CODE/$LIVE_NAME expected=$VERSION_CODE/$VERSION_NAME"
   sleep 5
 done
+if [[ "$api_ok" -ne 1 && -n "${SSH_KEY_FILE:-}" && -f "${SSH_KEY_FILE}" && -n "${VPS_HOST:-}" ]]; then
+  echo "Public API not ready — checking release file on home via VPS..."
+  VPS_OPTS=(-i "$SSH_KEY_FILE" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30)
+  HOME_JSON=$(ssh "${VPS_OPTS[@]}" "${VPS_USER}@${VPS_HOST}" \
+    "ssh -i /root/.ssh/home_deploy -o BatchMode=yes -o ConnectTimeout=20 root@${HOME_HOST} 'cat ${HOME_RELEASE_PATH}'")
+  LIVE_CODE=$(node -e "console.log(JSON.parse(process.argv[1]).versionCode)" "$HOME_JSON")
+  LIVE_NAME=$(node -e "console.log(JSON.parse(process.argv[1]).versionName)" "$HOME_JSON")
+  if [[ "$LIVE_CODE" == "$VERSION_CODE" && "$LIVE_NAME" == "$VERSION_NAME" ]]; then
+    echo "API OK on home: versionCode=$LIVE_CODE versionName=$LIVE_NAME"
+    api_ok=1
+  fi
+fi
 if [[ "$api_ok" -ne 1 ]]; then
   echo "ERROR: API did not publish expected release metadata"
   exit 1

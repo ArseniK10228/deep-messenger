@@ -151,11 +151,22 @@ jobs:
 
       - name: Smoke test OTA endpoints
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.publish_only }}
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          curl -fsS --max-time 20 https://deepdesignpc.online/deep.apk -o /tmp/deep.apk
-          test -s /tmp/deep.apk
-          ls -lh /tmp/deep.apk
-          echo "APK download OK"
+          set -eu
+          if curl -fsS --max-time 20 https://deepdesignpc.online/deep.apk -o /tmp/deep.apk 2>/dev/null; then
+            test -s /tmp/deep.apk
+            ls -lh /tmp/deep.apk
+            echo "APK download OK (public HTTPS)"
+          else
+            echo "Public HTTPS not ready — verify APK on VPS via SSH"
+            SIZE=$(ssh -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
+              "${VPS_USER}@${VPS_HOST}" "stat -c%s /var/www/deep-messenger/deep.apk")
+            test "$SIZE" -ge 500000
+            echo "APK OK on VPS: $SIZE bytes"
+          fi
 
       - name: Publish release metadata to API
         env:

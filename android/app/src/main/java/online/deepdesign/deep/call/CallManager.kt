@@ -113,6 +113,7 @@ class CallManager(
     private var disconnectJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var networkRecoveryJob: Job? = null
     private var statsJob: Job? = null
     @Volatile
     private var iceDegraded = false
@@ -676,9 +677,7 @@ class CallManager(
                         }
                         PeerConnection.IceConnectionState.DISCONNECTED -> {
                             iceDegraded = true
-                            if (CallAppState.isInForeground()) {
-                                engine?.restartIce()
-                            }
+                            engine?.restartIce()
                             scheduleDisconnectHangup(graceMs = 120_000)
                         }
                         PeerConnection.IceConnectionState.FAILED -> {
@@ -804,29 +803,37 @@ class CallManager(
         audioRouter.stopSession()
     }
 
+    private fun scheduleNetworkRecovery(reason: String) {
+        if (!isInCall()) return
+        networkRecoveryJob?.cancel()
+        networkRecoveryJob = scope.launch {
+            // VPN on/off often fires several callbacks; wait for routing to settle.
+            delay(if (reason == "lost") 1_500L else 600L)
+            if (!isInCall()) return@launch
+            refreshIceServers()
+            signaling.setUrgentReconnect(true)
+            if (!signaling.isConnected()) signaling.forceReconnect()
+            engine?.restartIce()
+            audioRouter.refreshDevicesNow()
+        }
+    }
+
     private fun startNetworkMonitor() {
         if (networkCallback != null) return
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                if (!isInCall()) return
-                if (!CallAppState.isInForeground()) return
-                scope.launch {
-                    refreshIceServers()
-                    if (!signaling.isConnected()) signaling.forceReconnect()
-                    engine?.restartIce()
-                }
+                scheduleNetworkRecovery("available")
+            }
+
+            override fun onLost(network: Network) {
+                scheduleNetworkRecovery("lost")
             }
 
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
                 if (!isInCall()) return
-                if (!CallAppState.isInForeground()) return
-                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
-                    scope.launch {
-                        refreshIceServers()
-                        engine?.restartIce()
-                    }
-                }
+                if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return
+                scheduleNetworkRecovery("capabilities")
             }
         }
         networkCallback = callback
@@ -841,6 +848,8 @@ class CallManager(
     }
 
     private fun stopNetworkMonitor() {
+        networkRecoveryJob?.cancel()
+        networkRecoveryJob = null
         val callback = networkCallback ?: return
         runCatching {
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager

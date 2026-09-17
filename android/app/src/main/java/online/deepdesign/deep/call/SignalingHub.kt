@@ -59,7 +59,7 @@ class SignalingHub(
 
     private val callTypes = setOf(
         "call_invite", "call_accept", "call_end",
-        "call_sdp", "call_ice"
+        "call_sdp", "call_ice", "call_mute"
     )
 
     private val chatTypes = setOf(
@@ -242,6 +242,10 @@ class SignalingHub(
         sendSignal(
             """{"type":"call_ice","callId":"$callId","candidate":${jsonString(candidate)},"sdpMid":$mid,"sdpMLineIndex":${sdpMLineIndex ?: 0}}"""
         )
+    }
+
+    fun sendMute(callId: String, muted: Boolean) {
+        sendSignal("""{"type":"call_mute","callId":"$callId","muted":$muted}""")
     }
 
     private fun jsonString(value: String): String {

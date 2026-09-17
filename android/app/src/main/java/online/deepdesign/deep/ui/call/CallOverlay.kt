@@ -77,6 +77,7 @@ import org.webrtc.VideoTrack
 fun CallOverlay(
     state: CallUiState,
     muted: Boolean,
+    peerMuted: Boolean = false,
     callAudio: CallAudioUiState,
     callNetwork: CallNetworkUiState,
     micLevel: Float,
@@ -100,6 +101,7 @@ fun CallOverlay(
         is CallUiState.Outgoing -> if (state.video) {
             VideoCallUi(
                 peerName = state.peerName,
+                peerMuted = false,
                 status = "Вызов…",
                 connected = false,
                 muted = muted,
@@ -120,6 +122,7 @@ fun CallOverlay(
         } else {
             OngoingCallUi(
                 peerName = state.peerName,
+                peerMuted = false,
                 status = "Вызов…",
                 connected = false,
                 muted = muted,
@@ -135,6 +138,7 @@ fun CallOverlay(
         is CallUiState.Active -> if (state.video) {
             VideoCallUi(
                 peerName = state.peerName,
+                peerMuted = peerMuted && state.connected,
                 status = if (state.connected) "На линии" else "Соединяем…",
                 connected = state.connected,
                 muted = muted,
@@ -155,6 +159,7 @@ fun CallOverlay(
         } else {
             OngoingCallUi(
                 peerName = state.peerName,
+                peerMuted = peerMuted && state.connected,
                 status = if (state.connected) "На линии" else "Соединяем…",
                 connected = state.connected,
                 muted = muted,
@@ -279,8 +284,40 @@ private fun IncomingCallUi(
 }
 
 @Composable
+private fun PeerNameWithMute(
+    peerName: String,
+    peerMuted: Boolean,
+    color: Color,
+    style: androidx.compose.ui.text.TextStyle,
+    fontWeight: FontWeight = FontWeight.Bold
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            peerName,
+            color = color,
+            style = style,
+            fontWeight = fontWeight,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (peerMuted) {
+            Icon(
+                Icons.Default.MicOff,
+                contentDescription = "Собеседник выключил микрофон",
+                tint = color.copy(alpha = 0.85f),
+                modifier = Modifier.size(22.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun OngoingCallUi(
     peerName: String,
+    peerMuted: Boolean,
     status: String,
     connected: Boolean,
     muted: Boolean,
@@ -319,13 +356,11 @@ private fun OngoingCallUi(
                     ChatAvatar(name = peerName, size = avatarSize, online = connected)
                 }
                 Spacer(Modifier.height(if (landscape) 8.dp else 20.dp))
-                Text(
-                    peerName,
+                PeerNameWithMute(
+                    peerName = peerName,
+                    peerMuted = peerMuted,
                     color = DeepText,
-                    style = if (landscape) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    style = if (landscape) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium
                 )
             }
 
@@ -333,7 +368,8 @@ private fun OngoingCallUi(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(horizontal = 12.dp, bottom = if (landscape) 8.dp else 16.dp)
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = if (landscape) 8.dp else 16.dp)
             ) {
                 CallControlChip(
                     icon = if (muted) Icons.Default.MicOff else Icons.Default.Mic,
@@ -371,6 +407,7 @@ private fun OngoingCallUi(
 @Composable
 private fun VideoCallUi(
     peerName: String,
+    peerMuted: Boolean,
     status: String,
     connected: Boolean,
     muted: Boolean,
@@ -466,11 +503,11 @@ private fun VideoCallUi(
                 .padding(top = 56.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                peerName,
+            PeerNameWithMute(
+                peerName = peerName,
+                peerMuted = peerMuted,
                 color = Color.White,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.titleLarge
             )
             CallStatusChip(text = status, accent = connected, light = true)
             Spacer(Modifier.height(8.dp))
@@ -482,7 +519,8 @@ private fun VideoCallUi(
                 .align(Alignment.BottomCenter)
                 .zIndex(3f)
                 .navigationBarsPadding()
-                .padding(horizontal = if (landscape) 8.dp else 0.dp, bottom = if (landscape) 8.dp else 20.dp),
+                .padding(horizontal = if (landscape) 8.dp else 0.dp)
+                .padding(bottom = if (landscape) 8.dp else 20.dp),
             dark = true
         ) {
             CallControlChip(

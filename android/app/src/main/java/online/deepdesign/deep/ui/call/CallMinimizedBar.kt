@@ -39,6 +39,7 @@ import online.deepdesign.deep.ui.theme.DeepText
 fun CallMinimizedBar(
     state: CallUiState,
     muted: Boolean,
+    peerMuted: Boolean = false,
     onExpand: () -> Unit,
     onToggleMute: () -> Unit,
     onHangup: () -> Unit,
@@ -51,6 +52,7 @@ fun CallMinimizedBar(
     }
 
     val online = (state as? CallUiState.Active)?.connected == true
+    val showPeerMuted = peerMuted && online
 
     Surface(
         modifier = modifier
@@ -90,14 +92,28 @@ fun CallMinimizedBar(
                         modifier = Modifier.size(18.dp)
                     )
                     Column {
-                        Text(
-                            peerName,
-                            color = androidx.compose.ui.graphics.Color.White,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                peerName,
+                                color = androidx.compose.ui.graphics.Color.White,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            if (showPeerMuted) {
+                                Icon(
+                                    Icons.Default.MicOff,
+                                    contentDescription = "Собеседник без микрофона",
+                                    tint = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                         Text(status, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
                     }
                 }

@@ -9,6 +9,7 @@ interface CallWsMessage {
   candidate?: string;
   sdpMid?: string | null;
   sdpMLineIndex?: number | null;
+  muted?: boolean;
 }
 
 export function handleCallMessage(userId: string, raw: CallWsMessage): void {
@@ -39,6 +40,16 @@ export function handleCallMessage(userId: string, raw: CallWsMessage): void {
       candidate: raw.candidate,
       sdpMid: raw.sdpMid ?? null,
       sdpMLineIndex: raw.sdpMLineIndex ?? null,
+      fromUserId: userId
+    });
+    return;
+  }
+
+  if (type === 'call_mute' && typeof raw.muted === 'boolean') {
+    sendToUser(peer, {
+      type: 'call_mute',
+      callId: raw.callId,
+      muted: raw.muted,
       fromUserId: userId
     });
   }

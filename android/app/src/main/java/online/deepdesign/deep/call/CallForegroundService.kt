@@ -46,6 +46,8 @@ class CallForegroundService : Service() {
                 val video = intent?.getBooleanExtra(EXTRA_VIDEO, lastVideo) ?: lastVideo
                 val ringingOnly = intent?.getBooleanExtra(EXTRA_RINGING_ONLY, lastRingingOnly)
                     ?: DeepAppCallBridge.isRingingPhase()
+                val connectedAt = intent?.getLongExtra(EXTRA_CONNECTED_AT, lastConnectedAtMs)
+                    ?: lastConnectedAtMs
                 if (!ringingOnly && !hasMicPermission()) {
                     Log.w(TAG, "RECORD_AUDIO not granted — cannot start call FGS")
                     stopSelf()
@@ -54,9 +56,10 @@ class CallForegroundService : Service() {
                 lastPeer = peer
                 lastVideo = video
                 lastRingingOnly = ringingOnly
+                lastConnectedAtMs = connectedAt
                 ensureChannel()
                 acquireWakeLock()
-                val notification = buildNotification(peer)
+                val notification = buildNotification(peer, connectedAt, ringingOnly)
                 try {
                     startCallForeground(notification, video, ringingOnly)
                 } catch (e: SecurityException) {
@@ -79,7 +82,11 @@ class CallForegroundService : Service() {
             ensureChannel()
             acquireWakeLock()
             try {
-                startCallForeground(buildNotification(peer), lastVideo, ringingOnly)
+                startCallForeground(
+                    buildNotification(peer, lastConnectedAtMs, ringingOnly),
+                    lastVideo,
+                    ringingOnly
+                )
             } catch (e: SecurityException) {
                 Log.e(TAG, "onTaskRemoved restart failed", e)
             }
@@ -137,7 +144,7 @@ class CallForegroundService : Service() {
             PackageManager.PERMISSION_GRANTED
     }
 
-    private fun buildNotification(peer: String): Notification {
+    private fun buildNotification(peer: String, connectedAtMs: Long, ringingOnly: Boolean): Notification {
         val open = PendingIntent.getActivity(
             this,
             0,
@@ -152,10 +159,11 @@ class CallForegroundService : Service() {
             CallNotificationActionActivity.hangupIntent(this),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val showTimer = !ringingOnly && connectedAtMs > 0L
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_call)
-            .setContentTitle("Deep — звонок")
-            .setContentText(peer)
+            .setContentTitle(if (showTimer) peer else "Deep — звонок")
+            .setContentText(if (showTimer) null else peer)
             .setContentIntent(open)
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_CALL)
@@ -163,6 +171,13 @@ class CallForegroundService : Service() {
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+
+        if (showTimer) {
+            builder
+                .setWhen(connectedAtMs)
+                .setShowWhen(true)
+                .setUsesChronometer(true)
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val person = Person.Builder().setName(peer).setImportant(true).build()
@@ -194,6 +209,7 @@ class CallForegroundService : Service() {
         private const val EXTRA_PEER = "peer"
         private const val EXTRA_VIDEO = "video"
         private const val EXTRA_RINGING_ONLY = "ringing_only"
+        private const val EXTRA_CONNECTED_AT = "connected_at"
         private const val ACTION_STOP = "stop"
         private const val ACTION_HANGUP = "hangup"
 
@@ -206,12 +222,16 @@ class CallForegroundService : Service() {
         @Volatile
         private var lastRingingOnly: Boolean = false
 
+        @Volatile
+        private var lastConnectedAtMs: Long = 0L
+
         fun start(
             context: Context,
             peerName: String,
             outgoing: Boolean,
             video: Boolean = false,
-            ringingOnly: Boolean = false
+            ringingOnly: Boolean = false,
+            connectedAtMs: Long = 0L
         ) {
             if (!ringingOnly &&
                 ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
@@ -228,10 +248,12 @@ class CallForegroundService : Service() {
             lastPeer = peer
             lastVideo = video
             lastRingingOnly = ringingOnly
+            lastConnectedAtMs = connectedAtMs
             val intent = Intent(context, CallForegroundService::class.java)
                 .putExtra(EXTRA_PEER, peer)
                 .putExtra(EXTRA_VIDEO, video)
                 .putExtra(EXTRA_RINGING_ONLY, ringingOnly)
+                .putExtra(EXTRA_CONNECTED_AT, connectedAtMs)
             try {
                 context.startForegroundService(intent)
             } catch (e: Exception) {
@@ -244,15 +266,17 @@ class CallForegroundService : Service() {
             peerName: String,
             outgoing: Boolean,
             video: Boolean,
-            ringingOnly: Boolean = false
+            ringingOnly: Boolean = false,
+            connectedAtMs: Long = 0L
         ) {
-            start(context, peerName, outgoing, video, ringingOnly)
+            start(context, peerName, outgoing, video, ringingOnly, connectedAtMs)
         }
 
         fun stop(context: Context) {
             lastPeer = null
             lastVideo = false
             lastRingingOnly = false
+            lastConnectedAtMs = 0L
             val intent = Intent(context, CallForegroundService::class.java).setAction(ACTION_STOP)
             context.startService(intent)
         }

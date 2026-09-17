@@ -71,6 +71,9 @@ class CallManager(
     private val _muted = MutableStateFlow(false)
     val muted: StateFlow<Boolean> = _muted.asStateFlow()
 
+    private val _peerMuted = MutableStateFlow(false)
+    val peerMuted: StateFlow<Boolean> = _peerMuted.asStateFlow()
+
     private val audioRouter = CallAudioRouter(context)
     val callAudio: StateFlow<CallAudioUiState> = audioRouter.state
 
@@ -86,6 +89,8 @@ class CallManager(
     private var lastFgsPeer: String? = null
     private var lastFgsVideo = false
     private var lastFgsRinging = false
+    private var lastFgsConnectedAtMs: Long = 0L
+    private var activeCallConnectedAtMs: Long = 0L
 
     private val _videoOn = MutableStateFlow(true)
     val videoOn: StateFlow<Boolean> = _videoOn.asStateFlow()
@@ -186,12 +191,30 @@ class CallManager(
             else -> false
         }
         val ringing = isRingingPhase()
-        if (peer == lastFgsPeer && video == lastFgsVideo && ringing == lastFgsRinging) return
+        val connectedAt = if ((_state.value as? CallUiState.Active)?.connected == true) {
+            activeCallConnectedAtMs
+        } else {
+            0L
+        }
+        if (peer == lastFgsPeer && video == lastFgsVideo && ringing == lastFgsRinging &&
+            connectedAt == lastFgsConnectedAtMs
+        ) {
+            return
+        }
         lastFgsPeer = peer
         lastFgsVideo = video
         lastFgsRinging = ringing
+        lastFgsConnectedAtMs = connectedAt
         val outgoing = _state.value is CallUiState.Outgoing
-        CallForegroundService.refresh(context, peer, outgoing, video, ringing)
+        CallForegroundService.refresh(context, peer, outgoing, video, ringing, connectedAt)
+    }
+
+    private fun markCallConnectedIfNeeded(wasConnected: Boolean) {
+        if (wasConnected) return
+        if (activeCallConnectedAtMs == 0L) {
+            activeCallConnectedAtMs = System.currentTimeMillis()
+        }
+        refreshForegroundService()
     }
 
     private fun forceRefreshForegroundService() {
@@ -209,7 +232,8 @@ class CallManager(
             peerName,
             outgoing = outgoing,
             video = video,
-            ringingOnly = isRingingPhase()
+            ringingOnly = isRingingPhase(),
+            connectedAtMs = 0L
         )
     }
 
@@ -242,6 +266,7 @@ class CallManager(
         val next = !_muted.value
         _muted.value = next
         engine?.setMicrophoneMuted(next)
+        activeCallId?.let { signaling.sendMute(it, next) }
     }
 
     fun toggleSpeaker() {
@@ -541,6 +566,11 @@ class CallManager(
             }
             "call_sdp" -> handleRemoteSdp(env)
             "call_ice" -> handleRemoteIce(env)
+            "call_mute" -> {
+                val callId = env.callId ?: return
+                if (activeCallId != null && activeCallId != callId) return
+                _peerMuted.value = env.muted == true
+            }
             "call_end" -> handleRemoteCallEnd(env.callId, env.reason ?: "end")
         }
     }
@@ -639,8 +669,10 @@ class CallManager(
                         PeerConnection.PeerConnectionState.CONNECTED -> {
                             disconnectJob?.cancel()
                             ringtonePlayer.stop()
+                            var wasConnected = true
                             _state.update { current ->
                                 if (current is CallUiState.Active) {
+                                    wasConnected = current.connected
                                     if (!current.connected) {
                                         startCallRecording()
                                         ClientReporter.scheduleReport()
@@ -648,6 +680,7 @@ class CallManager(
                                     current.copy(connected = true)
                                 } else current
                             }
+                            markCallConnectedIfNeeded(wasConnected)
                             engine?.localVideoTrackFlow?.value?.let { _localVideoTrack.value = it }
                         }
                         PeerConnection.PeerConnectionState.FAILED -> {
@@ -669,8 +702,10 @@ class CallManager(
                         PeerConnection.IceConnectionState.COMPLETED -> {
                             iceDegraded = false
                             disconnectJob?.cancel()
+                            var wasConnected = true
                             _state.update { current ->
                                 if (current is CallUiState.Active) {
+                                    wasConnected = current.connected
                                     if (!current.connected) {
                                         startCallRecording()
                                         ClientReporter.scheduleReport()
@@ -678,6 +713,7 @@ class CallManager(
                                     current.copy(connected = true)
                                 } else current
                             }
+                            markCallConnectedIfNeeded(wasConnected)
                             engine?.localVideoTrackFlow?.value?.let { _localVideoTrack.value = it }
                         }
                         PeerConnection.IceConnectionState.DISCONNECTED -> {
@@ -700,6 +736,8 @@ class CallManager(
         engine?.getLocalAudioTrack()?.let { callRecorder.attach(it) }
         pendingIce.forEach { engine?.addIceCandidate(it) }
         pendingIce.clear()
+        engine?.setMicrophoneMuted(_muted.value)
+        activeCallId?.let { signaling.sendMute(it, _muted.value) }
         refreshForegroundService()
         startStatsMonitor()
     }
@@ -881,6 +919,9 @@ class CallManager(
         pendingOffer = null
         pendingIce.clear()
         _muted.value = false
+        _peerMuted.value = false
+        activeCallConnectedAtMs = 0L
+        lastFgsConnectedAtMs = 0L
         _videoOn.value = true
         _localVideoTrack.value = null
         _localVideoMirror.value = false

@@ -275,6 +275,7 @@ data class WsEnvelope(
     val fromUserId: String? = null,
     val reason: String? = null,
     val video: String? = null,
+    val muted: Boolean? = null,
     val online: Boolean? = null,
     @Json(name = "lastSeenAt") val lastSeenAt: String? = null,
     val users: List<PresenceUserDto>? = null,

@@ -32,6 +32,7 @@ fun BoxScope.CallUiLayer(
     if (callState is CallUiState.Idle) return
 
     val muted by callManager.muted.collectAsState()
+    val peerMuted by callManager.peerMuted.collectAsState()
     val callAudio by callManager.callAudio.collectAsState()
     val callNetwork by callManager.callNetwork.collectAsState()
     val micLevel by callManager.micLevel.collectAsState()
@@ -57,6 +58,7 @@ fun BoxScope.CallUiLayer(
                 modifier = Modifier.fillMaxSize(),
                 state = callState,
                 muted = muted,
+                peerMuted = peerMuted,
                 callAudio = callAudio,
                 callNetwork = callNetwork,
                 micLevel = micLevel,
@@ -78,6 +80,7 @@ fun BoxScope.CallUiLayer(
         CallMinimizedBar(
             state = callState,
             muted = muted,
+            peerMuted = peerMuted,
             onExpand = { callManager.expandOverlay() },
             onToggleMute = { callManager.toggleMute() },
             onHangup = { callManager.hangup() },

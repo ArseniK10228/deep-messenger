@@ -159,6 +159,7 @@ class IncomingCallActivity : ComponentActivity() {
                 val callState by callManager.state.collectAsState()
 
                 val muted by callManager.muted.collectAsState()
+                val peerMuted by callManager.peerMuted.collectAsState()
 
                 val callAudio by callManager.callAudio.collectAsState()
                 val callNetwork by callManager.callNetwork.collectAsState()
@@ -219,6 +220,7 @@ class IncomingCallActivity : ComponentActivity() {
                     state = callState,
 
                     muted = muted,
+                    peerMuted = peerMuted,
 
                     callAudio = callAudio,
 

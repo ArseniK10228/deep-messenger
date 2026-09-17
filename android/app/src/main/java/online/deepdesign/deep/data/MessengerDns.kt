@@ -16,13 +16,18 @@ object MessengerDns : Dns {
     private const val CURRENT_VPS = "2.56.120.54"
 
     override fun lookup(hostname: String): List<InetAddress> {
-        val system = Dns.SYSTEM.lookup(hostname)
-        if (hostname !in ourHosts) return system
+        val system = runCatching { Dns.SYSTEM.lookup(hostname) }.getOrDefault(emptyList())
+        if (hostname !in ourHosts) return system.ifEmpty { Dns.SYSTEM.lookup(hostname) }
         val filtered = system.filterNot { it.hostAddress == STALE_VPS }
-        if (filtered.isNotEmpty()) return filtered
-        if (system.isNotEmpty()) {
-            return listOf(InetAddress.getByName(CURRENT_VPS))
+        val current = runCatching { InetAddress.getByName(CURRENT_VPS) }.getOrNull()
+        val base = when {
+            filtered.isNotEmpty() -> filtered
+            current != null -> listOf(current)
+            else -> system
         }
-        return system
+        if (current != null && base.none { it.hostAddress == CURRENT_VPS }) {
+            return listOf(current) + base
+        }
+        return base
     }
 }

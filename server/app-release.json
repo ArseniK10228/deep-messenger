@@ -1,7 +1,7 @@
 {
-  "versionCode": 55,
-  "versionName": "0.3.52",
+  "versionCode": 56,
+  "versionName": "0.3.53",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Иконка mute у собеседника; таймер звонка в шторке/Now Bar; сигнал call_mute.",
+  "changelog": "Видеокружки как в Telegram; стабильнее сеть/VPN (DNS, retry WS).",
   "forceUpdate": true
 }

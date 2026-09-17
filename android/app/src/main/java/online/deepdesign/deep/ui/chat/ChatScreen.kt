@@ -83,6 +83,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import online.deepdesign.deep.data.MessageDto
 import online.deepdesign.deep.data.OperatorAccess
@@ -115,6 +116,7 @@ fun ChatScreen(
     val showPeerTelemetry = OperatorAccess.canViewPresence
     val listState = rememberLazyListState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val density = LocalDensity.current
     val imeBottomPx = WindowInsets.ime.getBottom(density)
     var showAttach by remember { mutableStateOf(false) }
@@ -150,6 +152,31 @@ fun ChatScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) vm.startRecording()
+    }
+
+    val videoNotePermissions = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val mic = results[Manifest.permission.RECORD_AUDIO] == true
+        val cam = results[Manifest.permission.CAMERA] == true
+        when {
+            mic && cam -> vm.startVideoNoteRecording()
+            !cam -> vm.showError("Нужен доступ к камере для кружка")
+            else -> vm.showError("Нужен доступ к микрофону для кружка")
+        }
+    }
+
+    fun requestVideoNote() {
+        val mic = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        val cam = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        when {
+            mic && cam -> vm.startVideoNoteRecording()
+            else -> videoNotePermissions.launch(
+                arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
+            )
+        }
     }
 
     val callMicPermission = rememberLauncherForActivityResult(
@@ -315,7 +342,7 @@ fun ChatScreen(
             )
         },
         bottomBar = {
-            if (!state.recording) {
+            if (!state.recording && !state.videoNoteRecording) {
                 Surface(
                     color = inputBarColor,
                     shadowElevation = 0.dp,
@@ -356,6 +383,25 @@ fun ChatScreen(
                             )
                         )
                         if (state.input.isBlank()) {
+                            IconButton(
+                                onClick = { requestVideoNote() },
+                                enabled = !state.uploading
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(DeepAccent.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Videocam,
+                                        contentDescription = "Видеокружок",
+                                        tint = DeepAccent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                             IconButton(
                                 onClick = {
                                     val granted = ContextCompat.checkSelfPermission(
@@ -474,6 +520,20 @@ fun ChatScreen(
                 RecordingOverlay(
                     onCancel = vm::cancelRecording,
                     onSend = vm::stopRecordingAndSend
+                )
+            }
+
+            if (state.videoNoteRecording) {
+                VideoNoteRecordingOverlay(
+                    durationMs = state.videoNoteDurationMs,
+                    locked = state.videoNoteLocked,
+                    onPreviewView = { preview ->
+                        vm.onVideoNotePreviewReady(preview, lifecycleOwner)
+                    },
+                    onFlipCamera = vm::flipVideoNoteCamera,
+                    onCancel = vm::cancelVideoNoteRecording,
+                    onSend = vm::stopVideoNoteAndSend,
+                    onLock = vm::lockVideoNoteRecording
                 )
             }
 

@@ -20,6 +20,8 @@ import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.ChatEvent
 import online.deepdesign.deep.data.SessionStore
 import online.deepdesign.deep.data.DeepAppToken
+import online.deepdesign.deep.data.AppNetworkMonitor
+import online.deepdesign.deep.data.VideoNotePlayer
 import online.deepdesign.deep.data.VoicePlayer
 import online.deepdesign.deep.push.ClientReporter
 import online.deepdesign.deep.push.FcmRegistrar
@@ -43,6 +45,11 @@ class DeepApp : Application() {
     lateinit var voicePlayer: VoicePlayer
         private set
 
+    lateinit var videoNotePlayer: VideoNotePlayer
+        private set
+
+    private var networkMonitor: AppNetworkMonitor? = null
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     @Volatile
@@ -64,6 +71,8 @@ class DeepApp : Application() {
         signalingHub = signaling
         callManager = CallManager(this, signaling)
         voicePlayer = VoicePlayer(this)
+        videoNotePlayer = VideoNotePlayer(this)
+        networkMonitor = AppNetworkMonitor(this, signaling) { cachedToken }
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
@@ -85,6 +94,7 @@ class DeepApp : Application() {
         AppForegroundState.setForeground(true)
         callManager.onAppForegrounded()
         if (!cachedToken.isNullOrBlank()) {
+            networkMonitor?.start()
             callManager.start()
             startHeartbeat()
             appScope.launch {
@@ -110,8 +120,10 @@ class DeepApp : Application() {
         cachedUserId = userId
         if (token.isNullOrBlank()) {
             stopHeartbeat()
+            networkMonitor?.stop()
             callManager.stop()
         } else {
+            networkMonitor?.start()
             callManager.start()
             startHeartbeat()
             appScope.launch {

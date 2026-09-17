@@ -17,6 +17,7 @@ const ALLOWED = new Set([
   'audio/ogg',
   'audio/mpeg',
   'audio/mp4',
+  'video/mp4',
   'application/pdf',
   'application/zip',
   'text/plain'
@@ -50,13 +51,15 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
     }
     fs.writeFileSync(abs, buf);
 
+    const fields = part.fields as Record<string, { value?: string }>;
+    const forceVideoNote = fields.videoNote?.value === '1' || fields.videoNote?.value === 'true';
     const kind = mime.startsWith('image/')
       ? 'image'
-      : mime.startsWith('audio/')
-        ? 'voice'
-        : 'file';
-
-    const fields = part.fields as Record<string, { value?: string }>;
+      : mime.startsWith('video/') || forceVideoNote
+        ? 'video_note'
+        : mime.startsWith('audio/')
+          ? 'voice'
+          : 'file';
     const durationMs = fields.durationMs?.value ? Number(fields.durationMs.value) : null;
     const replyToId = fields.replyToId?.value || null;
 
@@ -90,5 +93,6 @@ function guessExt(mime: string): string {
   if (mime === 'image/webp') return '.webp';
   if (mime === 'audio/ogg') return '.ogg';
   if (mime === 'audio/mpeg') return '.mp3';
+  if (mime === 'video/mp4') return '.mp4';
   return '.bin';
 }

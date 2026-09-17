@@ -26,6 +26,9 @@ import online.deepdesign.deep.data.PresenceStore
 import online.deepdesign.deep.data.ClientStateDto
 import online.deepdesign.deep.data.OperatorAccess
 import online.deepdesign.deep.data.SendMessageRequest
+import androidx.camera.view.PreviewView
+import androidx.lifecycle.LifecycleOwner
+import online.deepdesign.deep.data.VideoNoteRecorder
 import online.deepdesign.deep.data.VoiceRecorder
 import online.deepdesign.deep.data.WsEnvelope
 import online.deepdesign.deep.data.readPickedFile
@@ -40,6 +43,9 @@ data class ChatUiState(
     val sending: Boolean = false,
     val uploading: Boolean = false,
     val recording: Boolean = false,
+    val videoNoteRecording: Boolean = false,
+    val videoNoteDurationMs: Long = 0,
+    val videoNoteLocked: Boolean = false,
     val error: String? = null,
     val peerTyping: Boolean = false,
     val peerOnline: Boolean = false,
@@ -56,6 +62,10 @@ class ChatViewModel(
     private val draftStore = DeepApp.instance.chatDraftStore
     private val socket = ChatSocket { DeepApp.instance.currentToken() }
     private val voiceRecorder = VoiceRecorder(DeepApp.instance)
+    private val videoNoteRecorder = VideoNoteRecorder(DeepApp.instance)
+    private var videoNoteTickJob: Job? = null
+    private var boundPreview: PreviewView? = null
+    private var boundLifecycle: LifecycleOwner? = null
     private var peerUserId: String? = null
     private var peerApiOnline: Boolean = false
     private var peerApiLastSeen: String? = null
@@ -365,6 +375,109 @@ class ChatViewModel(
         _state.update { it.copy(recording = false) }
     }
 
+    fun startVideoNoteRecording() {
+        if (_state.value.videoNoteRecording || _state.value.recording || _state.value.uploading) return
+        _state.update {
+            it.copy(
+                videoNoteRecording = true,
+                videoNoteLocked = false,
+                videoNoteDurationMs = 0,
+                error = null
+            )
+        }
+    }
+
+    fun onVideoNotePreviewReady(previewView: PreviewView, lifecycleOwner: LifecycleOwner) {
+        if (!_state.value.videoNoteRecording) return
+        boundPreview = previewView
+        boundLifecycle = lifecycleOwner
+        viewModelScope.launch {
+            try {
+                videoNoteRecorder.bindPreview(previewView, lifecycleOwner)
+                if (!videoNoteRecorder.isRecording) {
+                    videoNoteRecorder.start()
+                    startVideoNoteTicker()
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message, videoNoteRecording = false) }
+                videoNoteRecorder.release()
+            }
+        }
+    }
+
+    fun flipVideoNoteCamera() {
+        val preview = boundPreview ?: return
+        val lifecycle = boundLifecycle ?: return
+        videoNoteRecorder.switchCamera(preview, lifecycle)
+    }
+
+    fun lockVideoNoteRecording() {
+        _state.update { it.copy(videoNoteLocked = true) }
+    }
+
+    fun cancelVideoNoteRecording() {
+        if (!_state.value.videoNoteRecording) return
+        videoNoteTickJob?.cancel()
+        videoNoteRecorder.cancel()
+        videoNoteRecorder.release()
+        boundPreview = null
+        boundLifecycle = null
+        _state.update {
+            it.copy(videoNoteRecording = false, videoNoteLocked = false, videoNoteDurationMs = 0)
+        }
+    }
+
+    fun stopVideoNoteAndSend() {
+        if (!_state.value.videoNoteRecording) return
+        videoNoteTickJob?.cancel()
+        _state.update { it.copy(videoNoteRecording = false, videoNoteLocked = false) }
+        val result = videoNoteRecorder.stop()
+        videoNoteRecorder.release()
+        boundPreview = null
+        boundLifecycle = null
+        if (result == null) {
+            _state.update { it.copy(videoNoteDurationMs = 0) }
+            return
+        }
+        val (file, durationMs) = result
+        viewModelScope.launch {
+            _state.update { it.copy(uploading = true, error = null) }
+            try {
+                val bytes = file.readBytes()
+                file.delete()
+                val msg = MediaUploader.upload(
+                    conversationId = conversationId,
+                    fileName = "video_note.mp4",
+                    mimeType = "video/mp4",
+                    bytes = bytes,
+                    durationMs = durationMs,
+                    videoNote = true
+                )
+                appendMessage(msg)
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message) }
+            } finally {
+                _state.update { it.copy(uploading = false, videoNoteDurationMs = 0) }
+            }
+        }
+    }
+
+    private fun startVideoNoteTicker() {
+        videoNoteTickJob?.cancel()
+        val started = System.currentTimeMillis()
+        videoNoteTickJob = viewModelScope.launch {
+            while (_state.value.videoNoteRecording) {
+                val elapsed = System.currentTimeMillis() - started
+                _state.update { it.copy(videoNoteDurationMs = elapsed) }
+                if (elapsed >= 60_000L) {
+                    stopVideoNoteAndSend()
+                    break
+                }
+                delay(100)
+            }
+        }
+    }
+
     private fun onIncomingMessage(msg: MessageDto) {
         if (msg.conversationId != conversationId) return
         if (isMine(msg)) {
@@ -496,6 +609,8 @@ class ChatViewModel(
         val draft = _state.value.input
         draftSaveJob?.cancel()
         voiceRecorder.cancel()
+        videoNoteTickJob?.cancel()
+        videoNoteRecorder.release()
         wsJob?.cancel()
         typingJob?.cancel()
         DeepApp.instance.saveChatDraft(conversationId, draft)

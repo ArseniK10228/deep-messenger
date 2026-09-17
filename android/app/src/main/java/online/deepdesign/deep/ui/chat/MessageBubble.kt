@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -37,9 +39,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.data.MessageDto
@@ -78,10 +84,18 @@ fun MessageBubble(
             .messageBubbleEnter(mine),
         contentAlignment = align
     ) {
-        val isVoice = msg.kind == "voice"
-        Column(
-            modifier = Modifier
-                .widthIn(min = if (isVoice) 240.dp else 0.dp, max = if (isVoice) 300.dp else 300.dp)
+    val isVoice = msg.kind == "voice"
+    val isVideoNote = msg.kind == "video_note"
+    Column(
+        modifier = Modifier
+                .widthIn(
+                    min = if (isVoice) 240.dp else 0.dp,
+                    max = when {
+                        isVideoNote -> 260.dp
+                        isVoice -> 300.dp
+                        else -> 300.dp
+                    }
+                )
                 .clip(shape)
                 .background(bg)
                 .then(
@@ -92,11 +106,15 @@ fun MessageBubble(
                         )
                     } else Modifier
                 )
-                .padding(horizontal = 10.dp, vertical = 8.dp)
+                .padding(
+                    horizontal = if (isVideoNote) 6.dp else 10.dp,
+                    vertical = if (isVideoNote) 6.dp else 8.dp
+                )
         ) {
             when (msg.kind) {
                 "image" -> ImageMessage(msg)
                 "voice" -> VoiceMessage(msg)
+                "video_note" -> VideoNoteMessage(msg)
                 "file" -> FileMessage(msg)
                 else -> Text(
                     text = msg.body.orEmpty(),
@@ -247,6 +265,85 @@ private fun VoiceMessage(msg: MessageDto) {
                 style = MaterialTheme.typography.labelSmall
             )
         }
+    }
+}
+
+@Composable
+private fun VideoNoteMessage(msg: MessageDto) {
+    val url = resolveMediaUrl(msg.mediaUrl) ?: return
+    val durationSec = ((msg.mediaDurationMs ?: 0L) / 1000f).roundToInt().coerceAtLeast(1)
+    val player = DeepApp.instance.videoNotePlayer
+    val playState by player.state.collectAsState()
+    val isThis = playState.messageId == msg.id
+    val playing = isThis && playState.playing
+    val loading = isThis && playState.loading
+    val progress = if (isThis) playState.progress else 0f
+    val exo = if (isThis) player.activeExoPlayer() else null
+
+    Box(
+        modifier = Modifier
+            .size(220.dp)
+            .clickable(enabled = !loading) { player.toggle(msg.id, url) },
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(
+                color = DeepAccent.copy(alpha = 0.25f),
+                radius = size.minDimension / 2f,
+                style = Stroke(width = 3.dp.toPx())
+            )
+            if (playing || progress > 0f) {
+                drawArc(
+                    color = DeepAccent,
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress,
+                    useCenter = false,
+                    style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .size(200.dp)
+                .clip(CircleShape)
+                .background(DeepMuted.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (playing && exo != null) {
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            useController = false
+                            player = exo
+                        }
+                    },
+                    update = { it.player = exo },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                when {
+                    loading -> CircularProgressIndicator(
+                        modifier = Modifier.size(36.dp),
+                        color = DeepAccent,
+                        strokeWidth = 2.dp
+                    )
+                    else -> Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = "Смотреть",
+                        tint = DeepAccent,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+        }
+        Text(
+            text = formatVoiceTime(durationSec),
+            color = DeepMuted,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 4.dp)
+        )
     }
 }
 

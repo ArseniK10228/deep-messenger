@@ -851,7 +851,7 @@ class CallManager(
         networkRecoveryJob?.cancel()
         networkRecoveryJob = scope.launch {
             // VPN on/off often fires several callbacks; wait for routing to settle.
-            delay(if (reason == "lost") 2_000L else 1_200L)
+            delay(if (reason == "lost") 2_500L else 1_800L)
             if (!isInCall()) return@launch
             refreshIceServers()
             signaling.setUrgentReconnect(true)

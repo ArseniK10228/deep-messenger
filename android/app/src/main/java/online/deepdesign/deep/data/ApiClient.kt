@@ -160,6 +160,7 @@ object ApiClient {
             level = HttpLoggingInterceptor.Level.BASIC
         }
         val client = OkHttpClient.Builder()
+            .dns(MessengerDns)
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -177,6 +178,7 @@ object ApiClient {
 
     fun okHttp(tokenProvider: () -> String? = { null }): OkHttpClient {
         return OkHttpClient.Builder()
+            .dns(MessengerDns)
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)

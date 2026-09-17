@@ -114,6 +114,7 @@ class CallManager(
     private var wakeLock: PowerManager.WakeLock? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var networkRecoveryJob: Job? = null
+    private var lastIceRefreshAtMs: Long = 0L
     private var statsJob: Job? = null
     @Volatile
     private var iceDegraded = false
@@ -596,6 +597,9 @@ class CallManager(
     }
 
     private suspend fun refreshIceServers() {
+        val now = System.currentTimeMillis()
+        if (now - lastIceRefreshAtMs < 3_000L) return
+        lastIceRefreshAtMs = now
         iceServers = runCatching { api.callIce().iceServers }.getOrDefault(iceServers)
     }
 
@@ -606,7 +610,8 @@ class CallManager(
             is CallUiState.Active -> s.video
             else -> false
         }
-        val relayOnly = NetworkUtils.isVpnActive(context)
+        // ALL candidates — relay-only on VPN often breaks when TURN path flaps.
+        val relayOnly = false
         teardownRtc()
         val generation = rtcGeneration
         beginAudioSession()
@@ -808,11 +813,11 @@ class CallManager(
         networkRecoveryJob?.cancel()
         networkRecoveryJob = scope.launch {
             // VPN on/off often fires several callbacks; wait for routing to settle.
-            delay(if (reason == "lost") 1_500L else 600L)
+            delay(if (reason == "lost") 2_000L else 1_200L)
             if (!isInCall()) return@launch
             refreshIceServers()
             signaling.setUrgentReconnect(true)
-            if (!signaling.isConnected()) signaling.forceReconnect()
+            signaling.forceReconnect()
             engine?.restartIce()
             audioRouter.refreshDevicesNow()
         }
@@ -828,12 +833,6 @@ class CallManager(
 
             override fun onLost(network: Network) {
                 scheduleNetworkRecovery("lost")
-            }
-
-            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-                if (!isInCall()) return
-                if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return
-                scheduleNetworkRecovery("capabilities")
             }
         }
         networkCallback = callback

@@ -8,6 +8,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import android.content.res.Configuration
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -45,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
@@ -204,6 +208,8 @@ private fun IncomingCallUi(
     onAccept: () -> Unit,
     onReject: () -> Unit
 ) {
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val avatarSize = if (landscape) 88.dp else 124.dp
     val pulse by rememberInfiniteTransition(label = "ring").animateFloat(
         initialValue = 1f,
         targetValue = 1.08f,
@@ -212,36 +218,46 @@ private fun IncomingCallUi(
     )
 
     CallBackground {
-        Column(
-            modifier = Modifier
+        Box(
+            Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 28.dp, vertical = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 28.dp, vertical = if (landscape) 12.dp else 32.dp)
         ) {
-            Spacer(Modifier.weight(0.3f))
-            CallStatusChip(
-                text = if (video) "Входящий видеозвонок" else "Входящий звонок",
-                accent = true
-            )
-            Spacer(Modifier.height(28.dp))
-            Box(Modifier.scale(pulse)) {
-                ChatAvatar(name = callerName, size = 124.dp)
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(top = if (landscape) 4.dp else 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CallStatusChip(
+                    text = if (video) "Входящий видеозвонок" else "Входящий звонок",
+                    accent = true
+                )
+                Spacer(Modifier.height(if (landscape) 12.dp else 28.dp))
+                Box(Modifier.scale(pulse)) {
+                    ChatAvatar(name = callerName, size = avatarSize)
+                }
+                Spacer(Modifier.height(if (landscape) 8.dp else 20.dp))
+                Text(
+                    callerName,
+                    color = DeepText,
+                    style = if (landscape) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!landscape) {
+                    Text("Deep Messenger", color = DeepMuted, style = MaterialTheme.typography.bodyLarge)
+                }
             }
-            Spacer(Modifier.height(20.dp))
-            Text(
-                callerName,
-                color = DeepText,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text("Deep Messenger", color = DeepMuted, style = MaterialTheme.typography.bodyLarge)
-            Spacer(Modifier.weight(1f))
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(bottom = if (landscape) 8.dp else 16.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -276,6 +292,8 @@ private fun OngoingCallUi(
     onHangup: () -> Unit,
     onMinimize: () -> Unit
 ) {
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val avatarSize = if (landscape) 84.dp else 132.dp
     val pulse by rememberInfiniteTransition(label = "callPulse").animateFloat(
         initialValue = 1f,
         targetValue = if (connected) 1f else 1.05f,
@@ -287,54 +305,57 @@ private fun OngoingCallUi(
         Box(Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
                     .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 24.dp),
+                    .padding(horizontal = 24.dp, vertical = if (landscape) 8.dp else 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(Modifier.weight(0.22f))
                 CallStatusChip(text = status, accent = connected)
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(if (landscape) 6.dp else 10.dp))
                 CallNetworkStatus(state = callNetwork)
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(if (landscape) 10.dp else 18.dp))
                 Box(Modifier.scale(pulse)) {
-                    ChatAvatar(name = peerName, size = 132.dp, online = connected)
+                    ChatAvatar(name = peerName, size = avatarSize, online = connected)
                 }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(if (landscape) 8.dp else 20.dp))
                 Text(
                     peerName,
                     color = DeepText,
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = if (landscape) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(Modifier.weight(1f))
+            }
 
-                CallControlsDock {
-                    CallControlChip(
-                        icon = if (muted) Icons.Default.MicOff else Icons.Default.Mic,
-                        label = if (muted) {
-                            "Вкл."
-                        } else if (callAudio.inputRoute == CallInputRoute.Headset) {
-                            "BT мик"
-                        } else {
-                            "Мик"
-                        },
-                        active = muted,
-                        micLevel = if (muted) null else micLevel,
-                        onClick = onToggleMute
-                    )
-                    CallControlChip(
-                        icon = audioOutputIcon(callAudio.outputRoute),
-                        label = callAudio.outputLabel,
-                        active = callAudio.outputRoute == CallOutputRoute.Speaker ||
-                            callAudio.outputRoute == CallOutputRoute.Bluetooth,
-                        onClick = onOpenAudioSettings
-                    )
-                    HangupChip(onClick = onHangup)
-                }
+            CallControlsDock(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 12.dp, bottom = if (landscape) 8.dp else 16.dp)
+            ) {
+                CallControlChip(
+                    icon = if (muted) Icons.Default.MicOff else Icons.Default.Mic,
+                    label = if (muted) {
+                        "Вкл."
+                    } else if (callAudio.inputRoute == CallInputRoute.Headset) {
+                        "BT мик"
+                    } else {
+                        "Мик"
+                    },
+                    active = muted,
+                    micLevel = if (muted) null else micLevel,
+                    onClick = onToggleMute
+                )
+                CallControlChip(
+                    icon = audioOutputIcon(callAudio.outputRoute),
+                    label = callAudio.outputLabel,
+                    active = callAudio.outputRoute == CallOutputRoute.Speaker ||
+                        callAudio.outputRoute == CallOutputRoute.Bluetooth,
+                    onClick = onOpenAudioSettings
+                )
+                HangupChip(onClick = onHangup)
             }
 
             CallMinimizeButton(
@@ -367,6 +388,7 @@ private fun VideoCallUi(
     onHangup: () -> Unit,
     onMinimize: () -> Unit
 ) {
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         Box(Modifier.fillMaxSize().zIndex(0f)) {
             when {
@@ -460,7 +482,7 @@ private fun VideoCallUi(
                 .align(Alignment.BottomCenter)
                 .zIndex(3f)
                 .navigationBarsPadding()
-                .padding(bottom = 20.dp),
+                .padding(horizontal = if (landscape) 8.dp else 0.dp, bottom = if (landscape) 8.dp else 20.dp),
             dark = true
         ) {
             CallControlChip(
@@ -538,8 +560,11 @@ private fun CallControlsDock(
         shape = RoundedCornerShape(28.dp),
         shadowElevation = if (dark) 0.dp else 8.dp
     ) {
+        val scroll = rememberScrollState()
         Row(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            modifier = Modifier
+                .horizontalScroll(scroll)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             content = content

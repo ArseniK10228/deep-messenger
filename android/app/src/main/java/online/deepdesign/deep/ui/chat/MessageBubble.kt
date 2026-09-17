@@ -272,18 +272,18 @@ private fun VoiceMessage(msg: MessageDto) {
 private fun VideoNoteMessage(msg: MessageDto) {
     val url = resolveMediaUrl(msg.mediaUrl) ?: return
     val durationSec = ((msg.mediaDurationMs ?: 0L) / 1000f).roundToInt().coerceAtLeast(1)
-    val player = DeepApp.instance.videoNotePlayer
-    val playState by player.state.collectAsState()
+    val notePlayer = DeepApp.instance.videoNotePlayer
+    val playState by notePlayer.state.collectAsState()
     val isThis = playState.messageId == msg.id
     val playing = isThis && playState.playing
     val loading = isThis && playState.loading
     val progress = if (isThis) playState.progress else 0f
-    val exo = if (isThis) player.activeExoPlayer() else null
+    val exo = if (isThis) notePlayer.activeExoPlayer() else null
 
     Box(
         modifier = Modifier
             .size(220.dp)
-            .clickable(enabled = !loading) { player.toggle(msg.id, url) },
+            .clickable(enabled = !loading) { notePlayer.toggle(msg.id, url) },
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -314,10 +314,10 @@ private fun VideoNoteMessage(msg: MessageDto) {
                     factory = { ctx ->
                         PlayerView(ctx).apply {
                             useController = false
-                            player = exo
+                            this.player = exo
                         }
                     },
-                    update = { it.player = exo },
+                    update = { view -> view.player = exo },
                     modifier = Modifier.fillMaxSize()
                 )
             } else {

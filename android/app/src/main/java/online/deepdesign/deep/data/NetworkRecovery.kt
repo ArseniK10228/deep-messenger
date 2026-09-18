@@ -4,12 +4,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.call.SignalingHub
 
 /** Debounced WS + HTTP reset when default route changes (VPN on/off, Wi‑Fi ↔ mobile). */
 object NetworkRecovery {
     private var recoverJob: Job? = null
+
+    /** Set from [DeepApp] after [CallManager] is ready. */
+    var onCallNetworkRouteChanged: (() -> Unit)? = null
 
     fun schedule(
         scope: CoroutineScope,
@@ -26,7 +28,7 @@ object NetworkRecovery {
             signaling.setUrgentReconnect(true)
             signaling.forceReconnect()
             ChatNotifier.emit(ChatEvent.NetworkRouteChanged)
-            runCatching { DeepApp.instance.callManager.onNetworkRouteChanged() }
+            runCatching { onCallNetworkRouteChanged?.invoke() }
         }
     }
 

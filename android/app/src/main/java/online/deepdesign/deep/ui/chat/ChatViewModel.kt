@@ -31,8 +31,10 @@ import androidx.lifecycle.LifecycleOwner
 import online.deepdesign.deep.data.VideoNoteRecorder
 import online.deepdesign.deep.data.VoiceRecorder
 import online.deepdesign.deep.data.WsEnvelope
+import online.deepdesign.deep.data.AttachmentDownloader
 import online.deepdesign.deep.data.readPickedFile
 import online.deepdesign.deep.data.readPickedMeta
+import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -44,11 +46,18 @@ data class PendingAttachment(
     val sizeBytes: Long?
 )
 
+data class MediaViewerState(
+    val localFile: File,
+    val title: String,
+    val mime: String?
+)
+
 data class ChatUiState(
     val loading: Boolean = true,
     val messages: List<MessageDto> = emptyList(),
     val input: String = "",
     val pendingAttachment: PendingAttachment? = null,
+    val mediaViewer: MediaViewerState? = null,
     val sending: Boolean = false,
     val uploading: Boolean = false,
     val recording: Boolean = false,
@@ -112,8 +121,10 @@ class ChatViewModel(
                 } else if (event is ChatEvent.RefreshChats) {
                     loadPeer()
                 } else if (event is ChatEvent.NetworkRouteChanged) {
-                    if (AppForegroundState.foreground.value) {
+                    viewModelScope.launch {
+                        if (!AppForegroundState.foreground.value) return@launch
                         disconnectWs()
+                        kotlinx.coroutines.delay(350)
                         connectWs()
                         loadMessages()
                         loadPeer()
@@ -270,6 +281,32 @@ class ChatViewModel(
 
     fun clearPendingAttachment() {
         _state.update { it.copy(pendingAttachment = null) }
+    }
+
+    fun dismissMediaViewer() {
+        _state.update { it.copy(mediaViewer = null) }
+    }
+
+    fun openMessageMedia(msg: MessageDto) {
+        viewModelScope.launch {
+            _state.update { it.copy(error = null) }
+            try {
+                val file = AttachmentDownloader.downloadMessage(DeepApp.instance, msg.id)
+                val mime = msg.mediaMime?.lowercase() ?: ""
+                val title = msg.body?.takeIf { it.isNotBlank() } ?: file.name
+                val preview = mime.startsWith("image/") || mime == "application/pdf" ||
+                    title.endsWith(".pdf", true)
+                if (preview) {
+                    _state.update {
+                        it.copy(mediaViewer = MediaViewerState(file, title, msg.mediaMime))
+                    }
+                } else {
+                    AttachmentDownloader.openLocalFile(DeepApp.instance, file, msg.mediaMime)
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message ?: "Не удалось открыть файл") }
+            }
+        }
     }
 
     fun queueAttachment(uri: Uri) {

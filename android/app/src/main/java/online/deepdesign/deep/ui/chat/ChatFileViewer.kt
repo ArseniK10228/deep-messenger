@@ -1,7 +1,5 @@
 package online.deepdesign.deep.ui.chat
 
-import android.content.Intent
-import android.net.Uri
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
@@ -27,27 +25,35 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
+import online.deepdesign.deep.data.AttachmentDownloader
 import online.deepdesign.deep.ui.theme.DeepBg
 import online.deepdesign.deep.ui.theme.DeepSurface
 import online.deepdesign.deep.ui.theme.DeepText
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatFileViewerSheet(
     visible: Boolean,
     title: String,
-    url: String?,
+    localFile: File,
     mimeHint: String?,
     onDismiss: () -> Unit
 ) {
-    if (!visible || url == null) return
+    if (!visible) return
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     val mime = mimeHint?.lowercase() ?: ""
     val isImage = mime.startsWith("image/") || title.endsWith(".jpg", true) ||
         title.endsWith(".jpeg", true) || title.endsWith(".png", true) || title.endsWith(".webp", true)
-    val isPdf = mime == "application/pdf" || title.endsWith(".pdf", true)
+    val isPdf = mime == "application/pdf" || title.endsWith(".pdf", true) || localFile.extension.equals("pdf", true)
+    val fileUri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        localFile
+    )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -81,7 +87,7 @@ fun ChatFileViewerSheet(
             when {
                 isImage -> {
                     AsyncImage(
-                        model = url,
+                        model = fileUri,
                         contentDescription = title,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -103,10 +109,10 @@ fun ChatFileViewerSheet(
                                 settings.builtInZoomControls = true
                                 settings.displayZoomControls = false
                                 webViewClient = WebViewClient()
-                                loadUrl(url)
+                                loadUrl(fileUri.toString())
                             }
                         },
-                        update = { it.loadUrl(url) }
+                        update = { it.loadUrl(fileUri.toString()) }
                     )
                 }
                 else -> {
@@ -117,12 +123,7 @@ fun ChatFileViewerSheet(
                     )
                     TextButton(
                         onClick = {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                )
-                            }
+                            AttachmentDownloader.openLocalFile(context, localFile, mimeHint)
                             onDismiss()
                         },
                         modifier = Modifier.padding(horizontal = 12.dp)

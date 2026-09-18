@@ -23,6 +23,7 @@ import online.deepdesign.deep.data.ChatEvent
 import online.deepdesign.deep.data.SessionStore
 import online.deepdesign.deep.data.DeepAppToken
 import online.deepdesign.deep.data.AppNetworkMonitor
+import online.deepdesign.deep.data.NetworkRecovery
 import online.deepdesign.deep.data.VideoNotePlayer
 import online.deepdesign.deep.data.VoicePlayer
 import online.deepdesign.deep.push.ClientReporter
@@ -72,6 +73,7 @@ class DeepApp : Application() {
         val signaling = SignalingHub({ cachedToken }) { DeviceIds.clientId(this) }
         signalingHub = signaling
         callManager = CallManager(this, signaling)
+        NetworkRecovery.onCallNetworkRouteChanged = { callManager.onNetworkRouteChanged() }
         voicePlayer = VoicePlayer(this)
         videoNotePlayer = VideoNotePlayer(this)
         networkMonitor = AppNetworkMonitor(this, signaling) { cachedToken }

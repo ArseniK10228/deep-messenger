@@ -1,4 +1,7 @@
+import fs from 'fs';
+import path from 'path';
 import type { FastifyInstance } from 'fastify';
+import { config } from '../config.js';
 import { getAuthUser } from '../lib/auth.js';
 import {
   createDirectConversation,
@@ -8,6 +11,7 @@ import {
 } from '../db/conversations.js';
 import {
   deleteForEveryone,
+  getMessageMediaForUser,
   hideMessageForUser,
   insertMessage,
   listMessages,
@@ -117,6 +121,30 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       preview: previewText(message)
     });
     return { message };
+  });
+
+  app.get('/messages/:id/attachment', async (req, reply) => {
+    const user = getAuthUser(req);
+    const { id } = req.params as { id: string };
+    const row = await getMessageMediaForUser(id, user.id);
+    if (!row?.media_path) {
+      return reply.code(404).send({ error: 'not found' });
+    }
+    const abs = path.join(config.uploadDir, row.media_path);
+    if (!fs.existsSync(abs)) {
+      return reply.code(404).send({ error: 'file missing' });
+    }
+    const storageName = path.basename(row.media_path);
+    const bodyName = row.body?.trim();
+    const downloadName =
+      bodyName && /\.[a-z0-9]{2,12}$/i.test(bodyName) ? bodyName : storageName;
+    reply.header(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`
+    );
+    return reply
+      .type(row.media_mime || 'application/octet-stream')
+      .send(fs.createReadStream(abs));
   });
 
   app.post('/messages/:id/delivered', async (req) => {

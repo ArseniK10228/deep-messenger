@@ -86,7 +86,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import online.deepdesign.deep.data.MessageDto
-import online.deepdesign.deep.data.resolveMediaUrl
 import online.deepdesign.deep.data.OperatorAccess
 import online.deepdesign.deep.ui.components.AnimatedChatStatus
 import online.deepdesign.deep.ui.components.ChatAvatar
@@ -122,7 +121,6 @@ fun ChatScreen(
     val imeBottomPx = WindowInsets.ime.getBottom(density)
     var showAttach by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<MessageDto?>(null) }
-    var mediaViewer by remember { mutableStateOf<MessageDto?>(null) }
     val attachSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val deleteSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val dismissKeyboard = rememberDismissKeyboard()
@@ -543,7 +541,7 @@ fun ChatScreen(
                                 msg = msg,
                                 mine = vm.isMine(msg),
                                 onLongClick = { deleteTarget = msg },
-                                onOpenMedia = { mediaViewer = it }
+                                onOpenMedia = vm::openMessageMedia
                             )
                         }
                         item(key = "peer_typing") {
@@ -677,13 +675,13 @@ fun ChatScreen(
         }
     }
 
-    mediaViewer?.let { msg ->
+    state.mediaViewer?.let { viewer ->
         ChatFileViewerSheet(
             visible = true,
-            title = msg.body?.takeIf { it.isNotBlank() } ?: if (msg.kind == "image") "Фото" else "Файл",
-            url = resolveMediaUrl(msg.mediaUrl),
-            mimeHint = msg.mediaMime,
-            onDismiss = { mediaViewer = null }
+            title = viewer.title,
+            localFile = viewer.localFile,
+            mimeHint = viewer.mime,
+            onDismiss = vm::dismissMediaViewer
         )
     }
 }

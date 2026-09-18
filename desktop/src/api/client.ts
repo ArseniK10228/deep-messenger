@@ -1,9 +1,13 @@
 import type { Conversation, Message, User } from './types';
 import { getClientId } from '../utils/clientId';
 
-export const API_BASE =
-  import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ||
-  'https://api.deepdesignpc.online';
+function normalizeApiOrigin(raw: string): string {
+  return raw.replace(/\/api\/v1\/?$/i, '').replace(/\/$/, '');
+}
+
+export const API_BASE = normalizeApiOrigin(
+  import.meta.env.VITE_API_BASE_URL?.trim() || 'https://api.deepdesignpc.online'
+);
 
 const API = `${API_BASE}/api/v1`;
 
@@ -178,6 +182,11 @@ export function mediaUrl(path: string | null | undefined): string | null {
   if (!path) return null;
   if (path.startsWith('http')) return path;
   return `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
+}
+
+/** Authenticated download — works when public /media/ 404s or needs auth. */
+export function messageAttachmentUrl(messageId: string): string {
+  return `${API}/messages/${messageId}/attachment`;
 }
 
 export function wsUrl(): string {

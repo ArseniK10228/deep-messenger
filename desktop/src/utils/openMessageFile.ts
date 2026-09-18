@@ -1,5 +1,5 @@
 import type { Message } from '../api/types';
-import { getToken, mediaUrl } from '../api/client';
+import { getToken, messageAttachmentUrl } from '../api/client';
 
 function fileExt(name: string): string {
   const i = name.lastIndexOf('.');
@@ -22,20 +22,34 @@ export async function openMessageFile(
     return;
   }
 
-  const url = mediaUrl(msg.mediaUrl);
-  if (!url) return;
+  if (!msg.mediaUrl && msg.kind !== 'image' && msg.kind !== 'file') return;
 
-  const fileName = msg.body?.trim() || 'file';
+  const fileName = attachmentDisplayName(msg);
+  const downloadUrl = messageAttachmentUrl(msg.id);
   const api = window.deepDesktop;
 
   if (api?.openChatFile) {
     try {
-      await api.openChatFile(url, fileName, getToken());
+      await api.openChatFile(downloadUrl, fileName, getToken());
     } catch (e) {
       throw e instanceof Error ? e : new Error('Не удалось открыть файл');
     }
     return;
   }
 
-  window.open(url, '_blank', 'noopener,noreferrer');
+  window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+}
+
+function attachmentDisplayName(msg: Message): string {
+  const fromPath = msg.mediaUrl?.split('/').filter(Boolean).pop();
+  if (fromPath && fromPath.includes('.')) {
+    try {
+      return decodeURIComponent(fromPath);
+    } catch {
+      return fromPath;
+    }
+  }
+  const body = msg.body?.trim();
+  if (body) return body;
+  return 'file';
 }

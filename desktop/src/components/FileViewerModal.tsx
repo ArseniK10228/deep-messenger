@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import { X, ExternalLink } from 'lucide-react';
-import { getToken, mediaUrl } from '../api/client';
+import { getToken, messageAttachmentUrl } from '../api/client';
 
 type Props = {
+  messageId: string;
   fileName: string;
-  mediaPath: string | null | undefined;
   kind: string;
   onClose: () => void;
 };
 
-export function FileViewerModal({ fileName, mediaPath, kind, onClose }: Props) {
-  const url = mediaUrl(mediaPath);
+export function FileViewerModal({ messageId, fileName, kind, onClose }: Props) {
+  const url = messageAttachmentUrl(messageId);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +33,10 @@ export function FileViewerModal({ fileName, mediaPath, kind, onClose }: Props) {
     let objectUrl: string | null = null;
     (async () => {
       try {
-        const res = await fetch(url);
+        const headers: HeadersInit = {};
+        const token = getToken();
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch(url, { headers });
         if (!res.ok) throw new Error('Не удалось загрузить');
         const blob = await res.blob();
         objectUrl = URL.createObjectURL(blob);

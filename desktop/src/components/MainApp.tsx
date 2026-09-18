@@ -448,8 +448,8 @@ export function MainApp() {
 
       {viewerMsg ? (
         <FileViewerModal
+          messageId={viewerMsg.id}
           fileName={viewerMsg.body?.trim() || (viewerMsg.kind === 'image' ? 'Фото' : 'Файл')}
-          mediaPath={viewerMsg.mediaUrl}
           kind={viewerMsg.kind}
           onClose={() => setViewerMsg(null)}
         />

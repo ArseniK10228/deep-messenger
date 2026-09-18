@@ -115,6 +115,25 @@ export async function insertMessage(input: {
   return mapMessage(r.rows[0], input.senderId);
 }
 
+export async function getMessageMediaForUser(
+  messageId: string,
+  userId: string
+): Promise<MessageRow | null> {
+  const r = await query<MessageRow>(
+    `SELECT m.*
+     FROM messages m
+     JOIN conversation_members cm
+       ON cm.conversation_id = m.conversation_id AND cm.user_id = $2
+     WHERE m.id = $1
+       AND m.deleted_for_all_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = $2
+       )`,
+    [messageId, userId]
+  );
+  return r.rows[0] ?? null;
+}
+
 export async function hideMessageForUser(messageId: string, userId: string): Promise<void> {
   await query(
     `INSERT INTO message_hidden (message_id, user_id) VALUES ($1, $2)

@@ -143,7 +143,9 @@ class AuthInterceptor(private val tokenProvider: () -> String?) : Interceptor {
                 tokenProvider()?.let { header("Authorization", "Bearer $it") }
             }.build()
         )
-        if (response.code == 401 && !chain.request().url.encodedPath.contains("/auth/")) {
+        val path = chain.request().url.encodedPath
+        val hadAuth = !chain.request().header("Authorization").isNullOrBlank()
+        if (response.code == 401 && hadAuth && !path.contains("/auth/")) {
             AuthEvents.notifySessionExpired()
         }
         return response

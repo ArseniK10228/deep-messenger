@@ -1,6 +1,5 @@
 package online.deepdesign.deep.ui.auth
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,11 +25,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import online.deepdesign.deep.R
 import androidx.lifecycle.viewmodel.compose.viewModel
+import online.deepdesign.deep.ui.components.DeepBrandLogo
 import online.deepdesign.deep.ui.components.deepAppear
 import online.deepdesign.deep.ui.theme.DeepAccent
 import online.deepdesign.deep.ui.theme.DeepBg
@@ -59,12 +57,9 @@ fun LoginScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Image(
-            painter = painterResource(R.drawable.deep_logo),
-            contentDescription = "Deep",
-            modifier = Modifier
-                .size(88.dp)
-                .deepAppear()
+        DeepBrandLogo(
+            size = 88.dp,
+            modifier = Modifier.deepAppear()
         )
         Spacer(Modifier.height(8.dp))
         Text(

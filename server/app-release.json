@@ -1,7 +1,7 @@
 {
-  "versionCode": 57,
-  "versionName": "0.3.54",
+  "versionCode": 58,
+  "versionName": "0.3.55",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Видеокружки как в Telegram; стабильнее сеть/VPN (DNS, retry WS).",
+  "changelog": "Сессия после обновления; плавный индикатор «печатает»; скруглённый логотип.",
   "forceUpdate": true
 }

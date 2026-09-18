@@ -7,6 +7,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -65,6 +66,9 @@ class DeepApp : Application() {
         instance = this
         sessionStore = SessionStore(this)
         chatDraftStore = ChatDraftStore(this)
+        runBlocking {
+            SessionBootstrap.restore(sessionStore, this@DeepApp)
+        }
         api = ApiClient.create { cachedToken }
         DeepAppToken.current = { cachedToken }
         val signaling = SignalingHub { cachedToken }

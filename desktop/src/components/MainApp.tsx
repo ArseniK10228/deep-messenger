@@ -151,7 +151,13 @@ export function MainApp() {
   }, [activeId, loadList, myId, callUi.phase]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const scroll = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    scroll();
+    if (typing) {
+      const t = window.setTimeout(scroll, 280);
+      return () => window.clearTimeout(t);
+    }
+    return undefined;
   }, [messages, activeId, typing]);
 
   async function send() {

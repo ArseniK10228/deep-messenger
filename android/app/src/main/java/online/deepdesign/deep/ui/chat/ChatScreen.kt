@@ -6,13 +6,10 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +35,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.animateItem
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -254,22 +252,23 @@ fun ChatScreen(
         }
     }
 
-    val typingListIndex: Int? =
-        if (state.peerTyping) {
-            if (state.messages.isEmpty()) 0 else state.messages.size
-        } else {
-            null
-        }
+    fun chatScrollTargetIndex(): Int? = when {
+        state.peerTyping -> if (state.messages.isEmpty()) 0 else state.messages.size
+        state.messages.isNotEmpty() -> state.messages.lastIndex
+        else -> null
+    }
 
-    LaunchedEffect(state.peerTyping, state.messages.size) {
+    fun isNearChatBottom(): Boolean {
+        val lastContent = if (state.messages.isEmpty()) 0 else state.messages.lastIndex
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: return true
+        return lastVisible >= lastContent - 1
+    }
+
+    LaunchedEffect(state.peerTyping) {
         if (!state.peerTyping) return@LaunchedEffect
-        val target = typingListIndex ?: return@LaunchedEffect
-        val nearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-            ?.let { lastVisible ->
-                val lastContent = if (state.messages.isEmpty()) 0 else state.messages.lastIndex
-                lastVisible >= lastContent - 1
-            } != false
-        if (nearBottom) {
+        kotlinx.coroutines.delay(32)
+        val target = chatScrollTargetIndex() ?: return@LaunchedEffect
+        if (isNearChatBottom()) {
             listState.animateScrollToItem(target)
         }
     }
@@ -277,12 +276,11 @@ fun ChatScreen(
     val inputBarColor = DeepBg.copy(alpha = 0.94f)
 
     // Скролл вниз синхронно с анимацией клавиатуры (на каждый кадр IME inset).
-    LaunchedEffect(imeBottomPx, state.messages.size) {
-        if (imeBottomPx <= 0 || state.messages.isEmpty()) return@LaunchedEffect
-        val nearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-            ?.let { it >= state.messages.lastIndex - 1 } != false
-        if (nearBottom) {
-            listState.scrollToItem(state.messages.lastIndex)
+    LaunchedEffect(imeBottomPx, state.messages.size, state.peerTyping) {
+        if (imeBottomPx <= 0) return@LaunchedEffect
+        val target = chatScrollTargetIndex() ?: return@LaunchedEffect
+        if (isNearChatBottom()) {
+            listState.scrollToItem(target)
         }
     }
 
@@ -507,22 +505,22 @@ fun ChatScreen(
                             )
                         }
                         item(key = "peer_typing") {
-                            AnimatedVisibility(
-                                visible = state.peerTyping,
-                                enter = fadeIn(tween(200)) + expandVertically(
-                                    animationSpec = tween(240, easing = FastOutSlowInEasing),
-                                    expandFrom = Alignment.Top
-                                ),
-                                exit = fadeOut(tween(160)) + shrinkVertically(
-                                    animationSpec = tween(200, easing = FastOutSlowInEasing),
-                                    shrinkTowards = Alignment.Top
-                                )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateItem(
+                                        fadeInSpec = tween(180),
+                                        fadeOutSpec = tween(140),
+                                        placementSpec = tween(260, easing = FastOutSlowInEasing)
+                                    )
                             ) {
-                                TypingBubbleIndicator(
-                                    asMessageBubble = true,
-                                    compact = true,
-                                    modifier = Modifier.padding(top = 2.dp)
-                                )
+                                if (state.peerTyping) {
+                                    TypingBubbleIndicator(
+                                        asMessageBubble = true,
+                                        compact = true,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
                             }
                         }
                     }

@@ -289,6 +289,8 @@ class ChatsViewModel : ViewModel() {
             "text" -> m.body.orEmpty()
             "image" -> "Фото"
             "voice" -> "Голосовое"
+            "video_note" -> "Видеосообщение"
+            "file" -> m.body?.takeIf { it.isNotBlank() }?.let { "📎 $it" } ?: "Файл"
             else -> "Файл"
         }
     }

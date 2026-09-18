@@ -17,6 +17,7 @@ export function lastMessagePreview(conv: Conversation): string {
   if (m.kind === 'image') return 'Фото';
   if (m.kind === 'voice') return 'Голосовое';
   if (m.kind === 'video_note') return 'Видеосообщение';
+  if (m.kind === 'file') return m.body?.trim() ? `📎 ${m.body.trim()}` : 'Файл';
   return 'Файл';
 }
 

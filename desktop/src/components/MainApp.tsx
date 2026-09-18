@@ -307,7 +307,7 @@ export function MainApp() {
                 ref={fileRef}
                 type="file"
                 hidden
-                accept="image/*,video/mp4,audio/*,.pdf,.zip,.txt"
+                accept="*/*"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) onPickFile(f);

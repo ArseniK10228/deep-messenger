@@ -28,6 +28,7 @@ object MediaUploader {
             )
         durationMs?.let { body.addFormDataPart("durationMs", it.toString()) }
         if (videoNote) body.addFormDataPart("videoNote", "1")
+        else if (durationMs != null) body.addFormDataPart("voice", "1")
 
         val request = Request.Builder()
             .url("${ApiConfig.BASE_URL.trimEnd('/')}/api/v1/conversations/$conversationId/upload")

@@ -1,7 +1,7 @@
 {
-  "versionCode": 60,
-  "versionName": "0.3.57",
+  "versionCode": 61,
+  "versionName": "0.3.58",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Краш после обновления (сессия); надёжнее маршрут звонков WebRTC.",
+  "changelog": "Любые файлы во вложениях (doc, zip, exe и т.д.).",
   "forceUpdate": true
 }

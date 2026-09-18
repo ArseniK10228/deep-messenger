@@ -7,6 +7,10 @@ export function previewText(message: { kind: string; body: string | null }): str
   if (message.kind === 'image') return 'Фото';
   if (message.kind === 'voice') return 'Голосовое сообщение';
   if (message.kind === 'video_note') return 'Видеосообщение';
+  if (message.kind === 'file') {
+    const name = message.body?.trim();
+    return name ? `📎 ${name}` : 'Файл';
+  }
   return 'Файл';
 }
 

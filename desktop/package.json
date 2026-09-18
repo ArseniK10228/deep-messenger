@@ -1,7 +1,7 @@
 {
   "name": "deep-messenger-desktop",
-  "version": "1.2.2",
-  "deepVersionCode": 5,
+  "version": "1.2.3",
+  "deepVersionCode": 6,
   "description": "Deep Messenger for Windows",
   "main": "dist-electron/main.js",
   "author": "Deep Design",

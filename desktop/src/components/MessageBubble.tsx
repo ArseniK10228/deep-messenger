@@ -7,6 +7,12 @@ type Props = {
   mine: boolean;
 };
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function formatTime(iso: string) {
   try {
     return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
@@ -85,12 +91,23 @@ export function MessageBubble({ msg, mine }: Props) {
           </div>
         );
       }
-      case 'file':
+      case 'file': {
+        const url = mediaUrl(msg.mediaUrl);
+        const name = msg.body?.trim() || 'Файл';
+        const size =
+          msg.mediaSize != null && msg.mediaSize > 0
+            ? formatFileSize(msg.mediaSize)
+            : null;
         return (
-          <a href={mediaUrl(msg.mediaUrl) || '#'} target="_blank" rel="noreferrer">
-            📎 {msg.body || 'Файл'}
+          <a className="file-attachment" href={url || '#'} target="_blank" rel="noreferrer" download={name}>
+            <span className="file-attachment-icon">📎</span>
+            <span className="file-attachment-meta">
+              <span className="file-attachment-name">{name}</span>
+              {size ? <span className="file-attachment-size">{size}</span> : null}
+            </span>
           </a>
         );
+      }
       default:
         return <p className="bubble-text">{msg.body || ''}</p>;
     }

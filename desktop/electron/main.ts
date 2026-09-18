@@ -1,4 +1,5 @@
 import { app, BrowserWindow, shell } from 'electron';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setupAutoUpdater } from './updater';
@@ -12,8 +13,20 @@ process.env.VITE_PUBLIC = app.isPackaged
 
 let win: BrowserWindow | null = null;
 
+function resolveAppIcon(): string {
+  if (app.isPackaged) {
+    const ico = path.join(process.resourcesPath, 'icon.ico');
+    if (fs.existsSync(ico)) return ico;
+    return path.join(process.resourcesPath, 'icon.png');
+  }
+  const ico = path.join(__dirname, '../build/icon.ico');
+  const png = path.join(__dirname, '../build/icon.png');
+  if (fs.existsSync(ico)) return ico;
+  return png;
+}
+
 function createWindow() {
-  const iconPath = path.join(__dirname, '../build/icon.png');
+  const iconPath = resolveAppIcon();
   win = new BrowserWindow({
     width: 1180,
     height: 760,

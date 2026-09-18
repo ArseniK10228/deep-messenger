@@ -1,7 +1,7 @@
 {
   "name": "deep-messenger-desktop",
-  "version": "1.2.0",
-  "deepVersionCode": 3,
+  "version": "1.2.1",
+  "deepVersionCode": 4,
   "description": "Deep Messenger for Windows",
   "main": "dist-electron/main.js",
   "author": "Deep Design",
@@ -10,8 +10,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "dist": "npm run build && electron-builder --win --publish never",
-    "dist:portable": "npm run build && electron-builder --win portable --publish never"
+    "icons": "node scripts/generate-icon.mjs",
+    "dist": "npm run icons && npm run build && electron-builder --win --publish never",
+    "dist:portable": "npm run icons && npm run build && electron-builder --win portable --publish never"
   },
   "dependencies": {
     "electron-updater": "^6.3.9",
@@ -25,6 +26,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^34.0.0",
     "electron-builder": "^25.1.8",
+    "png-to-ico": "^3.0.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.3",
     "vite-plugin-electron": "^0.28.8",
@@ -40,6 +42,16 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      }
+    ],
     "artifactName": "Deep-Messenger-Windows-Setup-latest.${ext}",
     "publish": [
       {
@@ -48,7 +60,7 @@
       }
     ],
     "win": {
-      "icon": "build/icon.png",
+      "icon": "build/icon.ico",
       "signAndEditExecutable": false,
       "target": [
         {

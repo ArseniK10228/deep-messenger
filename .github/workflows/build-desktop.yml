@@ -38,16 +38,19 @@ jobs:
 
       - name: Attach Windows installer to downloads release
         shell: bash
+        working-directory: ${{ github.workspace }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          SETUP=$(ls desktop/release/*.exe 2>/dev/null | head -1)
+          set -euo pipefail
+          SETUP=$(find desktop/release -maxdepth 1 -name '*.exe' -print | head -1)
           if [ -z "$SETUP" ]; then
             echo "::error::No Windows installer in desktop/release"
             exit 1
           fi
           VER=$(node -p "require('./desktop/package.json').version")
-          gh release view downloads 2>/dev/null || gh release create downloads \
+          gh release view downloads --repo "${{ github.repository }}" 2>/dev/null || gh release create downloads \
+            --repo "${{ github.repository }}" \
             --title "Установка Deep Messenger" \
             --notes "Актуальные сборки Android и Windows. Файлы обновляются при CI." \
             --latest
@@ -56,5 +59,6 @@ jobs:
           gh release upload downloads \
             "Deep-Messenger-Windows-Setup-${VER}.exe" \
             Deep-Messenger-Windows-Setup-latest.exe \
-            --clobber
+            --clobber \
+            --repo "${{ github.repository }}"
           echo "Release: https://github.com/${{ github.repository }}/releases/tag/downloads"

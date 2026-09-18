@@ -127,10 +127,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
+          set -euo pipefail
+          APK=$(find android/app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print | head -1)
           test -n "$APK"
           VN=$(grep -E 'versionName\s*=' android/app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
-          gh release view downloads 2>/dev/null || gh release create downloads \
+          gh release view downloads --repo "${{ github.repository }}" 2>/dev/null || gh release create downloads \
+            --repo "${{ github.repository }}" \
             --title "Установка Deep Messenger" \
             --notes "Актуальные сборки Android и Windows. Файлы обновляются при CI." \
             --latest
@@ -139,7 +141,8 @@ jobs:
           gh release upload downloads \
             "Deep-Messenger-Android-${VN}.apk" \
             Deep-Messenger-Android-latest.apk \
-            --clobber
+            --clobber \
+            --repo "${{ github.repository }}"
           echo "Release: https://github.com/${{ github.repository }}/releases/tag/downloads"
 
       - name: Prepare SSH key

@@ -56,7 +56,7 @@ class ChatsViewModel : ViewModel() {
         viewModelScope.launch {
             ChatNotifier.events.collect { event ->
                 when (event) {
-                    is ChatEvent.NewMessage, ChatEvent.RefreshChats -> refresh()
+                    is ChatEvent.NewMessage, ChatEvent.RefreshChats, ChatEvent.NetworkRouteChanged -> refresh()
                     is ChatEvent.PeerTyping -> onPeerTyping(event.conversationId)
                     is ChatEvent.MessageStatus -> Unit
                 }

@@ -231,7 +231,8 @@ class CallForegroundService : Service() {
             outgoing: Boolean,
             video: Boolean = false,
             ringingOnly: Boolean = false,
-            connectedAtMs: Long = 0L
+            connectedAtMs: Long = 0L,
+            inCall: Boolean = false
         ) {
             if (!ringingOnly &&
                 ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
@@ -241,8 +242,8 @@ class CallForegroundService : Service() {
             }
             val peer = when {
                 outgoing && ringingOnly -> "Вызов: $peerName"
-                outgoing -> "Разговор: $peerName"
                 ringingOnly -> "Входящий: $peerName"
+                inCall -> "Разговор: $peerName"
                 else -> peerName
             }
             lastPeer = peer
@@ -267,9 +268,10 @@ class CallForegroundService : Service() {
             outgoing: Boolean,
             video: Boolean,
             ringingOnly: Boolean = false,
-            connectedAtMs: Long = 0L
+            connectedAtMs: Long = 0L,
+            inCall: Boolean = false
         ) {
-            start(context, peerName, outgoing, video, ringingOnly, connectedAtMs)
+            start(context, peerName, outgoing, video, ringingOnly, connectedAtMs, inCall)
         }
 
         fun stop(context: Context) {

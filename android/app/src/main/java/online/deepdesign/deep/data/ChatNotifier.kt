@@ -24,4 +24,6 @@ sealed class ChatEvent {
         val peerRead: Boolean
     ) : ChatEvent()
     data object RefreshChats : ChatEvent()
+    /** VPN / default network changed — reopen sockets. */
+    data object NetworkRouteChanged : ChatEvent()
 }

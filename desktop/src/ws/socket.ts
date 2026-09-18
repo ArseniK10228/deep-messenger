@@ -12,6 +12,7 @@ export class DeepSocket {
   connect() {
     this.closed = false;
     if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.ws?.readyState === WebSocket.CONNECTING) return;
     const url = wsUrl();
     if (!url.includes('token=') || url.endsWith('token=')) return;
 
@@ -30,6 +31,7 @@ export class DeepSocket {
       }
     };
     this.ws.onclose = () => {
+      this.ws = null;
       if (!this.closed) this.scheduleReconnect();
     };
     this.ws.onerror = () => {
@@ -40,8 +42,26 @@ export class DeepSocket {
   disconnect() {
     this.closed = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
     this.ws?.close();
     this.ws = null;
+  }
+
+  /** VPN / network route change — drop zombie socket and reconnect. */
+  forceReconnect() {
+    if (this.closed) return;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    const old = this.ws;
+    this.ws = null;
+    try {
+      old?.close();
+    } catch {
+      /* ignore */
+    }
+    this.connect();
   }
 
   subscribe(conversationId: string | null) {
@@ -85,3 +105,22 @@ export class DeepSocket {
 }
 
 export const globalSocket = new DeepSocket();
+
+let networkBound = false;
+let networkDebounce: ReturnType<typeof setTimeout> | null = null;
+
+/** Call once at app start — reconnect when OS reports connectivity back (incl. after VPN flip). */
+export function bindSocketNetworkRecovery() {
+  if (networkBound || typeof window === 'undefined') return;
+  networkBound = true;
+
+  const kick = () => {
+    if (networkDebounce) clearTimeout(networkDebounce);
+    networkDebounce = setTimeout(() => {
+      networkDebounce = null;
+      globalSocket.forceReconnect();
+    }, 1500);
+  };
+
+  window.addEventListener('online', kick);
+}

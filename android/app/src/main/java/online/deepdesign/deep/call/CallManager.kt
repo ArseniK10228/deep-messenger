@@ -153,6 +153,11 @@ class CallManager(
         forceRefreshForegroundService()
     }
 
+    fun onNetworkRouteChanged() {
+        if (!isInCall()) return
+        scheduleNetworkRecovery("route")
+    }
+
     fun onAppForegrounded() {
         signaling.setUrgentReconnect(isInCall())
         if (!signaling.isConnected()) {
@@ -193,7 +198,8 @@ class CallManager(
             else -> false
         }
         val ringing = isRingingPhase()
-        val connectedAt = if ((_state.value as? CallUiState.Active)?.connected == true) {
+        val inCall = _state.value is CallUiState.Active
+        val connectedAt = if (inCall && activeCallConnectedAtMs > 0L) {
             activeCallConnectedAtMs
         } else {
             0L
@@ -208,7 +214,7 @@ class CallManager(
         lastFgsRinging = ringing
         lastFgsConnectedAtMs = connectedAt
         val outgoing = _state.value is CallUiState.Outgoing
-        CallForegroundService.refresh(context, peer, outgoing, video, ringing, connectedAt)
+        CallForegroundService.refresh(context, peer, outgoing, video, ringing, connectedAt, inCall)
     }
 
     private fun markCallConnectedIfNeeded(wasConnected: Boolean) {
@@ -378,6 +384,7 @@ class CallManager(
         scope.launch {
             try {
                 ringtonePlayer.stop()
+                IncomingCallNotifier.dismiss(context, incoming.callId)
                 val resp = api.acceptCall(
                     incoming.callId,
                     AcceptCallRequest(DeviceIds.clientId(context))
@@ -393,9 +400,10 @@ class CallManager(
                     incoming.video,
                     connected = false
                 )
+                activeCallConnectedAtMs = System.currentTimeMillis()
                 setCallSignalingPriority(true)
                 beginAudioSession()
-                refreshForegroundService()
+                forceRefreshForegroundService()
                 initEngine()
                 ClientReporter.scheduleReport()
                 pendingOffer?.let {
@@ -586,9 +594,10 @@ class CallManager(
                     outgoing.video,
                     connected = false
                 )
+                activeCallConnectedAtMs = System.currentTimeMillis()
                 setCallSignalingPriority(true)
                 beginAudioSession()
-                refreshForegroundService()
+                forceRefreshForegroundService()
                 initEngine()
                 ClientReporter.scheduleReport()
                 engine?.createOffer { sdp ->

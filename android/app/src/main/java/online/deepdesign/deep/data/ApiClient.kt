@@ -14,6 +14,7 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
+import okhttp3.ConnectionPool
 
 object ApiConfig {
     const val BASE_URL = BuildConfig.API_BASE_URL
@@ -156,15 +157,22 @@ class AuthInterceptor(private val tokenProvider: () -> String?) : Interceptor {
 }
 
 object ApiClient {
+    private val connectionPool = ConnectionPool(8, 5, TimeUnit.MINUTES)
+
     val moshi: Moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
         .build()
+
+    fun evictConnections() {
+        connectionPool.evictAll()
+    }
 
     fun create(tokenProvider: () -> String? = { null }): DeepApi {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         }
         val client = OkHttpClient.Builder()
+            .connectionPool(connectionPool)
             .dns(MessengerDns)
             .addInterceptor(ConnectRetryInterceptor())
             .connectTimeout(20, TimeUnit.SECONDS)
@@ -184,6 +192,7 @@ object ApiClient {
 
     fun okHttp(tokenProvider: () -> String? = { null }): OkHttpClient {
         return OkHttpClient.Builder()
+            .connectionPool(connectionPool)
             .dns(MessengerDns)
             .addInterceptor(ConnectRetryInterceptor())
             .connectTimeout(20, TimeUnit.SECONDS)

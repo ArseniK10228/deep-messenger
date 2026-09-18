@@ -1,8 +1,5 @@
 package online.deepdesign.deep.ui.chat
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -67,7 +64,8 @@ import kotlin.math.roundToInt
 fun MessageBubble(
     msg: MessageDto,
     mine: Boolean,
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    onOpenMedia: ((MessageDto) -> Unit)? = null
 ) {
     val bg = if (mine) DeepBubbleOut else DeepBubbleIn
     val align = if (mine) Alignment.CenterEnd else Alignment.CenterStart
@@ -112,10 +110,10 @@ fun MessageBubble(
                 )
         ) {
             when (msg.kind) {
-                "image" -> ImageMessage(msg)
+                "image" -> ImageMessage(msg, onOpenMedia)
                 "voice" -> VoiceMessage(msg)
                 "video_note" -> VideoNoteMessage(msg)
-                "file" -> FileMessage(msg)
+                "file" -> FileMessage(msg, onOpenMedia)
                 else -> Text(
                     text = msg.body.orEmpty(),
                     color = DeepText,
@@ -145,7 +143,7 @@ fun MessageBubble(
 }
 
 @Composable
-private fun ImageMessage(msg: MessageDto) {
+private fun ImageMessage(msg: MessageDto, onOpenMedia: ((MessageDto) -> Unit)?) {
     val url = resolveMediaUrl(msg.mediaUrl)
     if (url == null) {
         Text("📷 Фото", color = DeepText)
@@ -157,14 +155,14 @@ private fun ImageMessage(msg: MessageDto) {
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 260.dp)
-            .clip(RoundedCornerShape(12.dp)),
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onOpenMedia?.invoke(msg) },
         contentScale = ContentScale.Crop
     )
 }
 
 @Composable
-private fun FileMessage(msg: MessageDto) {
-    val context = LocalContext.current
+private fun FileMessage(msg: MessageDto, onOpenMedia: ((MessageDto) -> Unit)?) {
     val url = resolveMediaUrl(msg.mediaUrl)
     val name = msg.body?.takeIf { it.isNotBlank() } ?: "Файл"
     val sizeLabel = msg.mediaSize?.let { formatFileSize(it) }
@@ -172,14 +170,7 @@ private fun FileMessage(msg: MessageDto) {
     Row(
         modifier = Modifier
             .clickable(enabled = url != null) {
-                url?.let {
-                    try {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse(it))
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                    } catch (_: ActivityNotFoundException) { }
-                }
+                if (onOpenMedia != null) onOpenMedia(msg)
             }
             .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically

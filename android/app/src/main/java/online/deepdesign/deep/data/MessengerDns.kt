@@ -4,7 +4,7 @@ import okhttp3.Dns
 import java.net.InetAddress
 
 /**
- * Some VPNs / ISPs still cache the old VPS IP for deepdesignpc.online.
+ * Drop stale VPS IP from DNS answers. Otherwise trust system DNS (works with VPN split/full tunnel).
  */
 object MessengerDns : Dns {
     private val ourHosts = setOf(
@@ -13,21 +13,16 @@ object MessengerDns : Dns {
         "turn.deepdesignpc.online"
     )
     private const val STALE_VPS = "138.124.102.53"
-    private const val CURRENT_VPS = "2.56.120.54"
 
     override fun lookup(hostname: String): List<InetAddress> {
-        val system = runCatching { Dns.SYSTEM.lookup(hostname) }.getOrDefault(emptyList())
-        if (hostname !in ourHosts) return system.ifEmpty { Dns.SYSTEM.lookup(hostname) }
+        val system = resolveSystem(hostname)
+        if (hostname !in ourHosts) return system
         val filtered = system.filterNot { it.hostAddress == STALE_VPS }
-        val current = runCatching { InetAddress.getByName(CURRENT_VPS) }.getOrNull()
-        val base = when {
-            filtered.isNotEmpty() -> filtered
-            current != null -> listOf(current)
-            else -> system
-        }
-        if (current != null && base.none { it.hostAddress == CURRENT_VPS }) {
-            return listOf(current) + base
-        }
-        return base
+        if (filtered.isNotEmpty()) return filtered
+        return resolveSystem(hostname).filterNot { it.hostAddress == STALE_VPS }
+    }
+
+    private fun resolveSystem(hostname: String): List<InetAddress> {
+        return runCatching { Dns.SYSTEM.lookup(hostname) }.getOrDefault(emptyList())
     }
 }

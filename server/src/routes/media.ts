@@ -42,11 +42,12 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
     const replyToId = fields.replyToId?.value || null;
 
     const kind = resolveMessageKind(mime, { forceVideoNote, forceVoice, durationMs });
+    const caption = fields.caption?.value?.trim() || '';
     const message = await insertMessage({
       conversationId: id,
       senderId: user.id,
       kind,
-      body: part.filename || null,
+      body: caption || part.filename || null,
       mediaPath: rel.replace(/\\/g, '/'),
       mediaMime: mime,
       mediaSize: buf.length,

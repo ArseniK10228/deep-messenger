@@ -95,12 +95,15 @@ export async function uploadMedia(
   conversationId: string,
   file: File,
   durationMs?: number,
-  videoNote = false
+  videoNote = false,
+  caption?: string
 ) {
   const form = new FormData();
   form.append('file', file);
   if (durationMs != null) form.append('durationMs', String(durationMs));
   if (videoNote) form.append('videoNote', '1');
+  const cap = caption?.trim();
+  if (cap) form.append('caption', cap);
   return request<{ message: Message }>(`/conversations/${conversationId}/upload`, {
     method: 'POST',
     body: form

@@ -5,6 +5,7 @@ import { mediaUrl } from '../api/client';
 type Props = {
   msg: Message;
   mine: boolean;
+  onOpenMedia?: (msg: Message) => void;
 };
 
 function formatFileSize(bytes: number): string {
@@ -21,7 +22,7 @@ function formatTime(iso: string) {
   }
 }
 
-export function MessageBubble({ msg, mine }: Props) {
+export function MessageBubble({ msg, mine, onOpenMedia }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -31,7 +32,15 @@ export function MessageBubble({ msg, mine }: Props) {
       case 'image': {
         const url = mediaUrl(msg.mediaUrl);
         if (!url) return <p className="bubble-text">📷 Фото</p>;
-        return <img src={url} alt="" loading="lazy" />;
+        return (
+          <button
+            type="button"
+            className="media-open-btn"
+            onClick={() => onOpenMedia?.(msg)}
+          >
+            <img src={url} alt="" loading="lazy" />
+          </button>
+        );
       }
       case 'voice': {
         const url = mediaUrl(msg.mediaUrl);
@@ -99,13 +108,18 @@ export function MessageBubble({ msg, mine }: Props) {
             ? formatFileSize(msg.mediaSize)
             : null;
         return (
-          <a className="file-attachment" href={url || '#'} target="_blank" rel="noreferrer" download={name}>
+          <button
+            type="button"
+            className="file-attachment"
+            onClick={() => onOpenMedia?.(msg)}
+            disabled={!url}
+          >
             <span className="file-attachment-icon">📎</span>
             <span className="file-attachment-meta">
               <span className="file-attachment-name">{name}</span>
               {size ? <span className="file-attachment-size">{size}</span> : null}
             </span>
-          </a>
+          </button>
         );
       }
       default:

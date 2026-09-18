@@ -86,6 +86,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import online.deepdesign.deep.data.MessageDto
+import online.deepdesign.deep.data.resolveMediaUrl
 import online.deepdesign.deep.data.OperatorAccess
 import online.deepdesign.deep.ui.components.AnimatedChatStatus
 import online.deepdesign.deep.ui.components.ChatAvatar
@@ -121,6 +122,7 @@ fun ChatScreen(
     val imeBottomPx = WindowInsets.ime.getBottom(density)
     var showAttach by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<MessageDto?>(null) }
+    var mediaViewer by remember { mutableStateOf<MessageDto?>(null) }
     val attachSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val deleteSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val dismissKeyboard = rememberDismissKeyboard()
@@ -359,6 +361,44 @@ fun ChatScreen(
                     shadowElevation = 0.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                    state.pendingAttachment?.let { pending ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DeepSurfaceHigh)
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.AttachFile,
+                                contentDescription = null,
+                                tint = DeepAccent,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    pending.fileName,
+                                    color = DeepText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1
+                                )
+                                pending.sizeBytes?.let { sz ->
+                                    Text(
+                                        formatAttachSize(sz),
+                                        color = DeepMuted,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            }
+                            IconButton(onClick = vm::clearPendingAttachment) {
+                                Icon(Icons.Default.Close, contentDescription = "Убрать", tint = DeepMuted)
+                            }
+                        }
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -393,7 +433,7 @@ fun ChatScreen(
                                 cursorColor = DeepAccent
                             )
                         )
-                        if (state.input.isBlank()) {
+                        if (state.input.isBlank() && state.pendingAttachment == null) {
                             IconButton(
                                 onClick = { requestVideoNote() },
                                 enabled = !state.uploading
@@ -448,6 +488,7 @@ fun ChatScreen(
                             )
                         }
                     }
+                    }
                 }
             }
         }
@@ -501,7 +542,8 @@ fun ChatScreen(
                             MessageBubble(
                                 msg = msg,
                                 mine = vm.isMine(msg),
-                                onLongClick = { deleteTarget = msg }
+                                onLongClick = { deleteTarget = msg },
+                                onOpenMedia = { mediaViewer = it }
                             )
                         }
                         item(key = "peer_typing") {
@@ -634,6 +676,22 @@ fun ChatScreen(
             }
         }
     }
+
+    mediaViewer?.let { msg ->
+        ChatFileViewerSheet(
+            visible = true,
+            title = msg.body?.takeIf { it.isNotBlank() } ?: if (msg.kind == "image") "Фото" else "Файл",
+            url = resolveMediaUrl(msg.mediaUrl),
+            mimeHint = msg.mediaMime,
+            onDismiss = { mediaViewer = null }
+        )
+    }
+}
+
+private fun formatAttachSize(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    if (bytes < 1024 * 1024) return "${bytes / 1024} KB"
+    return String.format("%.1f MB", bytes / (1024.0 * 1024.0))
 }
 
 @Composable

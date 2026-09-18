@@ -14,7 +14,8 @@ object MediaUploader {
         mimeType: String,
         bytes: ByteArray,
         durationMs: Long? = null,
-        videoNote: Boolean = false
+        videoNote: Boolean = false,
+        caption: String? = null
     ): MessageDto = withContext(Dispatchers.IO) {
         val token = DeepAppToken.current()
             ?: throw IllegalStateException("Not authenticated")
@@ -29,6 +30,7 @@ object MediaUploader {
         durationMs?.let { body.addFormDataPart("durationMs", it.toString()) }
         if (videoNote) body.addFormDataPart("videoNote", "1")
         else if (durationMs != null) body.addFormDataPart("voice", "1")
+        caption?.trim()?.takeIf { it.isNotEmpty() }?.let { body.addFormDataPart("caption", it) }
 
         val request = Request.Builder()
             .url("${ApiConfig.BASE_URL.trimEnd('/')}/api/v1/conversations/$conversationId/upload")

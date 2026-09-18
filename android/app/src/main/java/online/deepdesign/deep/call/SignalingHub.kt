@@ -75,10 +75,15 @@ class SignalingHub(
     }
 
     fun forceReconnect() {
+        if (!shouldStayConnected) return
         reconnectJob?.cancel()
-        runCatching { ws?.cancel() }
+        _wsConnected.value = false
+        _wsReconnecting.value = true
+        val old = ws
         ws = null
-        if (shouldStayConnected) openSocket()
+        runCatching { old?.cancel() }
+        ApiClient.evictConnections()
+        openSocket()
     }
 
     fun setUrgentReconnect(enabled: Boolean) {

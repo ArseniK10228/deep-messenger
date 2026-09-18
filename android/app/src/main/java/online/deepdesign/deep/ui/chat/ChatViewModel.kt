@@ -32,14 +32,23 @@ import online.deepdesign.deep.data.VideoNoteRecorder
 import online.deepdesign.deep.data.VoiceRecorder
 import online.deepdesign.deep.data.WsEnvelope
 import online.deepdesign.deep.data.readPickedFile
+import online.deepdesign.deep.data.readPickedMeta
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
+
+data class PendingAttachment(
+    val uri: Uri,
+    val fileName: String,
+    val mimeType: String,
+    val sizeBytes: Long?
+)
 
 data class ChatUiState(
     val loading: Boolean = true,
     val messages: List<MessageDto> = emptyList(),
     val input: String = "",
+    val pendingAttachment: PendingAttachment? = null,
     val sending: Boolean = false,
     val uploading: Boolean = false,
     val recording: Boolean = false,
@@ -102,6 +111,13 @@ class ChatViewModel(
                     )
                 } else if (event is ChatEvent.RefreshChats) {
                     loadPeer()
+                } else if (event is ChatEvent.NetworkRouteChanged) {
+                    if (AppForegroundState.foreground.value) {
+                        disconnectWs()
+                        connectWs()
+                        loadMessages()
+                        loadPeer()
+                    }
                 }
             }
         }
@@ -252,8 +268,60 @@ class ChatViewModel(
         _state.update { it.copy(error = message) }
     }
 
+    fun clearPendingAttachment() {
+        _state.update { it.copy(pendingAttachment = null) }
+    }
+
+    fun queueAttachment(uri: Uri) {
+        if (_state.value.uploading) return
+        viewModelScope.launch {
+            val meta = readPickedMeta(DeepApp.instance, uri)
+                ?: run {
+                    _state.update { it.copy(error = "Не удалось прочитать файл") }
+                    return@launch
+                }
+            _state.update {
+                it.copy(
+                    pendingAttachment = PendingAttachment(
+                        uri = uri,
+                        fileName = meta.fileName,
+                        mimeType = meta.mimeType,
+                        sizeBytes = meta.sizeBytes
+                    ),
+                    error = null
+                )
+            }
+        }
+    }
+
     fun send() {
+        val pending = _state.value.pendingAttachment
         val text = _state.value.input.trim()
+        if (pending != null) {
+            if (_state.value.uploading) return
+            viewModelScope.launch {
+                _state.update { it.copy(uploading = true, error = null) }
+                try {
+                    val picked = readPickedFile(DeepApp.instance, pending.uri)
+                        ?: throw IllegalStateException("Не удалось прочитать файл")
+                    val msg = MediaUploader.upload(
+                        conversationId = conversationId,
+                        fileName = picked.fileName,
+                        mimeType = picked.mimeType,
+                        bytes = picked.bytes,
+                        caption = text.takeIf { it.isNotEmpty() }
+                    )
+                    appendMessage(msg)
+                    _state.update { it.copy(input = "", pendingAttachment = null) }
+                    runCatching { draftStore.saveDraft(conversationId, "") }
+                } catch (e: Exception) {
+                    _state.update { it.copy(error = e.message) }
+                } finally {
+                    _state.update { it.copy(uploading = false) }
+                }
+            }
+            return
+        }
         if (text.isEmpty() || _state.value.uploading) return
         val userId = DeepApp.instance.currentUserId ?: return
 
@@ -298,19 +366,7 @@ class ChatViewModel(
     }
 
     fun uploadUri(uri: Uri) {
-        if (_state.value.uploading || _state.value.sending) return
-        viewModelScope.launch {
-            _state.update { it.copy(uploading = true, error = null) }
-            try {
-                val picked = readPickedFile(DeepApp.instance, uri)
-                    ?: throw IllegalStateException("Не удалось прочитать файл")
-                uploadPicked(picked)
-            } catch (e: Exception) {
-                _state.update { it.copy(error = e.message) }
-            } finally {
-                _state.update { it.copy(uploading = false) }
-            }
-        }
+        queueAttachment(uri)
     }
 
     fun uploadPicked(picked: PickedFile) {

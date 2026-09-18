@@ -13,13 +13,14 @@ import {
   setToken,
   uploadMedia
 } from '../api/client';
-import { Paperclip, Phone, Plus, Search, Send } from 'lucide-react';
+import { Paperclip, Phone, Plus, Search, Send, X } from 'lucide-react';
 import { useCall } from '../call/CallContext';
-import { globalSocket } from '../ws/socket';
+import { bindSocketNetworkRecovery, globalSocket } from '../ws/socket';
 import { conversationTitle, formatListTime, lastMessagePreview, peerFromConversation } from '../utils/chat';
 import { appendMessageUnique, normalizeWsMessage } from '../utils/message';
 import { Avatar } from './Avatar';
 import { BrandLogo } from './BrandLogo';
+import { FileViewerModal } from './FileViewerModal';
 import { MessageBubble } from './MessageBubble';
 import { NewChatModal } from './NewChatModal';
 import { TypingIndicator } from './TypingIndicator';
@@ -38,6 +39,10 @@ export function MainApp() {
   const [showNewChat, setShowNewChat] = useState(false);
   const [listFilter, setListFilter] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [fileDragOver, setFileDragOver] = useState(false);
+  const [viewerMsg, setViewerMsg] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -58,6 +63,7 @@ export function MainApp() {
   const openChat = useCallback(async (id: string, title: string) => {
     setActiveId(id);
     setActiveTitle(title);
+    setPendingFile(null);
     setLoadingChat(true);
     setError(null);
     globalSocket.subscribe(id);
@@ -86,6 +92,7 @@ export function MainApp() {
         window.location.reload();
       });
     loadList();
+    bindSocketNetworkRecovery();
     globalSocket.connect();
 
     const off = globalSocket.onEvent((ev) => {
@@ -165,9 +172,43 @@ export function MainApp() {
     return undefined;
   }, [messages, activeId, typing]);
 
+  function queueFile(file: File) {
+    if (!activeId) return;
+    setPendingFile(file);
+    setError(null);
+  }
+
+  function attachFromDrag(e: React.DragEvent) {
+    e.preventDefault();
+    setFileDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) queueFile(file);
+  }
+
   async function send() {
     const text = draft.trim();
-    if (!text || !activeId) return;
+    if (!activeId) return;
+    if (!text && !pendingFile) return;
+
+    if (pendingFile) {
+      const file = pendingFile;
+      const caption = text;
+      setPendingFile(null);
+      setDraft('');
+      setUploading(true);
+      try {
+        const res = await uploadMedia(activeId, file, undefined, false, caption);
+        setMessages((prev) => appendMessageUnique(prev, res.message));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Ошибка загрузки');
+        setPendingFile(file);
+        setDraft(caption);
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
+
     setDraft('');
     try {
       const res = await sendTextMessage(activeId, text);
@@ -183,14 +224,8 @@ export function MainApp() {
     if (activeId) globalSocket.sendTyping(activeId);
   }
 
-  async function onPickFile(file: File) {
-    if (!activeId) return;
-    try {
-      const res = await uploadMedia(activeId, file);
-      setMessages((prev) => appendMessageUnique(prev, res.message));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ошибка загрузки');
-    }
+  function onPickFile(file: File) {
+    queueFile(file);
   }
 
   function logout() {
@@ -291,18 +326,81 @@ export function MainApp() {
                 <Phone size={22} />
               </button>
             </header>
-            <div className="messages">
+            <div
+              className={`messages ${fileDragOver ? 'messages-drag-over' : ''}`}
+              onDragEnter={(e) => {
+                if (e.dataTransfer.types.includes('Files')) {
+                  e.preventDefault();
+                  setFileDragOver(true);
+                }
+              }}
+              onDragOver={(e) => {
+                if (e.dataTransfer.types.includes('Files')) {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'copy';
+                }
+              }}
+              onDragLeave={(e) => {
+                if (e.currentTarget === e.target) setFileDragOver(false);
+              }}
+              onDrop={attachFromDrag}
+            >
+              {fileDragOver ? (
+                <div className="drop-hint anim-fade-in">Отпусти файл — прикрепится к сообщению</div>
+              ) : null}
               {loadingChat ? <p style={{ color: 'var(--muted)' }}>Загрузка сообщений…</p> : null}
               {messages.map((m, i) => (
                 <div key={m.id} className="msg-anim" style={{ animationDelay: `${Math.min(i * 18, 120)}ms` }}>
-                  <MessageBubble msg={m} mine={m.senderId === myId} />
+                  <MessageBubble
+                    msg={m}
+                    mine={m.senderId === myId}
+                    onOpenMedia={(msg) => setViewerMsg(msg)}
+                  />
                 </div>
               ))}
               <TypingIndicator visible={typing} />
               <div ref={messagesEndRef} />
             </div>
             {error ? <div className="typing" style={{ color: 'var(--error)' }}>{error}</div> : null}
-            <div className="composer">
+            <div
+              className="composer"
+              onDragEnter={(e) => {
+                if (e.dataTransfer.types.includes('Files')) {
+                  e.preventDefault();
+                  setFileDragOver(true);
+                }
+              }}
+              onDragOver={(e) => {
+                if (e.dataTransfer.types.includes('Files')) {
+                  e.preventDefault();
+                }
+              }}
+              onDragLeave={(e) => {
+                if (e.currentTarget === e.target) setFileDragOver(false);
+              }}
+              onDrop={attachFromDrag}
+            >
+              {pendingFile ? (
+                <div className="composer-attachment">
+                  <Paperclip size={18} />
+                  <span className="composer-attachment-name" title={pendingFile.name}>
+                    {pendingFile.name}
+                  </span>
+                  <span className="composer-attachment-size">
+                    {pendingFile.size < 1024 * 1024
+                      ? `${Math.round(pendingFile.size / 1024)} KB`
+                      : `${(pendingFile.size / (1024 * 1024)).toFixed(1)} MB`}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-icon composer-attachment-remove"
+                    onClick={() => setPendingFile(null)}
+                    aria-label="Убрать файл"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              ) : null}
               <input
                 ref={fileRef}
                 type="file"
@@ -329,14 +427,28 @@ export function MainApp() {
                   }
                 }}
               />
-              <button type="button" className="btn btn-primary btn-send" disabled={!draft.trim()} onClick={send}>
+              <button
+                type="button"
+                className="btn btn-primary btn-send"
+                disabled={uploading || (!draft.trim() && !pendingFile)}
+                onClick={send}
+              >
                 <Send size={18} />
-                <span>Отправить</span>
+                <span>{uploading ? '…' : 'Отправить'}</span>
               </button>
             </div>
           </>
         )}
       </main>
+
+      {viewerMsg ? (
+        <FileViewerModal
+          fileName={viewerMsg.body?.trim() || (viewerMsg.kind === 'image' ? 'Фото' : 'Файл')}
+          mediaPath={viewerMsg.mediaUrl}
+          kind={viewerMsg.kind}
+          onClose={() => setViewerMsg(null)}
+        />
+      ) : null}
 
       {showNewChat ? (
         <NewChatModal

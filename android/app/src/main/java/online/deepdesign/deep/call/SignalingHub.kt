@@ -30,7 +30,8 @@ import java.util.ArrayDeque
 import java.util.concurrent.TimeUnit
 
 class SignalingHub(
-    private val tokenProvider: () -> String?
+    private val tokenProvider: () -> String?,
+    private val clientIdProvider: () -> String
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val adapter = ApiClient.moshi.adapter(WsEnvelope::class.java)
@@ -90,7 +91,9 @@ class SignalingHub(
     private fun openSocket() {
         if (ws != null) return
         val token = tokenProvider() ?: return
-        val url = "${ApiConfig.WS_URL}?token=${java.net.URLEncoder.encode(token, "UTF-8")}"
+        val clientId = java.net.URLEncoder.encode(clientIdProvider(), "UTF-8")
+        val url =
+            "${ApiConfig.WS_URL}?token=${java.net.URLEncoder.encode(token, "UTF-8")}&clientId=$clientId"
         val pingSec = if (urgentReconnect) 15L else 30L
         val client = ApiClient.okHttp(tokenProvider).newBuilder()
             .pingInterval(pingSec, TimeUnit.SECONDS)

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { getAuthUser } from '../lib/auth.js';
 import {
+  bindCallClient,
   createCall,
   getCall,
   peerUserId,
@@ -11,7 +12,7 @@ import { buildIceServers } from '../lib/turn.js';
 import { userInConversation } from '../db/conversations.js';
 import { query } from '../db/client.js';
 import { sendCallPush } from '../lib/firebase.js';
-import { sendToUser } from '../ws/hub.js';
+import { sendToUser, sendToUserExceptClient } from '../ws/hub.js';
 import { notifyAdminUsers } from '../lib/adminMonitor.js';
 
 async function getPeerUserId(conversationId: string, userId: string): Promise<string | null> {
@@ -47,7 +48,7 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/calls', async (req, reply) => {
     const user = getAuthUser(req);
-    const body = req.body as { conversationId?: string; video?: boolean };
+    const body = req.body as { conversationId?: string; video?: boolean; clientId?: string };
     if (!body.conversationId) {
       return reply.code(400).send({ error: 'conversationId required' });
     }
@@ -63,6 +64,9 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
       callerId: user.id,
       calleeId
     });
+    if (body.clientId?.trim()) {
+      bindCallClient(call.id, user.id, body.clientId.trim());
+    }
     const callerName = await getUserDisplayName(user.id);
 
     sendToUser(calleeId, {
@@ -102,7 +106,16 @@ export async function callRoutes(app: FastifyInstance): Promise<void> {
     if (call.calleeId !== user.id) {
       return reply.code(403).send({ error: 'only callee can accept' });
     }
+    const body = req.body as { clientId?: string };
     setCallState(id, 'active');
+    if (body.clientId?.trim()) {
+      bindCallClient(id, user.id, body.clientId.trim());
+      sendToUserExceptClient(user.id, body.clientId.trim(), {
+        type: 'call_end',
+        callId: id,
+        reason: 'answered_elsewhere'
+      });
+    }
     sendToUser(call.callerId, { type: 'call_accept', callId: id });
     await notifyAdminUsers([call.callerId, call.calleeId]);
     return { ok: true, iceServers: buildIceServers(user.id) };

@@ -19,7 +19,22 @@ export function UpdateBanner() {
   }, []);
 
   if (!payload) return null;
-  if (payload.status === 'not-available' || payload.status === 'error') return null;
+  if (payload.status === 'not-available') return null;
+
+  if (payload.status === 'error') {
+    return (
+      <div className="update-banner update-banner--muted">
+        <span>Обновления: {payload.message}</span>
+        <button
+          type="button"
+          className="update-banner__btn"
+          onClick={() => window.deepDesktop?.checkForUpdates?.()}
+        >
+          Повторить
+        </button>
+      </div>
+    );
+  }
 
   if (payload.status === 'checking') {
     return (

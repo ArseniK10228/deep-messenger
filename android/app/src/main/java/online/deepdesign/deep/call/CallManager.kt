@@ -23,6 +23,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import online.deepdesign.deep.DeepApp
 import online.deepdesign.deep.data.IceServerDto
+import online.deepdesign.deep.data.AcceptCallRequest
+import online.deepdesign.deep.data.DeviceIds
 import online.deepdesign.deep.data.StartCallRequest
 import online.deepdesign.deep.push.ClientReporter
 import online.deepdesign.deep.push.IncomingCallNotifier
@@ -305,6 +307,9 @@ class CallManager(
 
     private var outgoingJob: Job? = null
 
+    @Volatile
+    private var outboundCancelPending = false
+
     fun startOutgoing(conversationId: String, peerName: String, video: Boolean = false) {
         if (!hasMicPermission()) {
             _error.value = "Разреши доступ к микрофону для звонка"
@@ -330,10 +335,22 @@ class CallManager(
         startCallProtection(peerName, outgoing = true, video = video)
         startStatsMonitor()
 
+        outboundCancelPending = false
         outgoingJob?.cancel()
         outgoingJob = scope.launch {
             try {
-                val resp = api.startCall(StartCallRequest(conversationId, video))
+                val resp = api.startCall(
+                    StartCallRequest(
+                        conversationId,
+                        video,
+                        DeviceIds.clientId(context)
+                    )
+                )
+                if (outboundCancelPending) {
+                    outboundCancelPending = false
+                    runCatching { api.endCall(resp.callId) }
+                    return@launch
+                }
                 if (_state.value !is CallUiState.Outgoing) return@launch
                 activeCallId = resp.callId
                 iceServers = resp.iceServers
@@ -361,7 +378,10 @@ class CallManager(
         scope.launch {
             try {
                 ringtonePlayer.stop()
-                val resp = api.acceptCall(incoming.callId)
+                val resp = api.acceptCall(
+                    incoming.callId,
+                    AcceptCallRequest(DeviceIds.clientId(context))
+                )
                 iceServers = resp.iceServers
                 activeCallId = incoming.callId
                 activePeerName = incoming.callerName
@@ -413,11 +433,14 @@ class CallManager(
     }
 
     fun hangup() {
+        val outgoing = _state.value as? CallUiState.Outgoing
         val callId = activeCallId ?: resolveCallId()?.takeUnless { it.startsWith("pending:") }
         outgoingJob?.cancel()
         endLocal("hangup")
         if (callId != null) {
             scope.launch { runCatching { api.endCall(callId) } }
+        } else if (outgoing != null) {
+            outboundCancelPending = true
         }
     }
 
@@ -444,6 +467,14 @@ class CallManager(
     }
 
     fun handleRemoteCallEnd(callId: String?, reason: String = "end") {
+        if (callId != null) {
+            IncomingCallNotifier.dismiss(context, callId)
+        }
+        val incoming = _state.value as? CallUiState.Incoming
+        if (incoming != null && (callId == null || incoming.callId == callId)) {
+            endLocal(reason)
+            return
+        }
         if (!isInCall()) return
         val current = resolveCallId() ?: return
         if (callId != null && callId != current) return

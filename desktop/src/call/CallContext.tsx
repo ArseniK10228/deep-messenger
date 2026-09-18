@@ -192,6 +192,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (type === 'call_end') {
+        const reason = String(ev.reason || '');
+        if (reason === 'answered_elsewhere' && phaseRef.current === 'incoming') {
+          await cleanup();
+          return;
+        }
         await cleanup();
       }
     });

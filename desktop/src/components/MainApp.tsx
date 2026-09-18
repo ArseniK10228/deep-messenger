@@ -17,6 +17,7 @@ import { Paperclip, Phone, Plus, Search, Send } from 'lucide-react';
 import { useCall } from '../call/CallContext';
 import { globalSocket } from '../ws/socket';
 import { conversationTitle, formatListTime, lastMessagePreview, peerFromConversation } from '../utils/chat';
+import { appendMessageUnique, normalizeWsMessage } from '../utils/message';
 import { Avatar } from './Avatar';
 import { BrandLogo } from './BrandLogo';
 import { MessageBubble } from './MessageBubble';
@@ -90,7 +91,8 @@ export function MainApp() {
     const off = globalSocket.onEvent((ev) => {
       const type = ev.type as string;
       if (type === 'message' && ev.message) {
-        const msg = ev.message as Message;
+        const msg = normalizeWsMessage(ev.message);
+        if (!msg) return;
         setConversations((prev) => {
           const copy = [...prev];
           const idx = copy.findIndex((c) => c.id === msg.conversationId);
@@ -111,7 +113,10 @@ export function MainApp() {
           return copy;
         });
         if (msg.conversationId === activeId) {
-          setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+          setMessages((prev) => {
+            if (msg.senderId === myId) return prev;
+            return appendMessageUnique(prev, msg);
+          });
           if (msg.senderId !== myId) {
             markDelivered(msg.id).catch(() => {});
             globalSocket.sendDelivered(msg.id);
@@ -148,7 +153,7 @@ export function MainApp() {
       clearInterval(heartbeat);
       globalSocket.disconnect();
     };
-  }, [activeId, loadList, myId, callUi.phase]);
+  }, [activeId, loadList, myId]);
 
   useEffect(() => {
     const scroll = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -166,7 +171,7 @@ export function MainApp() {
     setDraft('');
     try {
       const res = await sendTextMessage(activeId, text);
-      setMessages((prev) => [...prev, res.message]);
+      setMessages((prev) => appendMessageUnique(prev, res.message));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не отправилось');
       setDraft(text);
@@ -182,7 +187,7 @@ export function MainApp() {
     if (!activeId) return;
     try {
       const res = await uploadMedia(activeId, file);
-      setMessages((prev) => [...prev, res.message]);
+      setMessages((prev) => appendMessageUnique(prev, res.message));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка загрузки');
     }

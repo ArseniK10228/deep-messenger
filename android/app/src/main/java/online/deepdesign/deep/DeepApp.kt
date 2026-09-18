@@ -17,6 +17,7 @@ import online.deepdesign.deep.call.SignalingHub
 import online.deepdesign.deep.data.ApiClient
 import online.deepdesign.deep.data.DeepApi
 import online.deepdesign.deep.data.ChatDraftStore
+import online.deepdesign.deep.data.DeviceIds
 import online.deepdesign.deep.data.ChatNotifier
 import online.deepdesign.deep.data.ChatEvent
 import online.deepdesign.deep.data.SessionStore
@@ -71,7 +72,7 @@ class DeepApp : Application() {
         }
         api = ApiClient.create { cachedToken }
         DeepAppToken.current = { cachedToken }
-        val signaling = SignalingHub { cachedToken }
+        val signaling = SignalingHub({ cachedToken }) { DeviceIds.clientId(this) }
         signalingHub = signaling
         callManager = CallManager(this, signaling)
         voicePlayer = VoicePlayer(this)

@@ -94,7 +94,10 @@ interface DeepApi {
     suspend fun startCall(@Body body: StartCallRequest): StartCallResponse
 
     @POST("api/v1/calls/{id}/accept")
-    suspend fun acceptCall(@Path("id") callId: String): AcceptCallResponse
+    suspend fun acceptCall(
+        @Path("id") callId: String,
+        @Body body: AcceptCallRequest
+    ): AcceptCallResponse
 
     @POST("api/v1/calls/{id}/reject")
     suspend fun rejectCall(@Path("id") callId: String): Map<String, Boolean>

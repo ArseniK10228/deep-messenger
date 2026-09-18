@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -35,7 +36,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.animateItem
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -508,10 +508,8 @@ fun ChatScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .animateItem(
-                                        fadeInSpec = tween(180),
-                                        fadeOutSpec = tween(140),
-                                        placementSpec = tween(260, easing = FastOutSlowInEasing)
+                                    .animateContentSize(
+                                        animationSpec = tween(260, easing = FastOutSlowInEasing)
                                     )
                             ) {
                                 if (state.peerTyping) {

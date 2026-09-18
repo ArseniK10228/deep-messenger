@@ -1,7 +1,7 @@
 {
-  "versionCode": 58,
-  "versionName": "0.3.55",
+  "versionCode": 59,
+  "versionName": "0.3.56",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Сессия после обновления; плавный индикатор «печатает»; скруглённый логотип.",
+  "changelog": "Звонки: сброс до ответа, один девайс при ответе; фиксы чата на ПК.",
   "forceUpdate": true
 }

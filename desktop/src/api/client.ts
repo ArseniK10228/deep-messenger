@@ -1,4 +1,5 @@
 import type { Conversation, Message, User } from './types';
+import { getClientId } from '../utils/clientId';
 
 export const API_BASE =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ||
@@ -138,13 +139,14 @@ export async function fetchIceServers() {
 export async function startCall(conversationId: string, video = false) {
   return request<{ callId: string; iceServers: IceConfig[] }>('/calls', {
     method: 'POST',
-    body: JSON.stringify({ conversationId, video })
+    body: JSON.stringify({ conversationId, video, clientId: getClientId() })
   });
 }
 
 export async function acceptCall(callId: string) {
   return request<{ ok: boolean; iceServers: IceConfig[] }>(`/calls/${callId}/accept`, {
-    method: 'POST'
+    method: 'POST',
+    body: JSON.stringify({ clientId: getClientId() })
   });
 }
 
@@ -177,5 +179,5 @@ export function mediaUrl(path: string | null | undefined): string | null {
 
 export function wsUrl(): string {
   const base = API_BASE.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:');
-  return `${base}/ws?token=${encodeURIComponent(token || '')}`;
+  return `${base}/ws?token=${encodeURIComponent(token || '')}&clientId=${encodeURIComponent(getClientId())}`;
 }

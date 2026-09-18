@@ -10,6 +10,8 @@ export interface CallSession {
   state: CallState;
   createdAt: number;
   activeAt?: number;
+  callerClientId?: string;
+  calleeClientId?: string;
 }
 
 const calls = new Map<string, CallSession>();
@@ -59,6 +61,24 @@ export function peerUserId(call: CallSession, userId: string): string | null {
   if (call.callerId === userId) return call.calleeId;
   if (call.calleeId === userId) return call.callerId;
   return null;
+}
+
+export function bindCallClient(
+  callId: string,
+  userId: string,
+  clientId: string
+): CallSession | undefined {
+  const call = calls.get(callId);
+  if (!call || !clientId.trim()) return undefined;
+  if (call.callerId === userId) call.callerClientId = clientId;
+  if (call.calleeId === userId) call.calleeClientId = clientId;
+  return call;
+}
+
+export function peerClientId(call: CallSession, peerUserId: string): string | undefined {
+  if (call.callerId === peerUserId) return call.callerClientId;
+  if (call.calleeId === peerUserId) return call.calleeClientId;
+  return undefined;
 }
 
 export function setCallState(callId: string, state: CallState): CallSession | undefined {

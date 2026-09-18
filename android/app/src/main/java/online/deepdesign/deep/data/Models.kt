@@ -163,7 +163,13 @@ data class IceServersResponse(val iceServers: List<IceServerDto>)
 @JsonClass(generateAdapter = true)
 data class StartCallRequest(
     val conversationId: String,
-    val video: Boolean = false
+    val video: Boolean = false,
+    val clientId: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class AcceptCallRequest(
+    val clientId: String? = null
 )
 
 @JsonClass(generateAdapter = true)

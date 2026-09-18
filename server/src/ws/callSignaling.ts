@@ -1,5 +1,5 @@
-import { getCall, peerUserId, userInCall } from '../lib/callRegistry.js';
-import { sendToUser } from './hub.js';
+import { getCall, peerClientId, peerUserId, userInCall } from '../lib/callRegistry.js';
+import { sendToUser, sendToUserClient } from './hub.js';
 
 interface CallWsMessage {
   type?: string;
@@ -12,6 +12,19 @@ interface CallWsMessage {
   muted?: boolean;
 }
 
+function sendToCallPeer(fromUserId: string, callId: string, payload: unknown): void {
+  const call = getCall(callId);
+  if (!call) return;
+  const peer = peerUserId(call, fromUserId);
+  if (!peer) return;
+  const targetClient = peerClientId(call, peer);
+  if (targetClient) {
+    sendToUserClient(peer, targetClient, payload);
+  } else {
+    sendToUser(peer, payload);
+  }
+}
+
 export function handleCallMessage(userId: string, raw: CallWsMessage): void {
   const type = raw.type;
   if (!type?.startsWith('call_') || !raw.callId) return;
@@ -19,11 +32,8 @@ export function handleCallMessage(userId: string, raw: CallWsMessage): void {
   const call = getCall(raw.callId);
   if (!call || !userInCall(raw.callId, userId)) return;
 
-  const peer = peerUserId(call, userId);
-  if (!peer) return;
-
   if (type === 'call_sdp' && raw.sdp && raw.sdpType) {
-    sendToUser(peer, {
+    sendToCallPeer(userId, raw.callId, {
       type: 'call_sdp',
       callId: raw.callId,
       sdp: raw.sdp,
@@ -34,7 +44,7 @@ export function handleCallMessage(userId: string, raw: CallWsMessage): void {
   }
 
   if (type === 'call_ice' && raw.candidate) {
-    sendToUser(peer, {
+    sendToCallPeer(userId, raw.callId, {
       type: 'call_ice',
       callId: raw.callId,
       candidate: raw.candidate,
@@ -46,7 +56,7 @@ export function handleCallMessage(userId: string, raw: CallWsMessage): void {
   }
 
   if (type === 'call_mute' && typeof raw.muted === 'boolean') {
-    sendToUser(peer, {
+    sendToCallPeer(userId, raw.callId, {
       type: 'call_mute',
       callId: raw.callId,
       muted: raw.muted,

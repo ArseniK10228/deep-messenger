@@ -13,8 +13,8 @@ android {
         applicationId = "online.deepdesign.deep"
         minSdk = 26
         targetSdk = 35
-        versionCode = 58
-        versionName = "0.3.55"
+        versionCode = 59
+        versionName = "0.3.56"
         buildConfigField("String", "API_BASE_URL", "\"https://api.deepdesignpc.online\"")
     }
 

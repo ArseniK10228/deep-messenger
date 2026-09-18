@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import type { Server } from 'http';
 import { WebSocketServer } from 'ws';
 import type { FastifyInstance } from 'fastify';
@@ -29,8 +30,10 @@ export function attachWebSocket(server: Server, app: FastifyInstance): void {
         return;
       }
       const payload = await app.jwt.verify<{ id: string }>(token);
-      const client = registerClient(ws, payload.id);
+      const clientId = (url.searchParams.get('clientId') || '').trim() || randomUUID();
+      const client = registerClient(ws, payload.id, clientId);
       await notifyAdminUserUpdate(payload.id);
+      ws.send(JSON.stringify({ type: 'ws_ready', clientId }));
       ws.send(
         JSON.stringify({
           type: 'presence_snapshot',

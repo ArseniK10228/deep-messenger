@@ -21,6 +21,8 @@ concurrency:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       SSH_KEY_FILE: /home/runner/.ssh/vps_deploy_key
       EXPECTED_DEPLOY_PUBKEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFP1VPZssMLz++UJ0GrnnobQrhKuGg8FMmhCVGE9Zbbr
@@ -119,6 +121,26 @@ jobs:
           name: deep-apk
           path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 14
+
+      - name: Attach APK to downloads release
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.publish_only }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
+          test -n "$APK"
+          VN=$(grep -E 'versionName\s*=' android/app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          gh release view downloads 2>/dev/null || gh release create downloads \
+            --title "Установка Deep Messenger" \
+            --notes "Актуальные сборки Android и Windows. Файлы обновляются при CI." \
+            --latest
+          cp "$APK" "Deep-Messenger-Android-${VN}.apk"
+          cp "$APK" Deep-Messenger-Android-latest.apk
+          gh release upload downloads \
+            "Deep-Messenger-Android-${VN}.apk" \
+            Deep-Messenger-Android-latest.apk \
+            --clobber
+          echo "Release: https://github.com/${{ github.repository }}/releases/tag/downloads"
 
       - name: Prepare SSH key
         env:

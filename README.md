@@ -24,7 +24,9 @@ cd desktop && npm install && npm run dev    # разработка
 cd desktop && npm run dist                  # установщик .exe в desktop/release/
 ```
 
-См. [desktop/README.md](desktop/README.md). CI: workflow **Build Desktop** → artifact с установщиком.
+См. [desktop/README.md](desktop/README.md).
+
+**Постоянные установщики на GitHub:** [Releases → downloads](https://github.com/ArseniK10228/deep-messenger/releases/tag/downloads) — `Deep-Messenger-Android-latest.apk` и `Deep-Messenger-Windows-Setup-latest.exe` (обновляются CI).
 
 ## URL
 

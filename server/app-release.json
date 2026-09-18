@@ -1,7 +1,7 @@
 {
-  "versionCode": 59,
-  "versionName": "0.3.56",
+  "versionCode": 60,
+  "versionName": "0.3.57",
   "apkUrl": "https://deepdesignpc.online/deep.apk",
-  "changelog": "Звонки: сброс до ответа, один девайс при ответе; фиксы чата на ПК.",
+  "changelog": "Краш после обновления (сессия); надёжнее маршрут звонков WebRTC.",
   "forceUpdate": true
 }

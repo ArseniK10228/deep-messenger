@@ -67,9 +67,6 @@ class DeepApp : Application() {
         instance = this
         sessionStore = SessionStore(this)
         chatDraftStore = ChatDraftStore(this)
-        runBlocking {
-            SessionBootstrap.restore(sessionStore, this@DeepApp)
-        }
         api = ApiClient.create { cachedToken }
         DeepAppToken.current = { cachedToken }
         val signaling = SignalingHub({ cachedToken }) { DeviceIds.clientId(this) }
@@ -78,6 +75,10 @@ class DeepApp : Application() {
         voicePlayer = VoicePlayer(this)
         videoNotePlayer = VideoNotePlayer(this)
         networkMonitor = AppNetworkMonitor(this, signaling) { cachedToken }
+
+        runBlocking {
+            SessionBootstrap.restore(sessionStore, this@DeepApp)
+        }
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {

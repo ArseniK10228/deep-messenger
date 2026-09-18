@@ -9,7 +9,7 @@ interface CallWsMessage {
   candidate?: string;
   sdpMid?: string | null;
   sdpMLineIndex?: number | null;
-  muted?: boolean;
+  muted?: boolean | string;
 }
 
 function sendToCallPeer(fromUserId: string, callId: string, payload: unknown): void {
@@ -19,7 +19,8 @@ function sendToCallPeer(fromUserId: string, callId: string, payload: unknown): v
   if (!peer) return;
   const targetClient = peerClientId(call, peer);
   if (targetClient) {
-    sendToUserClient(peer, targetClient, payload);
+    const sent = sendToUserClient(peer, targetClient, payload);
+    if (!sent) sendToUser(peer, payload);
   } else {
     sendToUser(peer, payload);
   }
@@ -55,11 +56,12 @@ export function handleCallMessage(userId: string, raw: CallWsMessage): void {
     return;
   }
 
-  if (type === 'call_mute' && typeof raw.muted === 'boolean') {
+  if (type === 'call_mute') {
+    const muted = raw.muted === true || raw.muted === 'true';
     sendToCallPeer(userId, raw.callId, {
       type: 'call_mute',
       callId: raw.callId,
-      muted: raw.muted,
+      muted,
       fromUserId: userId
     });
   }

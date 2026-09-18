@@ -56,8 +56,13 @@ export function sendToUser(userId: string, payload: unknown): void {
   }
 }
 
-export function sendToUserClient(userId: string, clientId: string, payload: unknown): void {
+export function sendToUserClient(
+  userId: string,
+  clientId: string,
+  payload: unknown
+): boolean {
   const data = JSON.stringify(payload);
+  let sent = false;
   for (const c of clients) {
     if (
       c.userId === userId &&
@@ -65,8 +70,10 @@ export function sendToUserClient(userId: string, clientId: string, payload: unkn
       c.ws.readyState === c.ws.OPEN
     ) {
       c.ws.send(data);
+      sent = true;
     }
   }
+  return sent;
 }
 
 export function sendToUserExceptClient(

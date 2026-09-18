@@ -13,13 +13,17 @@ import {
   setToken,
   uploadMedia
 } from '../api/client';
+import { Paperclip, Phone, Plus, Search, Send } from 'lucide-react';
+import { useCall } from '../call/CallContext';
 import { globalSocket } from '../ws/socket';
 import { conversationTitle, formatListTime, lastMessagePreview, peerFromConversation } from '../utils/chat';
 import { Avatar } from './Avatar';
+import { BrandLogo } from './BrandLogo';
 import { MessageBubble } from './MessageBubble';
 import { NewChatModal } from './NewChatModal';
 
 export function MainApp() {
+  const { startAudioCall, call: callUi } = useCall();
   const [me, setMe] = useState<User | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -134,16 +138,16 @@ export function MainApp() {
     });
 
     const heartbeat = setInterval(() => {
-      reportClient(true).catch(() => {});
+      reportClient(true, callUi.phase !== 'idle').catch(() => {});
     }, 30_000);
-    reportClient(true).catch(() => {});
+    reportClient(true, callUi.phase !== 'idle').catch(() => {});
 
     return () => {
       off();
       clearInterval(heartbeat);
       globalSocket.disconnect();
     };
-  }, [activeId, loadList, myId]);
+  }, [activeId, loadList, myId, callUi.phase]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -195,11 +199,14 @@ export function MainApp() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1>Deep</h1>
-          <button type="button" className="btn-icon" title="Новый чат" onClick={() => setShowNewChat(true)}>+</button>
+        <div className="sidebar-header sidebar-header-row">
+          <BrandLogo size={32} />
+          <button type="button" className="btn-icon" title="Новый чат" onClick={() => setShowNewChat(true)}>
+            <Plus size={22} />
+          </button>
         </div>
-        <div className="sidebar-search">
+        <div className="sidebar-search search-wrap">
+          <Search size={18} className="search-icon" />
           <input placeholder="Поиск чатов" value={listFilter} onChange={(e) => setListFilter(e.target.value)} />
         </div>
         <div className="chat-list">
@@ -233,7 +240,10 @@ export function MainApp() {
 
       <main className="main-panel">
         {!activeId ? (
-          <div className="empty-state">Выбери чат или создай новый</div>
+          <div className="empty-state anim-fade-in">
+            <BrandLogo size={96} showText={false} />
+            <p>Выбери чат или создай новый</p>
+          </div>
         ) : (
           <>
             <header className="chat-header">
@@ -244,12 +254,27 @@ export function MainApp() {
                   {typing ? <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>печатает…</div> : null}
                 </div>
               </div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Звонки — в мобильном приложении</span>
+              <button
+                type="button"
+                className="btn-icon call-header-btn"
+                title="Аудиозвонок"
+                disabled={callUi.phase !== 'idle'}
+                onClick={() => {
+                  if (!activeId) return;
+                  startAudioCall(activeId, activeTitle).catch((e) => {
+                    setError(e instanceof Error ? e.message : 'Не удалось позвонить');
+                  });
+                }}
+              >
+                <Phone size={22} />
+              </button>
             </header>
             <div className="messages">
               {loadingChat ? <p style={{ color: 'var(--muted)' }}>Загрузка сообщений…</p> : null}
-              {messages.map((m) => (
-                <MessageBubble key={m.id} msg={m} mine={m.senderId === myId} />
+              {messages.map((m, i) => (
+                <div key={m.id} className="msg-anim" style={{ animationDelay: `${Math.min(i * 18, 120)}ms` }}>
+                  <MessageBubble msg={m} mine={m.senderId === myId} />
+                </div>
               ))}
               <div ref={messagesEndRef} />
             </div>
@@ -266,7 +291,9 @@ export function MainApp() {
                   e.target.value = '';
                 }}
               />
-              <button type="button" className="btn-icon" title="Вложение" onClick={() => fileRef.current?.click()}>📎</button>
+              <button type="button" className="btn-icon" title="Вложение" onClick={() => fileRef.current?.click()}>
+                <Paperclip size={22} />
+              </button>
               <textarea
                 rows={1}
                 placeholder="Сообщение"
@@ -279,8 +306,9 @@ export function MainApp() {
                   }
                 }}
               />
-              <button type="button" className="btn btn-primary" disabled={!draft.trim()} onClick={send}>
-                Отправить
+              <button type="button" className="btn btn-primary btn-send" disabled={!draft.trim()} onClick={send}>
+                <Send size={18} />
+                <span>Отправить</span>
               </button>
             </div>
           </>

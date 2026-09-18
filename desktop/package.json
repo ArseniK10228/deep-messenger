@@ -1,6 +1,6 @@
 {
   "name": "deep-messenger-desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Deep Messenger for Windows",
   "main": "dist-electron/main.js",
   "author": "Deep Design",
@@ -13,6 +13,7 @@
     "dist:portable": "npm run build && electron-builder --win portable"
   },
   "dependencies": {
+    "lucide-react": "^0.469.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -38,17 +39,23 @@
       "dist-electron/**/*"
     ],
     "win": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerLanguages": ["ru", "en"],
+      "installerLanguages": [
+        "ru",
+        "en"
+      ],
       "language": "1049"
     },
     "portable": {

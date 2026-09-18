@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { sendEmailCode, setStoredUserId, setToken, verifyEmailCode } from '../api/client';
+import { BrandLogo } from './BrandLogo';
 
 type Props = {
   onLoggedIn: () => void;
@@ -54,8 +55,8 @@ export function LoginView({ onLoggedIn }: Props) {
 
   return (
     <div className="login">
-      <div className="login-card">
-        <h1>Deep</h1>
+      <div className="login-card anim-scale-in">
+        <BrandLogo size={64} className="login-brand" />
         <p>{requestId ? 'Введи код из письма' : 'Войди по email — пришлём код'}</p>
         {error ? <div className="login-error">{error}</div> : null}
         {!requestId ? (

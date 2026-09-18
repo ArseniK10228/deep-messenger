@@ -12,12 +12,14 @@ process.env.VITE_PUBLIC = app.isPackaged
 let win: BrowserWindow | null = null;
 
 function createWindow() {
+  const iconPath = path.join(__dirname, '../build/icon.png');
   win = new BrowserWindow({
     width: 1180,
     height: 760,
     minWidth: 920,
     minHeight: 600,
     title: 'Deep Messenger',
+    icon: iconPath,
     backgroundColor: '#0d0d0f',
     autoHideMenuBar: true,
     webPreferences: {

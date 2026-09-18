@@ -125,14 +125,46 @@ export async function createDirectChat(userId: string) {
   });
 }
 
-export async function reportClient(foreground: boolean) {
+export type IceConfig = {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+};
+
+export async function fetchIceServers() {
+  return request<{ iceServers: IceConfig[] }>('/calls/ice');
+}
+
+export async function startCall(conversationId: string, video = false) {
+  return request<{ callId: string; iceServers: IceConfig[] }>('/calls', {
+    method: 'POST',
+    body: JSON.stringify({ conversationId, video })
+  });
+}
+
+export async function acceptCall(callId: string) {
+  return request<{ ok: boolean; iceServers: IceConfig[] }>(`/calls/${callId}/accept`, {
+    method: 'POST'
+  });
+}
+
+export async function rejectCall(callId: string) {
+  return request(`/calls/${callId}/reject`, { method: 'POST' });
+}
+
+export async function endCall(callId: string) {
+  return request(`/calls/${callId}/end`, { method: 'POST' });
+}
+
+export async function reportClient(foreground: boolean, inCall = false) {
   return request('/auth/client', {
     method: 'POST',
     body: JSON.stringify({
-      versionCode: 1,
-      versionName: '1.0.0-desktop',
+      versionCode: 2,
+      versionName: '1.1.0-desktop',
       foreground,
-      network: 'desktop'
+      network: 'desktop',
+      inCall
     })
   });
 }

@@ -18,7 +18,7 @@ export class DeepSocket {
     this.ws = new WebSocket(url);
     this.ws.onopen = () => {
       if (this.subscribed) {
-        this.send({ type: 'subscribe', conversationId: this.subscribed });
+        this.sendPayload({ type: 'subscribe', conversationId: this.subscribed });
       }
     };
     this.ws.onmessage = (ev) => {
@@ -47,16 +47,21 @@ export class DeepSocket {
   subscribe(conversationId: string | null) {
     this.subscribed = conversationId;
     if (this.ws?.readyState === WebSocket.OPEN && conversationId) {
-      this.send({ type: 'subscribe', conversationId });
+      this.sendPayload({ type: 'subscribe', conversationId });
     }
   }
 
   sendTyping(conversationId: string) {
-    this.send({ type: 'typing', conversationId });
+    this.sendPayload({ type: 'typing', conversationId });
   }
 
   sendDelivered(messageId: string) {
-    this.send({ type: 'delivered', messageId });
+    this.sendPayload({ type: 'delivered', messageId });
+  }
+
+  /** Call signaling + misc WS messages */
+  send(obj: Record<string, unknown>) {
+    this.sendPayload(obj);
   }
 
   onEvent(handler: Handler) {
@@ -64,7 +69,7 @@ export class DeepSocket {
     return () => this.handlers.delete(handler);
   }
 
-  private send(obj: Record<string, unknown>) {
+  private sendPayload(obj: Record<string, unknown>) {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(obj));
     }

@@ -9,8 +9,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -252,12 +254,23 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(state.peerTyping) {
-        if (!state.peerTyping || state.messages.isEmpty()) return@LaunchedEffect
+    val typingListIndex: Int? =
+        if (state.peerTyping) {
+            if (state.messages.isEmpty()) 0 else state.messages.size
+        } else {
+            null
+        }
+
+    LaunchedEffect(state.peerTyping, state.messages.size) {
+        if (!state.peerTyping) return@LaunchedEffect
+        val target = typingListIndex ?: return@LaunchedEffect
         val nearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-            ?.let { it >= state.messages.lastIndex - 1 } != false
+            ?.let { lastVisible ->
+                val lastContent = if (state.messages.isEmpty()) 0 else state.messages.lastIndex
+                lastVisible >= lastContent - 1
+            } != false
         if (nearBottom) {
-            listState.animateScrollToItem(state.messages.lastIndex)
+            listState.animateScrollToItem(target)
         }
     }
 
@@ -462,7 +475,7 @@ fun ChatScreen(
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
-                state.messages.isEmpty() && !state.recording -> {
+                state.messages.isEmpty() && !state.recording && !state.peerTyping -> {
                     Text(
                         text = "Напиши первое сообщение",
                         color = DeepMuted,
@@ -493,26 +506,26 @@ fun ChatScreen(
                                 onLongClick = { deleteTarget = msg }
                             )
                         }
+                        item(key = "peer_typing") {
+                            AnimatedVisibility(
+                                visible = state.peerTyping,
+                                enter = fadeIn(tween(200)) + expandVertically(
+                                    animationSpec = tween(240, easing = FastOutSlowInEasing),
+                                    expandFrom = Alignment.Top
+                                ),
+                                exit = fadeOut(tween(160)) + shrinkVertically(
+                                    animationSpec = tween(200, easing = FastOutSlowInEasing),
+                                    shrinkTowards = Alignment.Top
+                                )
+                            ) {
+                                TypingBubbleIndicator(
+                                    asMessageBubble = true,
+                                    compact = true,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
+                        }
                     }
-                }
-            }
-
-            AnimatedVisibility(
-                visible = state.peerTyping,
-                enter = fadeIn(tween(180)),
-                exit = fadeOut(tween(120)),
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(inputBarColor)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TypingBubbleIndicator(compact = true)
                 }
             }
 

@@ -21,6 +21,7 @@ import { Avatar } from './Avatar';
 import { BrandLogo } from './BrandLogo';
 import { MessageBubble } from './MessageBubble';
 import { NewChatModal } from './NewChatModal';
+import { TypingIndicator } from './TypingIndicator';
 
 export function MainApp() {
   const { startAudioCall, call: callUi } = useCall();
@@ -151,7 +152,7 @@ export function MainApp() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, activeId]);
+  }, [messages, activeId, typing]);
 
   async function send() {
     const text = draft.trim();
@@ -286,6 +287,7 @@ export function MainApp() {
                   <MessageBubble msg={m} mine={m.senderId === myId} />
                 </div>
               ))}
+              <TypingIndicator visible={typing} />
               <div ref={messagesEndRef} />
             </div>
             {error ? <div className="typing" style={{ color: 'var(--error)' }}>{error}</div> : null}

@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { registerFileOpenHandlers } from './fileOpen';
 import { setupAutoUpdater } from './updater';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -62,6 +63,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('online.deepdesign.deep.desktop');
+  registerFileOpenHandlers();
   createWindow();
   setupAutoUpdater(() => win);
   app.on('activate', () => {

@@ -12,6 +12,7 @@ interface ImportMeta {
 
 interface DeepDesktopApi {
   platform: string;
+  openChatFile?: (url: string, fileName: string, authToken?: string | null) => Promise<{ path: string }>;
   checkForUpdates?: () => Promise<unknown>;
   installUpdate?: () => Promise<unknown>;
   onUpdateStatus?: (listener: (payload: unknown) => void) => () => void;

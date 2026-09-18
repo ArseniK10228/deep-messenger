@@ -17,6 +17,7 @@ import { Paperclip, Phone, Plus, Search, Send, X } from 'lucide-react';
 import { useCall } from '../call/CallContext';
 import { bindSocketNetworkRecovery, globalSocket } from '../ws/socket';
 import { conversationTitle, formatListTime, lastMessagePreview, peerFromConversation } from '../utils/chat';
+import { openMessageFile } from '../utils/openMessageFile';
 import { appendMessageUnique, normalizeWsMessage } from '../utils/message';
 import { Avatar } from './Avatar';
 import { BrandLogo } from './BrandLogo';
@@ -354,7 +355,11 @@ export function MainApp() {
                   <MessageBubble
                     msg={m}
                     mine={m.senderId === myId}
-                    onOpenMedia={(msg) => setViewerMsg(msg)}
+                    onOpenMedia={(msg) => {
+                      openMessageFile(msg, setViewerMsg).catch((e) => {
+                        setError(e instanceof Error ? e.message : 'Не удалось открыть файл');
+                      });
+                    }}
                   />
                 </div>
               ))}

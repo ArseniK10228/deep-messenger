@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X, ExternalLink } from 'lucide-react';
-import { mediaUrl } from '../api/client';
+import { getToken, mediaUrl } from '../api/client';
 
 type Props = {
   fileName: string;
@@ -49,8 +49,12 @@ export function FileViewerModal({ fileName, mediaPath, kind, onClose }: Props) {
     };
   }, [url, isImage, isPdf]);
 
-  function openExternal() {
+  async function openWithSystem() {
     if (!url) return;
+    if (window.deepDesktop?.openChatFile) {
+      await window.deepDesktop.openChatFile(url, fileName, getToken());
+      return;
+    }
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
@@ -80,18 +84,30 @@ export function FileViewerModal({ fileName, mediaPath, kind, onClose }: Props) {
           {!loading && !isImage && !isPdf ? (
             <div className="file-viewer-fallback">
               <p>Просмотр в окне недоступен для этого типа файла.</p>
-              <button type="button" className="btn btn-primary" onClick={openExternal}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  openWithSystem().catch((e) => setError(e instanceof Error ? e.message : 'Ошибка'));
+                }}
+              >
                 <ExternalLink size={18} />
-                <span>Открыть / скачать</span>
+                <span>Открыть</span>
               </button>
             </div>
           ) : null}
         </div>
         {(isImage || isPdf) && url ? (
           <footer className="file-viewer-footer">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={openExternal}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                openWithSystem().catch((e) => setError(e instanceof Error ? e.message : 'Ошибка'));
+              }}
+            >
               <ExternalLink size={16} />
-              В браузере
+              Открыть в системе
             </button>
           </footer>
         ) : null}

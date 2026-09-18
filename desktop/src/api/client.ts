@@ -160,8 +160,8 @@ export async function reportClient(foreground: boolean, inCall = false) {
   return request('/auth/client', {
     method: 'POST',
     body: JSON.stringify({
-      versionCode: 2,
-      versionName: '1.1.0-desktop',
+      versionCode: Number(import.meta.env.VITE_APP_VERSION_CODE) || 0,
+      versionName: `${import.meta.env.VITE_APP_VERSION}-desktop`,
       foreground,
       network: 'desktop',
       inCall

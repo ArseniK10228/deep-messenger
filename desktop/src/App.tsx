@@ -4,18 +4,24 @@ import { CallProvider } from './call/CallContext';
 import { CallOverlay } from './components/CallOverlay';
 import { LoginView } from './components/LoginView';
 import { MainApp } from './components/MainApp';
+import { UpdateBanner } from './components/UpdateBanner';
 
 export default function App() {
   const [authed, setAuthed] = useState(() => Boolean(getToken()));
 
-  if (!authed) {
-    return <LoginView onLoggedIn={() => setAuthed(true)} />;
-  }
-
-  return (
-    <CallProvider>
-      <MainApp />
-      <CallOverlay />
-    </CallProvider>
+  const shell = (
+    <>
+      <UpdateBanner />
+      {authed ? (
+        <CallProvider>
+          <MainApp />
+          <CallOverlay />
+        </CallProvider>
+      ) : (
+        <LoginView onLoggedIn={() => setAuthed(true)} />
+      )}
+    </>
   );
+
+  return shell;
 }

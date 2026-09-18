@@ -602,3 +602,74 @@
 .call-remote-audio {
   display: none;
 }
+
+.sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid var(--surface-high);
+}
+
+.btn-sm {
+  font-size: 0.85rem;
+  padding: 8px 10px;
+}
+
+.update-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: linear-gradient(90deg, rgba(157, 92, 255, 0.22), rgba(90, 60, 160, 0.35));
+  border-bottom: 1px solid rgba(157, 92, 255, 0.35);
+  font-size: 0.9rem;
+  backdrop-filter: blur(8px);
+  animation: anim-fade-in 0.35s ease;
+}
+
+.update-banner--muted {
+  color: var(--muted);
+}
+
+.update-banner--ready {
+  background: rgba(40, 120, 70, 0.35);
+  border-bottom-color: rgba(80, 200, 120, 0.4);
+}
+
+.update-banner__btn {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.update-banner__bar {
+  width: 120px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--surface-high);
+  overflow: hidden;
+}
+
+.update-banner__bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -54,11 +54,17 @@ jobs:
             --title "Установка Deep Messenger" \
             --notes "Актуальные сборки Android и Windows. Файлы обновляются при CI." \
             --latest
+          YML=desktop/release/latest.yml
+          if [ ! -f "$YML" ]; then
+            echo "::error::Missing latest.yml for electron-updater (OTA)"
+            exit 1
+          fi
           cp "$SETUP" "Deep-Messenger-Windows-Setup-${VER}.exe"
           cp "$SETUP" Deep-Messenger-Windows-Setup-latest.exe
           gh release upload downloads \
             "Deep-Messenger-Windows-Setup-${VER}.exe" \
             Deep-Messenger-Windows-Setup-latest.exe \
+            "$YML" \
             --clobber \
             --repo "${{ github.repository }}"
           echo "Release: https://github.com/${{ github.repository }}/releases/tag/downloads"

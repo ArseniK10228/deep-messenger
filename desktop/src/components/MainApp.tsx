@@ -231,7 +231,17 @@ export function MainApp() {
             );
           })}
         </div>
-        <div style={{ padding: 12, borderTop: '1px solid var(--surface-high)' }}>
+        <div className="sidebar-footer">
+          {window.deepDesktop?.checkForUpdates ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ width: '100%', marginBottom: 8 }}
+              onClick={() => window.deepDesktop?.checkForUpdates?.()}
+            >
+              Проверить обновления
+            </button>
+          ) : null}
           <button type="button" className="btn btn-ghost" style={{ width: '100%' }} onClick={logout}>
             Выйти ({me?.displayName || '…'})
           </button>
